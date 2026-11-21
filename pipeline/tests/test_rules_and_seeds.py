@@ -13,7 +13,7 @@ from pydantic import TypeAdapter, ValidationError
 
 import dhq.run as pipeline
 from dhq import classify
-from dhq.adapters import ca_leginfo, scotus
+from dhq.adapters import ca_leginfo, congress, scotus
 from dhq.evidence import find_passage
 from dhq.http import Fetcher
 from dhq.schemas import CaBillId, LawVersion, LegislativeInstrument, LegislativeInstrumentSummary, Verification
@@ -383,11 +383,22 @@ def test_a_digest_names_the_federal_voting_rights_act_as_the_bills_subject_only_
 
 def test_the_published_rules_name_their_exclusions_and_new_ids():
     rules = {r["tag"]: r for r in classify.rules_document()["issueRules"]}
-    assert rules["direct-democracy"]["ruleId"] == "tag-direct-3" and rules["voting-rights-act"]["ruleId"] == "tag-vra-3"
-    assert rules["direct-democracy"]["exclusionPattern"] == classify.ISSUE_EXCLUSIONS["direct-democracy"]
-    assert "exclusionPattern" not in rules["redistricting"]
+    assert rules["direct-democracy"]["ruleId"] == "tag-direct-4" and rules["voting-rights-act"]["ruleId"] == "tag-vra-5"
+    assert rules["redistricting"]["ruleId"] == "tag-redist-2"
+    for tag in ("direct-democracy", "redistricting", "voting-rights-act"):
+        assert rules[tag]["exclusionPattern"] == classify.ISSUE_EXCLUSIONS[tag]
+    assert "exclusionPattern" not in rules["registration"]
     note = classify.rules_document()["note"]
     assert "'would'" in note and "breaks across two lines with a hyphen" in note
+
+
+def test_the_rule_for_the_stage_of_a_measure_of_congress_publishes_its_stages_in_order(env):
+    # The site lists stages in this order from a list of its own (FEDERAL_STAGES); the data check compares the two.
+    env.run(["relationships", "events"])
+    rule = next(r for r in env.read("classification.json")["otherRules"] if r["ruleId"] == congress.STATUS_RULE_ID)
+    assert rule["order"] == congress.STATUS_ORDER
+    assert rule["order"][0] == "Introduced" and rule["order"][-1] == "Became law"
+    assert [r["ruleId"] for r in env.read("classification.json")["otherRules"] if "order" in r] == [congress.STATUS_RULE_ID]
 
 
 # --- DN3: a word a PDF breaks across lines is joined before the rules read it ------------------------------------

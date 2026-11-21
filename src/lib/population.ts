@@ -6,16 +6,20 @@
  */
 import type { PopulationFile, RedistrictingFile } from '../types/schemas';
 import type { PopulationDataset } from './data';
-import { ISLAND_AREAS, parseGeoKey, stateKind } from './geo';
+import { ISLAND_AREAS, isCensusLayer, parseGeoKey, stateKind } from './geo';
 
 export type PopulationResult =
   | { status: 'available'; values: Record<string, number>; dataset: PopulationFile['dataset']; variables: PopulationFile['variables']; carriedFrom?: string; note?: string }
   | { status: 'unavailable'; reason: string };
 
-/** Which dataset holds counts for a unit key, if any. */
+/** Said for the United States as a whole and for a judicial circuit, which the loaded Census files do not tabulate. */
+export const NO_COUNTS_FOR_UNIT =
+  'The Census counts in DemocracyHQ are tabulated for states, counties and congressional districts, not for this unit. DemocracyHQ does not add them up.';
+
+/** Which dataset holds counts for a unit key, if any. There is none for the United States as a whole or for a judicial circuit. */
 export function datasetFor(key: string): PopulationDataset | null {
   const parsed = parseGeoKey(key);
-  if (!parsed) return null;
+  if (!parsed || !isCensusLayer(parsed.layer)) return null;
   if (parsed.layer === 'state') return 'state';
   if (parsed.layer === 'county') return 'county';
   return 'cd119';
@@ -34,6 +38,9 @@ function rowToValues(file: PopulationFile, geoid: string): Record<string, number
 export function populationFor(key: string, file: PopulationFile, redistricting: RedistrictingFile | null): PopulationResult {
   const parsed = parseGeoKey(key);
   if (!parsed) return { status: 'unavailable', reason: 'Unknown geographic unit.' };
+  if (!isCensusLayer(parsed.layer)) {
+    return { status: 'unavailable', reason: NO_COUNTS_FOR_UNIT };
+  }
   const stateFips = parsed.geoid.slice(0, 2);
   if (ISLAND_AREAS.has(stateFips)) {
     return { status: 'unavailable', reason: 'The 2020 Census of the Island Areas is published separately and is not loaded in DemocracyHQ.' };

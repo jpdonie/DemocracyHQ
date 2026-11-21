@@ -5,6 +5,7 @@
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { LegislativeInstrument, TextBlock, VersionText } from '../../types/schemas';
+import { billHeading, isFederalBill } from '../../lib/bills';
 import { loadBill, loadVersionText } from '../../lib/data';
 import { diffBlocks, isIdentical, markedText, segmentDiff, type DiffResult, type DiffRow } from '../../lib/diff';
 import { formatDate, formatNumber, plural } from '../../lib/format';
@@ -168,7 +169,7 @@ function MissingVersions({ bill, requested, mirrored, shown }: {
         return (
           <p key={role}>
             {role}: <span className="geoid">{id}</span>.{' '}
-            {listed ? `This is the “${listed.label}” version of ${formatDate(listed.versionDate)}, whose text is not mirrored; use its official link on the measure’s page.` : `No version of California ${bill.identifier} in this dataset has this id. Version ids can change when the data is refreshed.`}
+            {listed ? `This is the “${listed.label}” version of ${formatDate(listed.versionDate)}, whose text is not mirrored; use its official link on the measure’s page.` : `No version of ${billHeading(bill)} in this dataset has this id. Version ids can change when the data is refreshed.`}
           </p>
         );
       })}
@@ -216,7 +217,7 @@ function CompareBody({ bill, route }: { bill: LegislativeInstrument; route: Rout
     <>
       <header className="view-head">
         <TypeMark type="bill" />
-        <h1 tabIndex={-1}>{comparing ? 'Compare text versions' : 'Read a text version'}: <span className="bill-id">California {bill.identifier}</span></h1>
+        <h1 tabIndex={-1}>{comparing ? 'Compare text versions' : 'Read a text version'}: <span className="bill-id">{billHeading(bill)}</span></h1>
         <p className="lede">{bill.subject}</p>
       </header>
       {missing.length > 0 ? (
@@ -248,7 +249,10 @@ function CompareBody({ bill, route }: { bill: LegislativeInstrument; route: Rout
         </div>
       ) : null}
       <p className="quiet source-inline">
-        Text extracted from the Legislative Counsel&rsquo;s official bulk data. Tables and special formatting are flattened, and the official version controls:{' '}
+        {isFederalBill(bill)
+          ? 'Text extracted from the XML file the Government Publishing Office publishes for each version.'
+          : 'Text extracted from the Legislative Counsel’s official bulk data.'}
+        {' '}Tables and special formatting are flattened, and the official version controls:{' '}
         {from && comparing ? <><Ext href={from.officialUrl}>{from.label}</Ext>, </> : null}
         <Ext href={to.officialUrl}>{to.label}</Ext>. Text hash (SHA-256) of the later version: <span className="hash">{to.textHash?.slice(0, 16)}&hellip;</span>
       </p>

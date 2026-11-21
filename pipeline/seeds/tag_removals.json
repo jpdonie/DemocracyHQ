@@ -1,0 +1,33 @@
+{
+  "_readme": "Issue tags that a keyword rule assigns to a court of appeals case although the case is not about that subject. The rules count words, and in a long opinion a rule can reach its count where the court only compares the case with decisions on another subject. Each entry names the case by its id (for example ca11-22-14031), the tag, the reason in one sentence and a passage of the opinion that shows what the case is about. Use […] inside a quote for words left out. On every run the pipeline looks for the passage in the documents of the case. Only if it is found is the tag taken off, and the removal is then published with the case and shown on its page, with the rule that had assigned the tag and the words it had matched. If the passage is not found, or the rules no longer assign the tag, the entry is listed in the review queue. Remove a tag only when the opinion itself shows that the subject is not at issue. Never remove a tag because of who the parties are or how the case was decided.",
+  "removals": [
+    {
+      "entity": "ca11-22-14031",
+      "caseName": "Michael Polelle v. Florida Secretary of State",
+      "tag": "redistricting",
+      "reason": "The case is about who may vote in Florida's closed party primaries. The opinion names redistricting and gerrymandering only where it cites other decisions.",
+      "quote": "Florida’s closed system of primary elections prevents him from participating in any political party’s primary"
+    },
+    {
+      "entity": "ca11-22-14031",
+      "caseName": "Michael Polelle v. Florida Secretary of State",
+      "tag": "voting-rights-act",
+      "reason": "The three claims rest on the First and Fourteenth Amendments. The opinion names the Voting Rights Act only where it compares the claim with those of the plaintiffs in an earlier case, Osburn v. Cox.",
+      "quote": "He alleged three claims for relief: (1) a violation of his First Amendment freedoms from compelled speech or association; (2) a violation of his fundamental right to vote, as secured by the First and Fourteenth Amendments; and (3) a violation of his rights to the equal protection of the laws, as secured by the Fourteenth Amendment."
+    },
+    {
+      "entity": "cadc-24-07050",
+      "caseName": "Stacia Hall v. District of Columbia Board of Elections",
+      "tag": "redistricting",
+      "reason": "The case is about a District of Columbia law that lets noncitizens vote in local elections. The opinion names gerrymandering only where it compares the plaintiffs' standing with that in other decisions.",
+      "quote": "a D.C. law permitting noncitizens to vote in municipal elections"
+    },
+    {
+      "entity": "cadc-24-07065",
+      "caseName": "Stacia Hall v. District of Columbia Board of Elections",
+      "tag": "redistricting",
+      "reason": "The case is about a District of Columbia law that lets noncitizens vote in local elections. The opinion names gerrymandering only where it compares the plaintiffs' standing with that in other decisions.",
+      "quote": "a D.C. law permitting noncitizens to vote in municipal elections"
+    }
+  ]
+}

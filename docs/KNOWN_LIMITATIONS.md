@@ -3,17 +3,28 @@
 This page lists what DemocracyHQ does not cover, does not check, or has not
 proved. It is meant to be read before the tool is relied on for anything.
 
-Status as of the data release of 2026-11-20T22:05:28Z.
+Status as of the data release of 2026-11-21. The limits of the federal level
+(Congress, the courts of appeals, the circuits) are set out in
+[FEDERAL_LEVEL.md](FEDERAL_LEVEL.md#limits).
 
 ## Coverage
 
-- **One court.** Only the U.S. Supreme Court, and only 25 dockets chosen by hand.
-  No lower federal court, no state court. Most election litigation happens in the
-  courts that are missing.
-- **One legislature, one session.** Only California's 2025-2026 Regular Session:
-  132 of its 5,041 measures. No other state, no Congress, no extraordinary
-  sessions, no earlier sessions, no ballot measures as such, no regulations, no
-  local ordinances.
+- **Courts.** The U.S. Supreme Court (25 dockets chosen by hand) and the thirteen
+  federal courts of appeals (128 cases selected by a word-counting rule from what
+  the courts send GovInfo, since 2025 only, as opinions without dockets). No
+  federal district court, no state court. Most election litigation starts in the
+  courts that are missing. The Eighth Circuit's cases are more likely to be
+  missing than those of other courts, because GovInfo holds its cover letters in
+  place of its opinions.
+- **Two legislatures.** Congress (273 of the 20,191 measures of the 119th
+  Congress, selected by their titles and policy area) and California's 2025-2026
+  Regular Session (132 of its 5,041 measures). No other state, no extraordinary
+  sessions, no earlier sessions or Congresses, no ballot measures as such, no
+  regulations, no local ordinances.
+- **The stage of a measure of Congress is derived.** Congress's record has no
+  status field; the stage is the furthest step among the recorded actions (rule
+  `us-status-1`). A stage that names both chambers does not say that both passed
+  the same text.
 - **Bill selection is by subject line.** A measure is included only if its latest
   official subject matches the published rule (`ca-select-2`) after the phrases of
   its published exclusion pattern are removed. Election-related bills with other

@@ -5,33 +5,36 @@ test.describe('Litigation tracker', () => {
     await open(page, '#/litigation');
     await expect(heading(page)).toHaveText('Election litigation');
     const status = page.locator('.filters-status');
-    await expect(status).toContainText(/^\d+ dockets in this dataset/);
+    await expect(status).toContainText(/^\d+ cases in this dataset/);
     const total = Number((await status.innerText()).match(/^(\d+)/)![1]);
     expect(total).toBeGreaterThanOrEqual(20);
 
     await page.getByRole('combobox', { name: 'Issue' }).selectOption('redistricting');
     await expect(page).toHaveURL(/tag=redistricting/);
-    await expect(status).toContainText(new RegExp(`^\\d+ dockets of ${total} match these filters`));
+    await expect(status).toContainText(new RegExp(`^\\d+ cases of ${total} match these filters`));
     const filtered = Number((await status.innerText()).match(/^(\d+)/)![1]);
     expect(filtered).toBeGreaterThan(0);
     expect(filtered).toBeLessThan(total);
-    // Every listed case carries the tag that was filtered on.
-    const items = page.locator('main ul.rows > li').filter({ has: page.getByRole('link', { name: 'Redistricting', exact: true }) });
-    await expect(items).toHaveCount(filtered);
+    // Every row carries the tag that was filtered on. Appeals decided in one opinion share a row, so there can be fewer rows than cases.
+    const rows = page.locator('main ul.rows > li');
+    const count = await rows.count();
+    expect(count).toBeGreaterThan(0);
+    expect(count).toBeLessThanOrEqual(filtered);
+    await expect(rows.filter({ has: page.getByRole('link', { name: 'Redistricting', exact: true }) })).toHaveCount(count);
 
     // The filtered view is a shareable address: loading it cold gives the same list.
     await page.reload();
     await expect(page.getByRole('combobox', { name: 'Issue' })).toHaveValue('redistricting');
-    await expect(status).toContainText(`${filtered} dockets of ${total} match these filters`);
+    await expect(status).toContainText(`${filtered} cases of ${total} match these filters`);
 
     await page.getByRole('button', { name: 'Clear filters' }).first().click();
-    await expect(status).toContainText(`${total} dockets in this dataset`);
+    await expect(status).toContainText(`${total} cases in this dataset`);
   });
 
   test('searches by docket number and opens the case', async ({ page }) => {
     await open(page, '#/litigation');
     await page.getByRole('searchbox', { name: 'Search case name or docket number' }).fill(CASE.docket);
-    await expect(page.locator('.filters-status')).toContainText(/^1 docket of \d+ match/);
+    await expect(page.locator('.filters-status')).toContainText(/^1 case of \d+ match/);
     await page.getByRole('link', { name: CASE.name }).click();
     await expect(page).toHaveURL(new RegExp(`#/litigation/${CASE.id}$`));
     await expect(heading(page)).toHaveText(CASE.name);
@@ -67,7 +70,7 @@ test.describe('Litigation tracker', () => {
 
   test('says so when the filters match nothing, and that a gap is not absence', async ({ page }) => {
     await open(page, '#/litigation?q=zzzzqq');
-    await expect(page.locator('.filters-status')).toContainText(/^0 dockets of \d+ match these filters/);
+    await expect(page.locator('.filters-status')).toContainText(/^0 cases of \d+ match these filters/);
     await expect(page.getByText('No case in this dataset matches these filters.')).toBeVisible();
     await expect(page.getByText('A data gap is not evidence of absence.').first()).toBeVisible();
   });

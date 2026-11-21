@@ -9,7 +9,7 @@ test.describe('Accessibility: automated WCAG 2.2 A and AA rules', () => {
     ['#/', /^Election litigation, voting laws/],
     ['#/litigation', 'Election litigation'],
     [`#/litigation/${CASE.id}`, CASE.name],
-    ['#/laws', 'California election legislation'],
+    ['#/laws', 'Election legislation'],
     [`#/laws/${BILL.id}`, BILL.heading],
     [`#/laws/${BILL.id}/compare?from=${BILL.from}&to=${BILL.to}`, /^Compare text versions/],
     [`#/laws/${BILL.id}/compare?from=X&to=Y`, /^Read a text version/],
@@ -45,14 +45,14 @@ test.describe('Accessibility: automated WCAG 2.2 A and AA rules', () => {
 
   test('no violations with the search results open', async ({ page }) => {
     await open(page, '#/');
-    await page.getByRole('combobox', { name: 'Search places, cases and bills' }).fill('california');
+    await page.getByRole('combobox', { name: 'Search places, courts, cases and bills' }).fill('california');
     await expect(page.getByRole('listbox', { name: 'Search results' })).toBeVisible();
     expect(await axeViolations(page)).toEqual([]);
   });
 
   test('no violations with close spellings suggested', async ({ page }) => {
     await open(page, '#/');
-    await page.getByRole('combobox', { name: 'Search places, cases and bills' }).fill('louisianna');
+    await page.getByRole('combobox', { name: 'Search places, courts, cases and bills' }).fill('louisianna');
     await expect(page.getByText('Did you mean:')).toBeVisible();
     expect(await axeViolations(page)).toEqual([]);
   });
@@ -111,7 +111,7 @@ test.describe('Keyboard', () => {
     await open(page, '#/sources');
     await expect(heading(page)).toHaveText('Data sources and methodology');
     await page.keyboard.press('/');
-    const search = page.getByRole('combobox', { name: 'Search places, cases and bills' });
+    const search = page.getByRole('combobox', { name: 'Search places, courts, cases and bills' });
     await expect(search).toBeFocused();
     await page.keyboard.type('callais');
     await expect(search).toHaveAttribute('aria-expanded', 'true');
@@ -120,8 +120,9 @@ test.describe('Keyboard', () => {
     await expect(page.getByRole('option').nth(1)).toHaveAttribute('aria-selected', 'true');
     await page.keyboard.press('ArrowUp');
     await page.keyboard.press('Enter');
-    await expect(page).toHaveURL(/#\/litigation\/scotus-24-109$/);
-    await expect(heading(page)).toHaveText(CASE.name);
+    // The first result is a case named Callais: the Supreme Court's docket or the court of appeals case below it.
+    await expect(page).toHaveURL(/#\/litigation\/[a-z0-9-]+$/);
+    await expect(heading(page)).toContainText('Callais');
 
     await search.focus();
     await page.keyboard.type('texas');

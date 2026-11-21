@@ -1,10 +1,15 @@
 import { Component, lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { Layer } from './types/schemas';
 import { APP_NAME, REPO_URL } from './config';
+import { billLabel, isFederalBill } from './lib/bills';
 import { CoreProvider, useCore } from './lib/core';
-import { loadPopulation } from './lib/data';
-import { isDistrictLayer, isLayer, parseGeoKey, unionBbox, type Bbox } from './lib/geo';
-import { coverageTheme, linkedRecordsTheme, populationTheme, redrawnTheme, type MapTheme } from './lib/mapTheme';
+import {
+  SCOTUS_ID, casesByCourt, circuitCourtId, circuitViewBbox, courtFullName, courtGeoKey, courtHash, courtIdOfCase, isCourtId,
+} from './lib/courts';
+import { isAppealsCaseId, isFederalBillId, loadPopulation } from './lib/data';
+import { caseStateCounts } from './lib/filters';
+import { NATION_KEY, isCensusLayer, isDistrictLayer, isLayer, parseGeoKey, unionBbox, type Bbox } from './lib/geo';
+import { caseStatesTheme, circuitTheme, coverageTheme, linkedRecordsTheme, populationTheme, redrawnTheme, type MapTheme } from './lib/mapTheme';
 import { linkedStates, relationshipsForRecord } from './lib/relations';
 import { buildHash, moveStartedOn, navigate, patchQuery, useRoute, type Route } from './lib/router';
 import { COMPACT_QUERY, SHORT_COMPACT_QUERY, TINY_COMPACT_QUERY, useMediaQuery } from './lib/media';
@@ -14,11 +19,14 @@ import { focusHeadingWhenShown, restorePlaceWhenShown } from './lib/focus';
 import { lastArrival } from './lib/scrollMemory';
 import { BrandMark } from './components/BrandMark';
 import { GlobalSearch } from './components/GlobalSearch';
-import { LayerControl, Legend } from './components/MapChrome';
+import { LayerControl, Legend, type DistrictPlan, type MapChoice } from './components/MapChrome';
 import { ReleaseNotice } from './components/ReleaseNotice';
 import type { MapPadding } from './components/MapView';
 import { ErrorNote, Icon, Loading } from './components/ui';
 import { AboutPage } from './features/about/AboutPage';
+import { CourtPage } from './features/courts/CourtPage';
+import { CourtsOverview } from './features/courts/CourtsOverview';
+import { FederalWorkspace } from './features/federal/FederalWorkspace';
 import { HomePanel } from './features/geography/HomePanel';
 import { PackView } from './features/geography/PackView';
 import { PlaceWorkspace } from './features/geography/PlaceWorkspace';
@@ -40,6 +48,8 @@ export type View =
   | { name: 'compare'; id: string }
   | { name: 'redistricting' }
   | { name: 'place'; key: string }
+  | { name: 'courts' }
+  | { name: 'court'; id: string }
   | { name: 'sources' }
   | { name: 'about' }
   | { name: 'watchlist' }
@@ -55,7 +65,14 @@ export function resolveView(route: Route): View {
     return c === 'compare' ? { name: 'compare', id: b } : { name: 'bill', id: b };
   }
   if (a === 'redistricting') return { name: 'redistricting' };
-  if (a === 'place' && b) return { name: 'place', key: b };
+  if (a === 'place' && b) {
+    // A circuit is the area of a court of appeals, so its page is that court's page.
+    const parsed = parseGeoKey(b);
+    const courtId = parsed?.layer === 'circuit' ? circuitCourtId(parsed.geoid) : null;
+    return courtId ? { name: 'court', id: courtId } : { name: 'place', key: b };
+  }
+  if (a === 'courts') return { name: 'courts' };
+  if (a === 'court') return b && isCourtId(b) ? { name: 'court', id: b } : { name: 'notfound' };
   if (a === 'sources') return { name: 'sources' };
   if (a === 'about') return { name: 'about' };
   if (a === 'watchlist') return { name: 'watchlist' };
@@ -91,7 +108,7 @@ class MapLoadBoundary extends Component<{ children: ReactNode }, { failed: boole
 export function packTitle(
   view: { kind: string | undefined; id: string | undefined },
   cases: ReadonlyArray<{ id: string; caseName: string; docketNumber: string }> | null | undefined,
-  bills: ReadonlyArray<{ id: string; stateAbbr: string; identifier: string; subject?: string | null }> | null | undefined,
+  bills: ReadonlyArray<{ id: string; state: string; stateAbbr: string; identifier: string; subject?: string | null }> | null | undefined,
   geo: { get(key: string): { name: string } | undefined } | null | undefined,
 ): string {
   const base = 'Legal source pack';
@@ -104,7 +121,7 @@ export function packTitle(
     const bill = bills?.find((b) => b.id === view.id);
     if (!bill) return base;
     const subject = bill.subject?.trim().replace(/\.$/, '');
-    return `${base}: ${bill.stateAbbr} ${bill.identifier}${subject ? ` (${subject})` : ''}`;
+    return `${base}: ${billLabel(bill)}${subject ? ` (${subject})` : ''}`;
   }
   if (view.kind === 'place') {
     const name = geo?.get(view.id)?.name;
@@ -114,7 +131,7 @@ export function packTitle(
 }
 
 function moduleOf(view: View): 'home' | 'litigation' | 'laws' | 'redistricting' | 'sources' | 'other' {
-  if (view.name === 'home' || view.name === 'place') return 'home';
+  if (view.name === 'home' || view.name === 'place' || view.name === 'courts' || view.name === 'court') return 'home';
   if (view.name === 'litigation' || view.name === 'case') return 'litigation';
   if (view.name === 'laws' || view.name === 'bill' || view.name === 'compare') return 'laws';
   if (view.name === 'redistricting') return 'redistricting';
@@ -137,8 +154,15 @@ const SHEET_LABELS: Readonly<Record<SheetSize, string>> = {
  */
 function defaultSheet(view: View, short: boolean, tab: string | undefined): SheetSize {
   if (view.name === 'place' && tab && tab !== 'overview') return 'full';
-  if (view.name === 'home' || view.name === 'place' || view.name === 'redistricting') return short ? 'peek' : 'half';
+  if (view.name === 'home' || view.name === 'place' || view.name === 'redistricting' || view.name === 'courts' || view.name === 'court') return short ? 'peek' : 'half';
   return 'full';
+}
+
+/** The choice in the map's control that draws a layer of boundaries. */
+function choiceOfLayer(layer: Layer): MapChoice {
+  if (layer === 'circuit') return 'circuit';
+  if (layer === 'county') return 'county';
+  return isDistrictLayer(layer) ? 'district' : 'state';
 }
 
 /** On a phone the top bar has no room for the page links, so the pages that are not in the tab bar sit behind one button. */
@@ -189,6 +213,7 @@ function Shell() {
   const relationships = dataOf(core.relationships);
   const cases = dataOf(core.cases);
   const bills = dataOf(core.bills);
+  const courts = dataOf(core.courts);
   const redistricting = dataOf(core.redistricting);
   const sources = dataOf(core.sources) ?? [];
   const panelRef = useRef<HTMLElement | null>(null);
@@ -201,22 +226,48 @@ function Shell() {
 
   /* ----- what the map shows ----- */
   const placeParsed = view.name === 'place' ? parseGeoKey(view.key) : null;
-  const queryLayer = isLayer(route.query.layer) ? route.query.layer : null;
-  const activeLayer: Layer = queryLayer ?? placeParsed?.layer ?? (view.name === 'redistricting' ? 'cd120' : 'state');
+  // Only the Census layers can be asked for in an address. The country as a whole and the circuits come with their own views.
+  const queryLayer = isLayer(route.query.layer) && isCensusLayer(route.query.layer) ? route.query.layer : null;
+  // The court a view is about: a court's own page, or the page of one of its cases.
+  const viewCourt = view.name === 'court' ? view.id : view.name === 'case' ? courtIdOfCase(view.id) : null;
+  const showsCircuits = view.name === 'courts' || (viewCourt !== null && viewCourt !== SCOTUS_ID);
+  // A record of the whole country: the country's own page, a measure of Congress, or the list of them.
+  const federalRecord = (view.name === 'place' && view.key === NATION_KEY)
+    || ((view.name === 'bill' || view.name === 'compare') && isFederalBillId(view.id))
+    || (view.name === 'laws' && route.query.jur === 'us');
+  // The country is never the layer units are picked from: on its views the states stay in reach and it is outlined.
+  const activeLayer: Layer = queryLayer
+    ?? (placeParsed && isCensusLayer(placeParsed.layer) ? placeParsed.layer : null)
+    ?? (showsCircuits ? 'circuit' : view.name === 'redistricting' ? 'cd120' : 'state');
+  const mapChoice: MapChoice = queryLayer ? choiceOfLayer(queryLayer)
+    : federalRecord ? 'federal'
+    : viewCourt === SCOTUS_ID ? 'supreme'
+    : choiceOfLayer(activeLayer);
+  const districtPlan: DistrictPlan = activeLayer === 'cd119' ? 'cd119' : 'cd120';
 
   const focusKeys = useMemo<string[]>(() => {
     if (!geo) return [];
-    if (view.name === 'place') return geo.get(view.key) ? [view.key] : [];
-    if (view.name === 'case' && relationships) {
-      return relationshipsForRecord('case', view.id, relationships).filter((r) => r.target.type === 'geography').map((r) => r.target.id).filter((key) => geo.get(key));
+    const known = (keys: ReadonlyArray<string | null>) => keys.filter((key): key is string => Boolean(key && geo.get(key)));
+    if (view.name === 'place') return known([view.key]);
+    // The Supreme Court sits over the whole country; a court of appeals over its circuit; the Federal Circuit has no area.
+    if (view.name === 'court') return known([view.id === SCOTUS_ID ? NATION_KEY : courtGeoKey(view.id)]);
+    if (view.name === 'case') {
+      if (isAppealsCaseId(view.id)) return known([courtGeoKey(courtIdOfCase(view.id))]);
+      if (!relationships) return [];
+      return known(relationshipsForRecord('case', view.id, relationships).filter((r) => r.target.type === 'geography').map((r) => r.target.id));
     }
-    if ((view.name === 'bill' || view.name === 'compare') && bills) {
-      const bill = bills.bills.find((b) => b.id === view.id);
-      return bill ? [`state:${bill.state}`] : [];
+    if (view.name === 'bill' || view.name === 'compare') {
+      if (isFederalBillId(view.id)) return known([NATION_KEY]);
+      const bill = bills?.bills.find((b) => b.id === view.id);
+      return bill ? known([`state:${bill.state}`]) : [];
     }
-    if (view.name === 'litigation' && route.query.state && geo.get(`state:${route.query.state}`)) return [`state:${route.query.state}`];
+    if (view.name === 'litigation') {
+      if (route.query.state) return known([`state:${route.query.state}`]);
+      return route.query.court ? known([courtGeoKey(route.query.court)]) : [];
+    }
+    if (view.name === 'laws' && route.query.jur === 'us') return known([NATION_KEY]);
     return [];
-  }, [geo, view, relationships, bills, route.query.state]);
+  }, [geo, view, relationships, bills, route.query.state, route.query.court, route.query.jur]);
 
   // Outline the most specific linked unit (a district or county before its state).
   const selectedKey = useMemo(() => {
@@ -225,39 +276,67 @@ function Shell() {
   }, [focusKeys]);
 
   const [fit, setFit] = useState<{ key: string; bbox: Bbox | null }>({ key: 'home', bbox: null });
-  const isHome = view.name === 'home';
+  // Views without a place of their own that show the whole country: the overview, the list of courts, a court with no area.
+  const showsCountry = view.name === 'home' || view.name === 'courts' || view.name === 'court';
+  const courtsSettled = core.courts.status !== 'loading';
   useEffect(() => {
     if (!geo) return;
     if (focusKeys.length === 0) {
-      // Going back to the overview shows the whole country again. Directory views keep the reader's camera.
-      if (isHome) setFit((previous) => (previous.key === 'home' ? previous : { key: 'home', bbox: null }));
+      // Going back to an overview shows the whole country again. Directory views keep the reader's camera.
+      if (showsCountry) setFit((previous) => (previous.key === 'home' ? previous : { key: 'home', bbox: null }));
       return;
     }
     const key = focusKeys.join('|');
-    const bbox = unionBbox(focusKeys.map((k) => geo.get(k)!.bbox));
+    let bbox: Bbox | null;
+    if (key === NATION_KEY) {
+      // The country is shown as the overview shows it: its outline from Guam to Puerto Rico would shrink the states to a strip.
+      bbox = null;
+    } else if (focusKeys.length === 1 && key.startsWith('circuit:')) {
+      // A circuit is fitted to its states near the others; which states those are is in the list of courts.
+      if (!courtsSettled) return;
+      const court = courts?.forGeoKey(key);
+      bbox = court ? circuitViewBbox(court, geo) : geo.get(key)!.bbox;
+    } else {
+      bbox = unionBbox(focusKeys.map((k) => geo.get(k)!.bbox));
+    }
     setFit((previous) => (previous.key === key ? previous : { key, bbox }));
-  }, [geo, focusKeys, isHome]);
+  }, [geo, focusKeys, showsCountry, courts, courtsSettled]);
 
-  const shade = route.query.shade;
+  // Census counts exist for the Census layers only.
+  const shade = isCensusLayer(activeLayer) ? route.query.shade : undefined;
   const populationDataset = shade === 'population' ? (activeLayer === 'state' ? 'state' : activeLayer === 'county' ? 'county' : 'cd119') : null;
   const populationFile = useLoad(populationDataset ? `population:${populationDataset}` : null, () => loadPopulation(populationDataset!));
 
   const theme = useMemo<MapTheme | null>(() => {
     if (!geo) return null;
+    if (activeLayer === 'circuit') return cases ? circuitTheme(casesByCourt(cases)) : null;
     if (shade === 'population') {
       return populationFile.status === 'ready' ? populationTheme(activeLayer, geo, populationFile.data, redistricting) : null;
     }
     if (isDistrictLayer(activeLayer)) return redistricting && shade !== 'none' ? redrawnTheme(activeLayer, geo, redistricting) : null;
     if (activeLayer !== 'state') return null;
-    if (module === 'laws') return bills ? coverageTheme(new Set(bills.bills.map((b) => b.state))) : null;
-    if (module === 'litigation') return relationships ? linkedRecordsTheme(linkedStates(relationships, 'case'), 'cases') : null;
+    // A record of the whole country belongs to no single state, so no state is shaded for it.
+    if (federalRecord) return null;
+    if (module === 'laws') {
+      if (!bills) return null;
+      return coverageTheme(new Set(bills.bills.filter((b) => !isFederalBill(b)).map((b) => b.state)), bills.bills.some(isFederalBill));
+    }
+    if (module === 'litigation') return cases ? caseStatesTheme(caseStateCounts(cases)) : null;
     if (module === 'redistricting') return null;
+    // The Supreme Court's page: the states its dockets are linked to.
+    if (view.name === 'court') return relationships ? linkedRecordsTheme(linkedStates(relationships, 'case'), 'cases') : null;
     return relationships ? linkedRecordsTheme(linkedStates(relationships, 'any'), 'records') : null;
-  }, [geo, shade, populationFile, activeLayer, redistricting, module, bills, relationships]);
+  }, [geo, shade, populationFile, activeLayer, redistricting, module, bills, relationships, cases, federalRecord, view.name]);
 
   const onSelect = useCallback((key: string) => {
     const current = routeRef.current;
     const currentView = resolveView(current);
+    const parsed = parseGeoKey(key);
+    if (parsed?.layer === 'circuit') {
+      const courtId = circuitCourtId(parsed.geoid);
+      if (courtId) navigate(courtHash(courtId));
+      return;
+    }
     if (currentView.name === 'litigation' && key.startsWith('state:')) {
       const fips = key.slice(6);
       patchQuery(current, { state: current.query.state === fips ? '' : fips }, { replace: false });
@@ -267,6 +346,24 @@ function Shell() {
   }, []);
   const routeRef = useRef(route);
   routeRef.current = route;
+
+  // The map's control: a level of government or the federal courts.
+  const onChoice = useCallback((choice: MapChoice) => {
+    const current = routeRef.current;
+    const currentView = resolveView(current);
+    if (choice === 'federal') return navigate(buildHash(['place', NATION_KEY]));
+    if (choice === 'supreme') return navigate(courtHash(SCOTUS_ID));
+    if (choice === 'circuit') return navigate(buildHash(['courts']));
+    const layer: Layer = choice === 'district' ? 'cd120' : choice;
+    // The pages of the country and of the courts have no boundaries of their own to change: from them the choice
+    // leads to the overview with those boundaries. Every other view stays and only its map changes.
+    const leaves = currentView.name === 'courts' || currentView.name === 'court' || (currentView.name === 'place' && currentView.key === NATION_KEY);
+    if (leaves) return navigate(buildHash([], layer === 'state' ? {} : { layer }));
+    return patchQuery(current, { layer, shade: '' }, { replace: false });
+  }, []);
+  const onPlan = useCallback((plan: DistrictPlan) => patchQuery(routeRef.current, { layer: plan, shade: '' }, { replace: false }), []);
+  const onCircuit = useCallback((courtId: string) => navigate(courtId ? courtHash(courtId) : buildHash(['courts'])), []);
+  const [controlBottom, setControlBottom] = useState(0);
 
   const onBoundaryError = useCallback((layer: Layer, message: string) => {
     setBoundaryErrors((previous) => ({ ...previous, [layer]: message }));
@@ -281,17 +378,17 @@ function Shell() {
     });
   }, []);
 
-  const districtControls = isDistrictLayer(activeLayer);
-  // Room kept clear for the floating controls: the layer control and zoom buttons on top,
-  // the legend and locator row at the bottom. A phone held sideways has a short, wide stage:
-  // the controls sit in a column on the left and the legend at the bottom right.
+  // Room kept clear for the floating controls: the map's control and zoom buttons on top,
+  // the legend and locator row at the bottom. Where the control ends is measured, because it grows by a row when a
+  // district plan or a circuit can be chosen and when its two groups do not fit side by side. A phone held sideways
+  // has a short, wide stage: the controls sit in a column on the left and the legend at the bottom right.
   const padding = useMemo<MapPadding>(() => {
-    if (!compact) return { top: 84, right: 64, bottom: 236, left: 76 };
+    if (!compact) return { top: controlBottom ? controlBottom + 10 : 92, right: 64, bottom: 236, left: 76 };
     // On a very short screen the map is too small to keep its controls clear.
     if (tiny) return { top: 8, right: 8, bottom: 8, left: 8 };
     if (short) return { top: 16, right: 104, bottom: 16, left: 264 };
-    return { top: districtControls ? 118 : 72, right: 20, bottom: 64, left: 20 };
-  }, [compact, short, tiny, districtControls]);
+    return { top: controlBottom ? controlBottom + 12 : 72, right: 20, bottom: 64, left: 20 };
+  }, [compact, short, tiny, controlBottom]);
 
   /* ----- page-level behaviour ----- */
   const pathKey = route.path.join('/');
@@ -323,11 +420,13 @@ function Shell() {
       title = record ? `${record.caseName}, No. ${record.docketNumber}` : 'Court case';
     } else if (view.name === 'bill' || view.name === 'compare') {
       const bill = bills?.bills.find((b) => b.id === view.id);
-      title = bill ? `${bill.stateAbbr} ${bill.identifier}: ${bill.subject ?? ''}` : 'Legislation';
+      title = bill ? `${billLabel(bill)}: ${bill.subject ?? ''}` : 'Legislation';
       if (view.name === 'compare') title = `Text versions, ${title}`;
     } else if (view.name === 'place') title = geo?.get(view.key)?.name ?? 'Place';
+    else if (view.name === 'courts') title = 'Federal courts';
+    else if (view.name === 'court') title = courtFullName(courts?.get(view.id), view.id);
     else if (view.name === 'litigation') title = 'Election litigation';
-    else if (view.name === 'laws') title = 'California election legislation';
+    else if (view.name === 'laws') title = 'Election legislation';
     else if (view.name === 'redistricting') title = 'Districts and boundaries';
     else if (view.name === 'sources') title = 'Data sources and methodology';
     else if (view.name === 'about') title = 'About';
@@ -335,7 +434,7 @@ function Shell() {
     else if (view.name === 'pack') title = packTitle(view, cases, bills?.bills, geo);
     else if (view.name === 'notfound') title = 'Page not found';
     document.title = title ? `${title} | ${APP_NAME}` : `${APP_NAME}: election law, litigation and district maps`;
-  }, [view, cases, bills, geo]);
+  }, [view, cases, bills, geo, courts]);
 
   /* ----- render ----- */
   let panel: React.ReactNode;
@@ -347,7 +446,9 @@ function Shell() {
     case 'bill': panel = <BillDetail id={view.id} route={route} />; break;
     case 'compare': panel = <VersionCompare id={view.id} route={route} />; break;
     case 'redistricting': panel = <RedistrictingPanel route={route} layer={activeLayer} />; break;
-    case 'place': panel = <PlaceWorkspace placeKey={view.key} route={route} />; break;
+    case 'place': panel = view.key === NATION_KEY ? <FederalWorkspace route={route} /> : <PlaceWorkspace placeKey={view.key} route={route} />; break;
+    case 'courts': panel = <CourtsOverview />; break;
+    case 'court': panel = <CourtPage id={view.id} />; break;
     case 'sources': panel = <SourcesPage route={route} />; break;
     case 'about': panel = <AboutPage route={route} />; break;
     case 'watchlist': panel = <WatchlistPage />; break;
@@ -428,9 +529,22 @@ function Shell() {
                   onBoundaryError={onBoundaryError}
                   onBoundaryLoaded={onBoundaryLoaded}
                 >
-                  <LayerControl layer={activeLayer} onChange={(layer) => patchQuery(route, { layer, shade: '' }, { replace: false })} />
+                  <LayerControl
+                    choice={mapChoice}
+                    plan={districtPlan}
+                    circuit={showsCircuits && viewCourt ? viewCourt : ''}
+                    courts={courts?.appeals ?? []}
+                    compact={compact}
+                    onChoice={onChoice}
+                    onPlan={onPlan}
+                    onCircuit={onCircuit}
+                    onExtent={setControlBottom}
+                  />
                   {/* On a phone the legend starts closed to leave the map and its controls clear; its summary shows the colours in use. */}
-                  <Legend theme={theme} layer={activeLayer} geo={core.geo.data} sources={sources} now={core.now} boundaryError={boundaryErrors[activeLayer] ?? null} startOpen={!compact} />
+                  <Legend
+                    theme={theme} layer={activeLayer} geo={core.geo.data} sources={sources} now={core.now} boundaryError={boundaryErrors[activeLayer] ?? null} startOpen={!compact}
+                    emptyNote={federalRecord && activeLayer === 'state' ? 'No shading: the records of Congress belong to the whole country, which is outlined. Select a state to open its records.' : null}
+                  />
                 </MapView>
               </Suspense>
             </MapLoadBoundary>

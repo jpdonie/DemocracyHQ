@@ -11,6 +11,12 @@ source dataset in ``sources.json`` and in every ``GeographicUnit``):
   state shoreline (1:500,000) and then simplified. This mirrors how the Bureau
   derives cartographic boundary files but the result is a DemocracyHQ
   derivative for display, not an official product.
+* circuit, nation - the state layer merged by DemocracyHQ: the states of each
+  federal judicial circuit (the table in :mod:`dhq.circuits`, which is checked
+  against 28 U.S.C. § 41 before anything is published) and all states and
+  territories together. They are drawn from the same simplified state
+  boundaries, so their outlines lie on the state outlines. They show which
+  states belong together; they are not an official map of anything.
 
 Geometry work is delegated to mapshaper (deterministic, topology preserving).
 """
@@ -26,6 +32,7 @@ import zipfile
 from pathlib import Path
 from typing import Optional, Iterable
 
+from ..circuits import REGIONAL
 from ..http import FetchError, Fetcher
 from ..util import CACHE_DIR, REPO_ROOT, STATES, http_date_to_iso, write_bytes_atomic
 
@@ -148,8 +155,14 @@ def download_sources(fetcher: Fetcher, cache: Path = CACHE_DIR / "geo") -> dict:
     return provenance
 
 
+#: How the state layer is simplified. The circuit and nation layers are merged from states simplified the same way.
+STATE_SIMPLIFY = ["-simplify", "visvalingam", "weighted", "55%", "keep-shapes", "-clean"]
+NATION_GEOID = "US"
+NATION_NAME = "United States"
+
+
 def build_layers(out_dir: Path, cache: Path = CACHE_DIR / "geo") -> dict[str, Path]:
-    """Run mapshaper to produce the four published TopoJSON layers."""
+    """Run mapshaper to produce the six published TopoJSON layers."""
     out_dir.mkdir(parents=True, exist_ok=True)
     outputs: dict[str, Path] = {}
     common_out = ["format=topojson", "quantization=1000000", "bbox"]
@@ -159,9 +172,37 @@ def build_layers(out_dir: Path, cache: Path = CACHE_DIR / "geo") -> dict[str, Pa
     _mapshaper([
         str(state_shp), "-rename-layers", "state",
         "-filter-fields", "GEOID,STUSPS,NAME",
-        "-simplify", "visvalingam", "weighted", "55%", "keep-shapes",
-        "-clean",
+        *STATE_SIMPLIFY,
         "-o", *common_out, str(outputs["state"]),
+    ])
+
+    # The states of each regional circuit, merged. A state the statute places in no circuit is left out.
+    circuit_of = json.dumps({fips: circuit.geoid for circuit in REGIONAL for fips in circuit.states}, sort_keys=True)
+    circuit_names = json.dumps({circuit.geoid: circuit.short_name for circuit in REGIONAL}, sort_keys=True)
+    outputs["circuit"] = out_dir / "circuits.topo.json"
+    _mapshaper([
+        str(state_shp), "-rename-layers", "circuit",
+        "-filter-fields", "GEOID",
+        *STATE_SIMPLIFY,
+        "-each", f"CIRCUIT = ({circuit_of})[GEOID] || null",
+        "-filter", "CIRCUIT !== null",
+        "-dissolve", "CIRCUIT",
+        "-each", f"GEOID = CIRCUIT, NAME = ({circuit_names})[CIRCUIT]",
+        "-filter-fields", "GEOID,NAME",
+        "-clean",
+        "-o", *common_out, str(outputs["circuit"]),
+    ])
+
+    # Every state and territory of the state layer as one shape, for records that apply nationwide.
+    outputs["nation"] = out_dir / "nation.topo.json"
+    _mapshaper([
+        str(state_shp), "-rename-layers", "nation",
+        "-filter-fields", "GEOID",
+        *STATE_SIMPLIFY,
+        "-dissolve",
+        "-each", f"GEOID = '{NATION_GEOID}', NAME = '{NATION_NAME}'",
+        "-clean",
+        "-o", *common_out, str(outputs["nation"]),
     ])
 
     county_shp = cache / CB_FILES["county"] / f"{CB_FILES['county']}.shp"

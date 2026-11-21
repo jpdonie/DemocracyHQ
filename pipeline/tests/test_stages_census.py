@@ -21,6 +21,7 @@ T4 = "2026-06-04T10:00:00Z"
 def geo(env, session, monkeypatch):  # noqa: F811
     monkeypatch.setattr(census_geo, "_mapshaper", census.fake_mapshaper)
     census.serve_boundaries(session)
+    census.serve_statute(session)
     session.on(pipeline.CD120_PAGE, FakeResponse(200, census.PAGE))
     return env
 
@@ -38,10 +39,11 @@ def test_the_geo_stage_publishes_the_layers_and_the_states_the_bureau_lists_as_r
     code, ctx = geo.run(["geo"], now=T1)
     assert code == 0
     index = geo.read("geo/index.json")
-    assert {name: info["featureCount"] for name, info in index["layers"].items()} == {"state": 56, "county": 3248, "cd119": 441, "cd120": 441}
+    assert {name: info["featureCount"] for name, info in index["layers"].items()} == {
+        "nation": 1, "circuit": 12, "state": 56, "county": 3248, "cd119": 441, "cd120": 441}
     assert geo.read("redistricting.json")["congress120"]["statesWithNewBoundaries"] == census.REDRAWN
     assert geo.read("redistricting.json")["areaCheck"]["mismatches"] == []
-    assert {geo.source(s)["processingStatus"] for s in ("census-cb-2025", "census-tiger-2026-cd120", "census-cd120-page")} == {"ok"}
+    assert {geo.source(s)["processingStatus"] for s in ("census-cb-2025", "census-tiger-2026-cd120", "census-cd120-page", "govinfo-uscode")} == {"ok"}
     assert geo.source("census-tiger-2026-cd120")["sourcePublishedAt"] == "2026-11-09T20:30:21Z"
 
 
@@ -65,7 +67,7 @@ def test_new_120th_congress_files_without_a_readable_page_keep_the_old_boundarie
     code, ctx = geo.run(["geo"], now=T2)
     assert code == 1
     assert tree(geo.public / "geo") == before
-    for source_id in ("census-cb-2025", "census-tiger-2026-cd120", "census-cd120-page"):
+    for source_id in ("census-cb-2025", "census-tiger-2026-cd120", "census-cd120-page", "govinfo-uscode"):
         record = geo.source(source_id)
         assert (record["processingStatus"], record["lastSuccessfulCheck"], record["lastAttempt"]) == ("failed", T1, T2), source_id
 
@@ -87,6 +89,77 @@ def test_a_boundary_file_served_as_an_html_page_is_refused_and_fetched_again_on_
     code, _ = geo.run(["geo"], now=T3)
     assert code == 0 and session.urls().count(url) == gets + 1
     assert geo.source("census-cb-2025")["sourcePublishedAt"] == "2026-11-10T15:00:00Z"
+
+
+# --- the circuits and the nation ------------------------------------------------------------
+
+def test_the_merged_layers_have_rows_without_a_state_and_the_courts_quote_the_statute(geo):
+    code, ctx = geo.run(["geo"], now=T1)
+    assert code == 0
+    index = geo.read("geo/index.json")
+    rows = {row[0]: row for row in index["rows"]}
+    assert rows["nation:US"][1:3] == ["United States", ""]
+    assert rows["circuit:05"][1:3] == ["Fifth Circuit", ""] and rows["circuit:DC"][1] == "D.C. Circuit"
+    assert sum(key.startswith("circuit:") for key in rows) == 12
+    assert index["layers"]["circuit"]["geoType"] == "judicial_circuit" and index["layers"]["circuit"]["file"] == "geo/circuits.topo.json"
+    assert index["layers"]["nation"]["geoType"] == "nation" and index["layers"]["nation"]["sourceId"] == "census-cb-2025"
+    # The merged layers are drawn from the state file and carry its date.
+    assert index["layers"]["circuit"]["sourcePublishedAt"] == index["layers"]["state"]["sourcePublishedAt"]
+    composition = geo.read("geo/circuits.json")
+    assert [court["id"] for court in composition["courts"]] == [court.id for court in pipeline.circuits.CIRCUITS]
+    fifth = next(court for court in composition["courts"] if court["id"] == "ca5")
+    assert fifth["basis"]["quote"] == "District of the Canal Zone, Louisiana, Mississippi, Texas." and fifth["states"] == ["22", "28", "48"]
+    assert composition["statute"] == {
+        "edition": "United States Code, 2024 Edition", "currentThrough": "2025-01-06", "checkedAt": T1, "sourceId": "govinfo-uscode",
+        "ruleId": "circuit-composition-1",
+        "sections": [{"citation": "28 U.S.C. § 41", "url": pipeline.circuits.SECTION_41_URL},
+                     {"citation": "48 U.S.C. § 1821(a)", "url": pipeline.circuits.SECTION_1821_URL}]}
+    assert composition["circuitOfState"]["48"] == "ca5" and "60" not in composition["circuitOfState"]
+    assert composition["withoutCircuit"] == ["60"] and composition["notOnTheMap"] == ["District of the Canal Zone"]
+    statute = geo.source("govinfo-uscode")
+    assert (statute["recordCount"], statute["sourcePublishedAt"], statute["contentHash"] is not None) == (13, "2025-01-06", True)
+
+
+def test_a_statute_that_disagrees_with_the_table_publishes_no_boundaries(geo, session):
+    geo.run(["geo"], now=T1)
+    before = tree(geo.public / "geo")
+    census.serve_statute(session, section_41=census.SECTION_41.replace("Louisiana, Mississippi, Texas.", "Louisiana, Texas."))
+    code, ctx = geo.run(["geo"], now=T2)
+    assert code == 1 and tree(geo.public / "geo") == before
+    statute = geo.source("govinfo-uscode")
+    assert (statute["processingStatus"], statute["lastSuccessfulCheck"], statute["lastAttempt"]) == ("failed", T1, T2)
+    assert "Fifth Circuit" in statute["statusDetail"]
+    assert geo.source("census-cb-2025")["processingStatus"] == "failed"  # nothing of this run's geography was published
+
+
+def test_when_the_statute_cannot_be_retrieved_the_last_check_stays_with_its_own_date(geo, session):
+    geo.run(["geo"], now=T1)
+    session.on(pipeline.circuits.SECTION_41_URL, FakeResponse(503))
+    code, ctx = geo.run(["geo"], now=T2)
+    assert code == 1  # the statute source failed, although the boundaries were refreshed
+    assert geo.read("geo/circuits.json")["statute"]["checkedAt"] == T1
+    assert geo.source("census-cb-2025")["lastSuccessfulCheck"] == T2
+    statute = geo.source("govinfo-uscode")
+    assert (statute["processingStatus"], statute["lastSuccessfulCheck"], statute["lastAttempt"]) == ("failed", T1, T2)
+    assert "2026-06-01 is kept" in statute["statusDetail"]
+
+
+def test_without_an_earlier_check_an_unreadable_statute_publishes_no_circuit_map(geo, session):
+    session.on(pipeline.circuits.SECTION_1821_URL, FakeResponse(503))
+    code, ctx = geo.run(["geo"], now=T1)
+    assert code == 1 and not (geo.public / "geo" / "circuits.topo.json").exists()
+    assert geo.source("govinfo-uscode")["processingStatus"] == "failed"
+
+
+def test_an_earlier_check_does_not_cover_a_table_that_has_changed_since(geo, session, monkeypatch):
+    geo.run(["geo"], now=T1)
+    before = tree(geo.public / "geo")
+    session.on(pipeline.circuits.SECTION_41_URL, FakeResponse(503))
+    # The table now places a state in another circuit than the one the published check covered.
+    monkeypatch.setattr(pipeline.circuits, "CIRCUIT_OF_STATE", {**pipeline.circuits.CIRCUIT_OF_STATE, "48": "ca10"})
+    code, ctx = geo.run(["geo"], now=T2)
+    assert code == 1 and tree(geo.public / "geo") == before
+    assert "no earlier check of the table as it is now" in geo.source("govinfo-uscode")["statusDetail"]
 
 
 # --- population -------------------------------------------------------------------------

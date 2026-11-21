@@ -2,8 +2,13 @@
 
 Boundary archives hold a placeholder ``.shp`` only: mapshaper is replaced by :func:`fake_mapshaper`,
 which writes the TopoJSON and CSV files the pipeline asks for, with the feature counts the geo stage
-checks (56 states, about 3,250 counties, 441 districts in each Congress). The population files follow
-the pipe-delimited layout and column offsets the adapter reads; every count adds up, as in the real files.
+checks (56 states, about 3,250 counties, 441 districts in each Congress, the twelve regional circuits and
+the nation). The population files follow the pipe-delimited layout and column offsets the adapter reads;
+every count adds up, as in the real files.
+
+The two sections of the United States Code that the geo stage compares its table of circuits with are the
+one thing here that is not synthetic: :func:`serve_statute` serves the official pages kept under
+``tests/fixtures/uscode`` (see the README there).
 """
 
 from __future__ import annotations
@@ -13,10 +18,21 @@ import json
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional
 
+from dhq import circuits
 from dhq.adapters import census_geo, census_pop
 from dhq.util import STATES, census_dir_name
 
-from conftest import make_zip
+from conftest import FakeResponse, make_zip
+
+USCODE = Path(__file__).parent / "fixtures" / "uscode"
+SECTION_41 = (USCODE / "USCODE-2024-title28-partI-chap3-sec41.htm").read_text(encoding="utf-8")
+SECTION_1821 = (USCODE / "USCODE-2024-title48-chap17-subchapII-sec1821.htm").read_text(encoding="utf-8")
+
+
+def serve_statute(session, section_41: str = SECTION_41, section_1821: str = SECTION_1821) -> None:
+    """Serve the two sections the geo stage reads, as GovInfo does (or altered copies of them)."""
+    session.on(circuits.SECTION_41_URL, FakeResponse(200, section_41))
+    session.on(circuits.SECTION_1821_URL, FakeResponse(200, section_1821))
 
 # --- boundaries -----------------------------------------------------------------------
 
@@ -46,6 +62,10 @@ def serve_boundaries(session, last_modified: str = "Mon, 09 Nov 2026 20:30:21 GM
 def _topology(layer: str) -> dict:
     if layer == "state":
         features = [{"GEOID": fips, "NAME": name, "STUSPS": abbr} for fips, (abbr, name) in STATES.items()]
+    elif layer == "circuit":
+        features = [{"GEOID": court.geoid, "NAME": court.short_name} for court in circuits.REGIONAL]
+    elif layer == "nation":
+        features = [{"GEOID": census_geo.NATION_GEOID, "NAME": census_geo.NATION_NAME}]
     elif layer == "county":
         features = [{"GEOID": geoid, "NAMELSAD": f"Synthetic County {geoid[2:]}"} for geoid in COUNTIES]
     else:

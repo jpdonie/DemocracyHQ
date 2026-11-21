@@ -308,6 +308,8 @@ describe('a pack never leaves records out silently when a file could not be load
       legislation: { status: 'ready', data: { bills: [makeBill()], covered: true } },
       events: { status: 'ready', data: [] },
       overlaps: null,
+      appealsFrom: { status: 'ready', data: [] },
+      appealsCourt: { status: 'ready', data: null },
     });
     const links = buildPlacePack(data('relationships.json'), base)!;
     expect(links.notices).toContain(UNAVAILABLE_NOTICES.placeLinks);

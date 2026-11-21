@@ -110,15 +110,15 @@ test.describe('Bill page', () => {
 
 test.describe('Legislation directory', () => {
   test('the status filter says that pending bills are past the deadline (DL4)', async ({ page }) => {
-    await open(page, '#/laws');
-    await expect(heading(page)).toHaveText('California election legislation');
+    await open(page, '#/laws?jur=ca');
+    await expect(heading(page)).toHaveText('Election legislation');
     const hint = page.locator('form.filters .hint');
     await expect(hint).toContainText(/\d+ Assembly or Senate bills? in this dataset still shows? In Committee Process, Pending Referral or In Floor Process\. The last day for each house/);
     const text = await hint.textContent();
     // The status menu points at the note, which counts the whole dataset, as the menu's own counts do.
     const select = page.getByLabel('Status as reported');
     await expect(select).toHaveAttribute('aria-describedby', (await hint.getAttribute('id'))!);
-    await open(page, '#/laws?status=Chaptered');
+    await open(page, '#/laws?jur=ca&status=Chaptered');
     await expect(page.locator('form.filters .filters-status')).toContainText('match these filters');
     await expect(hint).toHaveText(text!);
   });

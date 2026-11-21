@@ -12,8 +12,8 @@ It is a static website with no backend, no accounts and no tracking. A Python
 pipeline retrieves the records from official sources and writes plain JSON; the
 site reads that JSON.
 
-> **Status: an early, working prototype.** It covers one court and one state
-> legislature. It is published at <https://democracy-hq.org/> by the deploy
+> **Status: an early, working prototype.** It covers Congress and one state
+> legislature, the Supreme Court and the federal courts of appeals. It is published at <https://democracy-hq.org/> by the deploy
 > workflow (GitHub Pages); the scheduled data update has not yet run on GitHub. Read
 > [Known limitations](docs/KNOWN_LIMITATIONS.md) before relying on anything here.
 
@@ -25,17 +25,21 @@ site reads that JSON.
 | Module | What it holds today | Source |
 | --- | --- | --- |
 | Election litigation | 25 hand-picked U.S. Supreme Court dockets in election cases, with every docket entry, links to filed documents, the latest ruling entry and, where the docket links them, the questions presented | supremecourt.gov docket pages |
+| Election litigation, courts of appeals | 128 election cases of the federal courts of appeals, selected by a published rule from the 27,813 cases GovInfo lists with a document issued since 2025, each with its opinion, where the appeal began and why it was selected | GovInfo, United States Courts Opinions |
+| Election measures of Congress | 273 of the 20,191 measures of the 119th Congress, selected by a published rule, with their actions, the stage reached, every text version and a version comparison | GovInfo bulk data (Bill Status and Bills) |
+| Courts | The Supreme Court and the thirteen courts of appeals, with the states and territories of each circuit as 28 U.S.C. § 41 lists them, drawn on the map | United States Code on GovInfo |
 | California election legislation | 132 of the 5,041 measures of the 2025-2026 Regular Session, selected by a published rule, with official history, every text version and a version comparison | California Legislative Information bulk data |
 | Redistricting | Boundaries for 56 states and state equivalents, 3,235 counties and county equivalents, and the congressional districts of the 119th Congress (441) and of the 120th Congress, elected in 2026 (441), with 2020 Census counts shown only on the lines they were tabulated for, or on a 2026 district that the Census Bureau reports as unchanged | U.S. Census Bureau |
 
 Across the modules: a workspace for any place, a dated "What changed here?"
 timeline of the docket entries and legislative actions that the published rules
-mark as key, changed bill texts and boundary-file dates (1,053 events), 38 links
+mark as key, changed bill texts and boundary-file dates (1,475 events), 38 links
 between cases, bills and places that each quote the passage supporting them, a
 search box, a watchlist kept in your own browser, and a "legal source pack" export
 as JSON, CSV or a printable page.
 
-Figures are those of the data release generated on 2026-11-20. The site's
+Figures are those of the data release generated on 2026-11-21. [The federal level](docs/FEDERAL_LEVEL.md)
+describes the measures of Congress, the courts of appeals and the circuits. The site's
 **Data and methodology** page gives the release date and each source's current
 record count, and `public/data/manifest.json` holds the current totals.
 
@@ -98,7 +102,7 @@ pip install -r pipeline/requirements-dev.txt
 
 npm run test:pipeline              # pipeline tests; synthetic data, no request leaves the machine
 npm run pipeline                   # every stage, against the live sources
-cd pipeline && python -m dhq.run scotus california   # or only some stages
+cd pipeline && python -m dhq.run scotus california congress circuits   # or only some stages
 npm run data:validate
 cd pipeline && python -m tools.verify_dockets        # re-read every published docket from the Court
 cd pipeline && python -m tools.check_links           # request a sample of the external links
@@ -108,8 +112,8 @@ The workflows install the hash-locked `pipeline/requirements-lock.txt` and
 `pipeline/requirements-dev-lock.txt` instead; [CONTRIBUTING.md](CONTRIBUTING.md#python-dependencies)
 explains how to update them.
 
-The pipeline keeps its downloads in `pipeline/.cache/` (about 240 MB after the
-run of 2026-11-20) and reads the large archives, including California's 1.3 GB
+The pipeline keeps its downloads in `pipeline/.cache/` (about 820 MB after the
+run of 2026-11-21, most of it the text of the court of appeals documents) and reads the large archives, including California's 1.3 GB
 one, with HTTP range requests instead of downloading them whole. The pipeline
 spaces its requests to supremecourt.gov at least 1.1 seconds apart, because the
 Court's `robots.txt` sets a crawl delay of one second. No API key is needed. Two
@@ -196,6 +200,7 @@ docs/                research, architecture, sources, validation, limits
 - [Architecture](docs/ARCHITECTURE.md): how the site and the pipeline fit together
 - [Data sources](docs/DATA_SOURCES.md): every source, its terms and its limits
 - [Data validation report](docs/DATA_VALIDATION_REPORT.md): what was checked against the sources, and the results
+- [The federal level](docs/FEDERAL_LEVEL.md): Congress, the courts of appeals and the circuits
 - [Known limitations](docs/KNOWN_LIMITATIONS.md): what does not work, is not covered or is not verified
 - [Deployment](docs/DEPLOYMENT.md): GitHub Pages, scheduled ingestion, secrets
 - [Skill audit](docs/SKILL_AUDIT.md): which agent skills were actually used to build this, and how

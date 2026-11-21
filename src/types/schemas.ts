@@ -45,6 +45,18 @@ const httpsUrl = z.string().regex(/^https:\/\//, 'expected an https URL');
  */
 export const CA_BILL_ID_PATTERN = /^ca-\d{8}-[a-z]{2,3}\d{1,5}$/;
 export const CaBillIdSchema = z.string().regex(CA_BILL_ID_PATTERN, 'expected a California bill id (ca-<session>-<type><number>)');
+/**
+ * The id of a measure of the U.S. Congress (us-119-hr22): the Congress, the measure type and the number. It names the
+ * measure's published file too. Mirrors the pipeline's pattern (pipeline/dhq/schemas.py, UsBillId).
+ */
+export const US_BILL_ID_PATTERN = /^us-\d{3}-(?:hr|s|hjres|sjres|hconres|sconres|hres|sres)\d{1,5}$/;
+export const UsBillIdSchema = z.string().regex(US_BILL_ID_PATTERN, 'expected the id of a measure of Congress (us-<congress>-<type><number>)');
+/** The id of any measure published in full: a California bill or a measure of Congress. */
+export const BillIdSchema = z.string().refine((id) => CA_BILL_ID_PATTERN.test(id) || US_BILL_ID_PATTERN.test(id), 'expected the id of a California bill or of a measure of Congress');
+/** A court of appeals case id (ca5-25-30725): the court and the court's own case number. Mirrors CIRCUIT_CASE_ID_PATTERN. */
+export const CIRCUIT_CASE_ID_PATTERN = /^(?:ca(?:[1-9]|1[01])|cadc|cafc)-\d{2}-\d{1,6}$/;
+/** A Supreme Court docket's id here (scotus-24-109). */
+export const SCOTUS_CASE_ID_PATTERN = /^scotus-[0-9A-Za-z]+-[0-9A-Za-z]+$/;
 
 export const SourceRecordSchema = z.object({
   id: z.string(),
@@ -71,12 +83,29 @@ export const SourceRecordSchema = z.object({
 });
 export type SourceRecord = z.infer<typeof SourceRecordSchema>;
 
+/** The statute that says which states a circuit is made of, with the words relied on. */
+export const CourtBasisSchema = z.object({
+  citation: z.string(),
+  url: httpsUrl,
+  /** The statute's entry for the circuit, as it stands in the cited edition of the United States Code. */
+  quote: z.string(),
+  /** A second provision, for a territory that the table in section 41 does not name. */
+  also: z.array(z.object({ citation: z.string(), url: httpsUrl, quote: z.string() })).nullable().optional(),
+});
+
 export const CourtSchema = z.object({
   id: z.string(),
   name: z.string(),
   courtType: z.enum(['federal_supreme', 'federal_appellate', 'federal_district', 'state_supreme', 'state_appellate', 'state_trial', 'other']),
   jurisdiction: z.string(),
   website: httpsUrl.nullable().optional(),
+  /** "Fifth Circuit": the name used in lists. */
+  shortName: z.string().nullable().optional(),
+  /** The map unit of a regional circuit (circuit:05). The Supreme Court and the Federal Circuit have none. */
+  geoKey: z.string().regex(/^circuit:[0-9A-Z]{2}$/).nullable().optional(),
+  /** FIPS codes of the states and territories whose federal district courts the circuit hears appeals from. */
+  states: z.array(z.string().length(2)).default([]),
+  basis: CourtBasisSchema.nullable().optional(),
 });
 export type Court = z.infer<typeof CourtSchema>;
 
@@ -89,6 +118,18 @@ export const IssueTagSchema = z.object({
   matchCount: z.number().int().nullable().optional(),
 });
 export type IssueTag = z.infer<typeof IssueTagSchema>;
+
+/**
+ * A tag the keyword rules assigned to a court of appeals case and a maintainer took off (rule tag-removal-1): the
+ * tag as the rule had assigned it, the reason, and the passage of the case's own document that shows it.
+ */
+export const RemovedTagSchema = IssueTagSchema.extend({
+  removalRuleId: z.string(),
+  reason: z.string(),
+  quote: z.string(),
+  quoteUrl: httpsUrl,
+});
+export type RemovedTag = z.infer<typeof RemovedTagSchema>;
 
 export const EvidenceRefSchema = z.object({
   url: httpsUrl,
@@ -125,6 +166,11 @@ export const CourtDocumentSchema = z.object({
   url: httpsUrl.nullable().optional(),
   availability: z.enum(['public_link', 'restricted', 'unavailable']),
   accessNote: z.string().nullable().optional(),
+  /**
+   * Court of appeals decisions only: ids of documents of other cases in the dataset that have the same text, which is
+   * how a court files one opinion that decides several appeals (rule same-opinion-1).
+   */
+  sameTextAs: z.array(z.string()).default([]),
 });
 export type CourtDocument = z.infer<typeof CourtDocumentSchema>;
 
@@ -134,6 +180,42 @@ export const DispositiveEntrySchema = z.object({
   eventType: z.string(),
   ruleId: z.string(),
 });
+
+/** The court a case came from, read from the opinion by rule origin-court-1. It says where the case began, not what it is about. */
+export const CaseOriginSchema = z.object({
+  court: z.string(),
+  /** FIPS code of the state or territory the district court sits in, when the court's name gives one. */
+  stateFips: z.string().length(2).nullable().optional(),
+  quote: z.string(),
+  documentUrl: httpsUrl,
+  ruleId: z.string(),
+});
+export type CaseOrigin = z.infer<typeof CaseOriginSchema>;
+
+/** Another case in the dataset that the court decided in the same opinion (rule same-opinion-1). */
+export const DecidedWithSchema = z.object({ caseId: z.string(), caseName: z.string(), docket: z.string() });
+
+/**
+ * Why a court of appeals case is in the dataset: the selection rule, the tests of it that the case met ("record",
+ * "long", "dense", "party") and what the rule counted in the opinion it rests on.
+ */
+export const CaseSelectionSchema = z.object({
+  ruleId: z.string(),
+  tests: z.array(z.string()).min(1),
+  natureOfSuitCode: z.string().nullable().optional(),
+  natureOfSuit: z.string().nullable().optional(),
+  documentId: z.string().nullable().optional(),
+  documentUrl: httpsUrl.nullable().optional(),
+  wordCount: z.number().int().nullable().optional(),
+  wordMatches: z.number().int().nullable().optional(),
+  phraseMatches: z.number().int().nullable().optional(),
+  /** Election words per 1,000 words of the document. */
+  density: z.number().nullable().optional(),
+  phrases: z.array(z.object({ term: z.string(), count: z.number().int() })).default([]),
+  /** For the "party" test: the party, or the case title, that names an election authority. */
+  party: z.string().nullable().optional(),
+});
+export type CaseSelection = z.infer<typeof CaseSelectionSchema>;
 
 export const LegalCaseSummarySchema = z.object({
   id: z.string(),
@@ -159,6 +241,14 @@ export const LegalCaseSummarySchema = z.object({
   }),
   latestDispositiveEntry: DispositiveEntrySchema.nullable().optional(),
   stateFips: z.array(z.string()),
+  /** Court of appeals decisions only: where the appeal came from, as the opinion states it. */
+  origin: CaseOriginSchema.nullable().optional(),
+  /** Court of appeals decisions only: "Published" or "Unpublished", when the court's entry for the opinion says so. */
+  publication: z.string().nullable().optional(),
+  /** Court of appeals decisions only: the nature of suit in the court's record, when it gives one. */
+  natureOfSuit: z.string().nullable().optional(),
+  /** Court of appeals decisions only: other cases in the dataset decided in the same opinion. */
+  decidedWith: z.array(DecidedWithSchema).default([]),
   sourceUrl: httpsUrl,
   sourceId: z.string(),
   sourcePublishedAt: z.string().nullable().optional(),
@@ -169,6 +259,9 @@ export const LegalCaseSummarySchema = z.object({
 export type LegalCaseSummary = z.infer<typeof LegalCaseSummarySchema>;
 
 export const LegalCaseSchema = LegalCaseSummarySchema.extend({
+  /** Parties as the court's record lists them. The Supreme Court's dockets give party titles instead. */
+  parties: z.array(z.object({ name: z.string(), role: z.string().nullable().optional() })).default([]),
+  selection: CaseSelectionSchema.nullable().optional(),
   relatedDockets: z.array(z.record(z.string(), z.string())),
   linkedNote: z.string().nullable().optional(),
   /** Other published cases that came from the same lower-court case number. */
@@ -179,9 +272,21 @@ export const LegalCaseSchema = LegalCaseSummarySchema.extend({
     .optional(),
   events: z.array(LegalEventSchema),
   documents: z.array(CourtDocumentSchema),
+  /** Tags the rules assigned and a maintainer removed, each with its reason and passage. */
+  removedTags: z.array(RemovedTagSchema).default([]),
   contentHash: z.string(),
 });
 export type LegalCase = z.infer<typeof LegalCaseSchema>;
+
+/** A roll-call vote that the record of a federal measure links from an action. */
+export const RecordedVoteSchema = z.object({
+  chamber: z.string(),
+  rollNumber: z.string(),
+  /** The chamber's own page for the vote (clerk.house.gov or senate.gov). */
+  url: httpsUrl,
+  session: z.string().nullable().optional(),
+});
+export type RecordedVote = z.infer<typeof RecordedVoteSchema>;
 
 export const LegislativeActionSchema = z.object({
   date: isoDate,
@@ -197,6 +302,14 @@ export const LegislativeActionSchema = z.object({
   significance: z.enum(['major', 'routine']),
   /** Id of the pattern rule that assigned eventType. */
   classificationRule: z.string().nullable().optional(),
+  /** Measures of Congress only: the action code the record gives the entry. */
+  code: z.string().nullable().optional(),
+  /** Measures of Congress only: who recorded the entry ("House floor actions", "Senate", "Library of Congress"). */
+  source: z.string().nullable().optional(),
+  /** Measures of Congress only: time of day (Eastern), which the record gives for House floor entries. */
+  time: z.string().nullable().optional(),
+  /** Measures of Congress only: roll-call votes the record links from the action. */
+  votes: z.array(RecordedVoteSchema).default([]),
 });
 export type LegislativeAction = z.infer<typeof LegislativeActionSchema>;
 
@@ -210,7 +323,7 @@ export const DiffMetaSchema = z.object({
 
 export const LawVersionSchema = z.object({
   id: z.string(),
-  instrumentId: z.string(),
+  instrumentId: BillIdSchema,
   label: z.string(),
   versionDate: isoDate,
   versionNum: z.number().int(),
@@ -272,6 +385,14 @@ export type LegislativeInstrumentSummary = z.infer<typeof LegislativeInstrumentS
  * another form.
  */
 export const CaliforniaBillSummarySchema = LegislativeInstrumentSummarySchema.extend({ id: CaBillIdSchema });
+/** A measure of Congress in the index of federal measures. Its id names the measure's file, so it must match US_BILL_ID_PATTERN. */
+export const FederalBillSummarySchema = LegislativeInstrumentSummarySchema.extend({ id: UsBillIdSchema, state: z.literal('US'), stateAbbr: z.literal('US') });
+/** A summary of either kind, as the lists and the search hold them. */
+export const PublishedBillSummarySchema = LegislativeInstrumentSummarySchema.extend({ id: BillIdSchema });
+export type PublishedBillSummary = z.infer<typeof PublishedBillSummarySchema>;
+
+/** The state code federal measures carry in place of a state FIPS code. */
+export const FEDERAL_STATE = 'US';
 
 export const EffectiveInfoSchema = z.object({
   date: isoDate.nullable().optional(),
@@ -291,7 +412,41 @@ export type TextCondition = z.infer<typeof TextConditionSchema>;
 export const ExpiryClauseSchema = z.object({ text: z.string(), versionId: z.string(), ruleId: z.string(), date: isoDate.nullable().optional() });
 export type ExpiryClause = z.infer<typeof ExpiryClauseSchema>;
 
-export const LegislativeInstrumentSchema = CaliforniaBillSummarySchema.extend({
+export const SponsorSchema = z.object({
+  /** The member as the official record names them ("Rep. Roy, Chip [R-TX-21]"). */
+  name: z.string(),
+  party: z.string().nullable().optional(),
+  state: z.string().nullable().optional(),
+  district: z.string().nullable().optional(),
+});
+
+/** A measure that the official record of a federal measure names as related, with who identified the relation. */
+export const RelatedMeasureSchema = z.object({
+  identifier: z.string(),
+  title: z.string().nullable().optional(),
+  /** "Identical bill", "Related bill", "Procedurally related" and so on, in the record's words. */
+  relationship: z.string(),
+  /** Who identified it: the Congressional Research Service, the House or the Senate. */
+  identifiedBy: z.string(),
+  /** The measure's id here, when it is in the dataset. */
+  id: UsBillIdSchema.nullable().optional(),
+  officialUrl: httpsUrl.nullable().optional(),
+});
+export type RelatedMeasure = z.infer<typeof RelatedMeasureSchema>;
+
+/**
+ * Why a measure is in the dataset: the selection rule and the words it matched. A measure of Congress also says which
+ * test of the rule it met ("named", "general" or "other") and the title the words stand in.
+ */
+export const BillSelectionSchema = z.object({
+  ruleId: z.string(),
+  matchedText: z.string(),
+  matchedField: z.string(),
+  test: z.string().optional(),
+  matchedTitle: z.string().optional(),
+});
+
+export const LegislativeInstrumentSchema = PublishedBillSummarySchema.extend({
   digest: z.string().nullable().optional(),
   actions: z.array(LegislativeActionSchema),
   approvedDate: isoDate.nullable().optional(),
@@ -306,7 +461,23 @@ export const LegislativeInstrumentSchema = CaliforniaBillSummarySchema.extend({
   judicialNote: z.string(),
   sourcePublishedAt: z.string().nullable().optional(),
   contentHash: z.string(),
-  selection: z.object({ ruleId: z.string(), matchedText: z.string(), matchedField: z.string() }).optional(),
+  selection: BillSelectionSchema.optional(),
+  // --- measures of Congress only ---
+  sponsors: z.array(SponsorSchema).default([]),
+  cosponsorCount: z.number().int().nonnegative().nullable().optional(),
+  /** The policy area the Congressional Research Service assigned, if it has assigned one. */
+  policyArea: z.string().nullable().optional(),
+  /** The legislative subject terms the Congressional Research Service assigned. */
+  legislativeSubjects: z.array(z.string()).default([]),
+  committees: z.array(z.string()).default([]),
+  /** Short titles the official record lists besides the display title. */
+  shortTitles: z.array(z.string()).default([]),
+  relatedMeasures: z.array(RelatedMeasureSchema).default([]),
+  /** The official record the page was parsed from (the bill status file), as opposed to the page `officialUrl`. */
+  sourceRecordUrl: httpsUrl.nullable().optional(),
+  /** Which version of the official summary `digest` is, and its date ("Introduced in House", 2025-01-03). */
+  digestVersion: z.string().nullable().optional(),
+  digestDate: isoDate.nullable().optional(),
 });
 export type LegislativeInstrument = z.infer<typeof LegislativeInstrumentSchema>;
 
@@ -346,7 +517,11 @@ export const EntityRelationshipSchema = z.object({
 });
 export type EntityRelationship = z.infer<typeof EntityRelationshipSchema>;
 
-export const LAYERS = ['state', 'county', 'cd119', 'cd120'] as const;
+/**
+ * The map layers. `nation` is the United States as one unit (the federal level) and `circuit` the twelve regional
+ * federal judicial circuits, drawn from the state boundaries; the other four are the Census Bureau's units.
+ */
+export const LAYERS = ['nation', 'circuit', 'state', 'county', 'cd119', 'cd120'] as const;
 export const LayerSchema = z.enum(LAYERS);
 export type Layer = z.infer<typeof LayerSchema>;
 
@@ -357,13 +532,24 @@ const LayerInfoSchema = z.object({
   sourceId: z.string(),
   vintage: z.string(),
   label: z.string(),
-  geoType: z.enum(['state', 'county', 'congressional_district']),
+  geoType: z.enum(['nation', 'judicial_circuit', 'state', 'county', 'congressional_district']),
   sourcePublishedAt: z.string().nullable().optional(),
 });
 export type LayerInfo = z.infer<typeof LayerInfoSchema>;
 
-/** Row: [key, name, stateFips, west, south, east, north]. West may be < -180 where a unit crosses the antimeridian. */
-const GeoRowSchema = z.tuple([z.string().regex(/^(state|county|cd119|cd120):[0-9A-Z]+$/), z.string(), z.string().length(2), z.number(), z.number(), z.number(), z.number()]);
+/**
+ * Row: [key, name, stateFips, west, south, east, north]. West may be < -180 where a unit crosses the antimeridian.
+ * The nation and the judicial circuits lie in no single state, so their state code is empty.
+ */
+const GeoRowSchema = z.tuple([
+  z.string().regex(/^(nation|circuit|state|county|cd119|cd120):[0-9A-Z]+$/),
+  z.string(),
+  z.string().regex(/^(?:|[0-9]{2})$/, 'expected a two-digit state code, or nothing'),
+  z.number(),
+  z.number(),
+  z.number(),
+  z.number(),
+]);
 export const GeoIndexSchema = z.object({
   fields: z.array(z.string()),
   layers: z.record(LayerSchema, LayerInfoSchema),
@@ -453,6 +639,11 @@ export const ManifestSchema = z.object({
     relationships: z.number().int(),
     events: z.number().int(),
     geographicUnits: z.number().int(),
+    /** The parts of `cases` and `bills`. Releases made before the federal level existed do not carry them. */
+    supremeCourtCases: z.number().int().optional(),
+    appealsCourtCases: z.number().int().optional(),
+    stateBills: z.number().int().optional(),
+    federalBills: z.number().int().optional(),
   }),
   reviewQueue: z.object({ items: z.number().int(), byKind: z.record(z.string(), z.number().int()) }),
   sources: z.record(
@@ -474,8 +665,24 @@ export const ClassificationFileSchema = z.object({
     z.object({ ruleId: z.string(), eventType: z.string(), significance: z.string(), rulesOn: z.string().nullable().optional(), pattern: z.string() }),
   ),
   legislativeActionRules: z.array(z.object({ ruleId: z.string(), eventType: z.string(), significance: z.string(), pattern: z.string() })),
+  /** How an action in the record of a measure of Congress is classified: by its action code or, failing that, its text. */
+  federalActionRules: z
+    .array(z.object({ ruleId: z.string(), eventType: z.string(), significance: z.string(), pattern: z.string(), actionCodes: z.array(z.string()).default([]) }))
+    .default([]),
+  /** How a document GovInfo holds for a court of appeals case is classified, from the court's entry for it. */
+  circuitDocumentRules: z
+    .array(z.object({ ruleId: z.string(), eventType: z.string(), significance: z.string(), pattern: z.string(), documentType: z.string() }))
+    .default([]),
+  /** The rule id a tag carries when a maintainer added it. */
+  curatedRuleId: z.string().optional(),
   /** Rules that are not keyword patterns: curation and selection rules, and the text-change rule. */
-  otherRules: z.array(z.object({ ruleId: z.string(), appliesTo: z.string(), description: z.string() })).default([]),
+  otherRules: z.array(z.object({
+    ruleId: z.string(),
+    appliesTo: z.string(),
+    description: z.string(),
+    /** For the rule that names the stage of a measure of Congress: its stages, from the first to the furthest. */
+    order: z.array(z.string()).optional(),
+  })).default([]),
 });
 export type ClassificationFile = z.infer<typeof ClassificationFileSchema>;
 
@@ -492,7 +699,152 @@ export const BillIndexSchema = z.object({
   }),
 });
 export type BillIndex = z.infer<typeof BillIndexSchema>;
-export const RelationshipFileSchema = z.object({ relationships: z.array(EntityRelationshipSchema) });
+
+/** The index of measures of Congress (congress/index.json), with the selection rule as it was applied. */
+export const FederalBillIndexSchema = z.object({
+  bills: z.array(FederalBillSummarySchema),
+  selection: z.object({
+    ruleId: z.string(),
+    congress: z.number().int(),
+    appliedTo: z.string(),
+    /** Titles that name election law ("named" test). */
+    pattern: z.string(),
+    /** Election words that select a measure in the policy areas of `generalAreas`. */
+    generalPattern: z.string(),
+    generalAreas: z.array(z.string()),
+    /** Election words that select a measure in the policy areas of `otherAreas`. */
+    otherPattern: z.string(),
+    otherAreas: z.array(z.string()),
+    /** Titles and policy areas removed before the tests are applied. */
+    exclusionPattern: z.string(),
+    excludedAreas: z.array(z.string()),
+    /** The tests in words, by name. */
+    tests: z.record(z.string(), z.string()),
+    selectedByTest: z.record(z.string(), z.number().int()),
+    totalMeasuresRead: z.number().int(),
+  }),
+});
+export type FederalBillIndex = z.infer<typeof FederalBillIndexSchema>;
+
+/** What was read for one court of appeals, and what came of it. */
+export const CircuitCoverageSchema = z.object({
+  cases: z.number().int().nonnegative(),
+  documents: z.number().int().nonnegative(),
+  /** Documents that are a clerk's cover letter and not a decision (rule cover-letter-1). */
+  coverLetters: z.number().int().nonnegative(),
+  unreadableDocuments: z.number().int().nonnegative(),
+  selected: z.number().int().nonnegative(),
+  /** Cases the rule selects that are on the published list of exclusions. */
+  excluded: z.number().int().nonnegative(),
+});
+export type CircuitCoverage = z.infer<typeof CircuitCoverageSchema>;
+
+/** A case the selection rule picks that a maintainer removed, with the passage of the opinion that shows why. */
+export const CircuitExclusionSchema = z.object({
+  caseId: z.string(),
+  caseName: z.string(),
+  courtId: z.string(),
+  docketNumber: z.string(),
+  package: z.string(),
+  reason: z.string(),
+  quote: z.string(),
+  documentUrl: httpsUrl,
+  sourceUrl: httpsUrl,
+  tests: z.array(z.string()),
+  ruleId: z.string(),
+  checkedAt: isoDateTime,
+});
+export type CircuitExclusion = z.infer<typeof CircuitExclusionSchema>;
+
+/** The index of court of appeals cases (circuits/index.json), with the selection rule and what was read per court. */
+export const CircuitIndexSchema = z.object({
+  cases: z.array(LegalCaseSummarySchema),
+  coverage: z.record(z.string(), CircuitCoverageSchema),
+  exclusions: z.array(CircuitExclusionSchema),
+  scannedAt: isoDateTime,
+  selection: z.object({
+    ruleId: z.string(),
+    exclusionRuleId: z.string(),
+    coverLetterRuleId: z.string(),
+    appliedTo: z.string(),
+    /** Only cases with a document issued on or after this date are read. */
+    since: isoDate,
+    totalCasesRead: z.number().int(),
+    totalDocumentsRead: z.number().int(),
+    /** The nature-of-suit code that marks a voting case in the court's record. */
+    votingNatureOfSuit: z.string(),
+    /** Nature-of-suit codes of other fields of law; a case with one of them is not selected by its text. */
+    otherFieldCodes: z.record(z.string(), z.string()),
+    wordPattern: z.string(),
+    phrasePattern: z.string(),
+    authorityPattern: z.string(),
+    laborPattern: z.string(),
+    laborMinMatches: z.number().int(),
+    laborRatio: z.number(),
+    coverLetterPattern: z.string(),
+    /** The thresholds of the text tests, by test name. */
+    textTests: z.record(z.string(), z.record(z.string(), z.number())),
+  }),
+});
+export type CircuitIndex = z.infer<typeof CircuitIndexSchema>;
+
+/**
+ * The ledger of the court of appeals scan (circuits/scan.json): every case read, by court and case number, with the
+ * values named in `fields`. The site does not display it; it is published so the count of cases read can be checked.
+ */
+export const CircuitScanSchema = z.object({
+  ruleId: z.string(),
+  scannedAt: isoDateTime,
+  since: isoDate,
+  fields: z.array(z.string()),
+  outcomes: z.record(z.string(), z.string()),
+  packages: z.record(z.string(), z.record(z.string(), z.tuple([z.string(), z.number().int(), z.number().int(), z.number().int(), z.number().int()]))),
+});
+
+/** The judicial circuits and the statute they are drawn from (geo/circuits.json). */
+export const CircuitsFileSchema = z.object({
+  courts: z.array(CourtSchema),
+  statute: z.object({
+    ruleId: z.string(),
+    sourceId: z.string(),
+    edition: z.string(),
+    /** The date the cited edition says it is current through. */
+    currentThrough: isoDate,
+    checkedAt: isoDateTime,
+    sections: z.array(z.object({ citation: z.string(), url: httpsUrl })),
+  }),
+  /** State FIPS code to the id of the court of appeals for its circuit. */
+  circuitOfState: z.record(z.string().length(2), z.string()),
+  /** States and territories on the map that are in no circuit. */
+  withoutCircuit: z.array(z.string().length(2)),
+  /** Places the statute names that the map does not draw. */
+  notOnTheMap: z.array(z.string()),
+});
+export type CircuitsFile = z.infer<typeof CircuitsFileSchema>;
+/**
+ * A Supreme Court docket and the court of appeals case it comes from, paired by rule case-below-1: the Court's docket
+ * names that court of appeals as the court below and gives the case's docket number. Neither record states the pairing
+ * in so many words, so the link carries what the docket says and where.
+ */
+export const CaseLinkSchema = z.object({
+  id: z.string(),
+  ruleId: z.string(),
+  /** The Supreme Court docket. */
+  review: z.object({ caseId: z.string(), docket: z.string(), caseName: z.string() }),
+  /** The court of appeals case. */
+  below: z.object({ caseId: z.string(), docket: z.string(), caseName: z.string(), courtId: z.string() }),
+  /** The court below and its case number, as the Supreme Court's docket gives them. */
+  court: z.string(),
+  number: z.string(),
+  /** The Supreme Court's docket page, which gives both. */
+  sourceUrl: httpsUrl,
+});
+export type CaseLink = z.infer<typeof CaseLinkSchema>;
+export const RelationshipFileSchema = z.object({
+  relationships: z.array(EntityRelationshipSchema),
+  /** Absent from a file written before rule case-below-1 existed. */
+  caseLinks: z.array(CaseLinkSchema).default([]),
+});
 export const EventsFileSchema = z.object({ events: z.array(TimelineEventSchema) });
 export const SourcesFileSchema = z.object({ sources: z.array(SourceRecordSchema) });
 export const CourtsFileSchema = z.object({ courts: z.array(CourtSchema) });

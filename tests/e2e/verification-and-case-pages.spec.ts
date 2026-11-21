@@ -96,7 +96,7 @@ test.describe('Home, About and place pages', () => {
     const names = await sentence.getByRole('link').allTextContents();
     expect(names.length).toBeGreaterThan(1);
     expect(names).toEqual([...names].sort((a, b) => a.localeCompare(b, 'en-US')));
-    await expect(page.locator('.module-case p')).toContainText('where the docket links them, the questions presented');
+    await expect(page.locator('.module-case p').first()).toContainText('with every entry and linked filings');
   });
 
   test('the About page states the licence scope as NOTICE does', async ({ page }) => {
@@ -110,7 +110,7 @@ test.describe('Home, About and place pages', () => {
   test('a place outside California says its legislation is not tracked, without claims about it', async ({ page }) => {
     await open(page, '#/place/state:36?tab=legislation');
     await expect(heading(page)).toHaveText('New York');
-    await expect(page.getByText('Election legislation for New York is not tracked here.')).toBeVisible();
+    await expect(page.getByText('The election legislation of New York is not tracked here.')).toBeVisible();
     await expect(page.getByText('has election legislation that is not shown here')).toHaveCount(0);
   });
 
@@ -134,7 +134,7 @@ test.describe('Home, About and place pages', () => {
     await expect(page.locator('.legend-vintage')).not.toContainText('published');
     await open(page, '#/laws', { withMap: true });
     await mapReady(page, 'state');
-    await expect(page.locator('.legend .legend-hatch')).toHaveText('Not covered: election legislation here is not tracked by DemocracyHQ.');
+    await expect(page.locator('.legend .legend-hatch')).toHaveText('Not covered: this legislature’s election bills are not tracked by DemocracyHQ.');
   });
 });
 

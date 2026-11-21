@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { countBy, filterBills, filterCases, identifierParts, isoDateParam, knownBillFilters, knownCaseFilters, knownValue, normalizeText, positiveInt } from '../../src/lib/filters';
-import { makeBill, makeCase } from './fixtures';
+import { caseStates, countBy, filterBills, filterCases, identifierParts, isoDateParam, knownBillFilters, knownCaseFilters, knownValue, normalizeText, positiveInt } from '../../src/lib/filters';
+import { makeAppealsCase, makeBill, makeCase, makeFederalBill } from './fixtures';
 
 const cases = [
   makeCase(),
@@ -51,7 +51,25 @@ describe('filterCases', () => {
 
   it('sorts by name or by docketing date on request', () => {
     expect(filterCases(cases, { sort: 'name' }).map((c) => c.id)).toEqual(['synthetic-case-3', 'synthetic-case-1', 'synthetic-case-2']);
-    expect(filterCases(cases, { sort: 'docketed' }).map((c) => c.id)).toEqual(['synthetic-case-1', 'synthetic-case-2', 'synthetic-case-3']);
+    // A case without a docketing date is ordered by the first entry the source holds (2026-01-05 here).
+    expect(filterCases(cases, { sort: 'docketed' }).map((c) => c.id)).toEqual(['synthetic-case-1', 'synthetic-case-3', 'synthetic-case-2']);
+  });
+
+  it('filters by court: one court of appeals, all of them, or the Supreme Court', () => {
+    const mixed = [...cases, makeAppealsCase(), makeAppealsCase({ id: 'ca5-99-00002', courtId: 'ca5', origin: null })];
+    expect(filterCases(mixed, { court: 'ca9' }).map((c) => c.id)).toEqual(['ca9-99-00001']);
+    expect(filterCases(mixed, { court: 'appeals' }).map((c) => c.id).sort()).toEqual(['ca5-99-00002', 'ca9-99-00001']);
+    expect(filterCases(mixed, { court: 'scotus' })).toHaveLength(3);
+    expect(filterCases(mixed, { court: 'cafc' })).toEqual([]);
+  });
+
+  it('lists an appeal under the state of the district court it came from', () => {
+    const appeal = makeAppealsCase();
+    expect(caseStates(appeal)).toEqual(['06']);
+    expect(filterCases([appeal], { state: '06' })).toHaveLength(1);
+    expect(filterCases([appeal], { state: '48' })).toEqual([]);
+    expect(knownCaseFilters({ court: 'cafc' }, [appeal]).court).toBe('cafc');
+    expect(knownCaseFilters({ court: 'ca99' }, [appeal]).court).toBeUndefined();
   });
 
   it('does not change the list it was given', () => {
@@ -147,6 +165,16 @@ describe('query values typed or pasted into the address', () => {
   it('drops an unknown issue, status or measure type from the bill filters', () => {
     const bills = [makeBill(), makeBill({ id: 'zz-2', measureType: 'SB', legislativeStatus: { measureState: null, currentStatus: null, currentHouse: null, currentLocation: null } })];
     expect(knownBillFilters({ tag: 'nope', status: 'Enacted', type: 'XYZ' }, bills)).toEqual({ tag: undefined, status: undefined, type: undefined });
-    expect(knownBillFilters({ tag: 'mail-voting', status: 'Not recorded', type: 'SB' }, bills)).toEqual({ tag: 'mail-voting', status: 'Not recorded', type: 'SB' });
+    // A status and a type belong to one legislature; a link without one is read as the only legislature that uses them.
+    expect(knownBillFilters({ tag: 'mail-voting', status: 'Not recorded', type: 'SB' }, bills)).toEqual({ jur: 'ca', tag: 'mail-voting', status: 'Not recorded', type: 'SB' });
+  });
+
+  it('keeps a status only within one legislature, and filters measures of Congress by "us"', () => {
+    const both = [makeBill(), makeFederalBill()];
+    expect(knownBillFilters({ jur: 'us', status: 'Passed the House' }, both)).toEqual({ jur: 'us', status: 'Passed the House', tag: undefined, type: undefined });
+    expect(knownBillFilters({ jur: 'us', status: 'Chaptered' }, both).status).toBeUndefined();
+    expect(knownBillFilters({ jur: 'tx' }, both).jur).toBeUndefined();
+    expect(filterBills(both, { jur: 'us' }).map((b) => b.id)).toEqual(['us-119-hr9001']);
+    expect(filterBills(both, { sort: 'number' }).map((b) => b.id)).toEqual(['us-119-hr9001', 'ca-99999999-zz1']);
   });
 });

@@ -1,9 +1,10 @@
 import { useEffect, useMemo, type ReactNode } from 'react';
-import type { CourtDocument, EntityRelationship, LegalCase, LegalEvent } from '../../types/schemas';
+import type { CaseLink, CourtDocument, EntityRelationship, LegalCase, LegalEvent } from '../../types/schemas';
 import { useCore } from '../../lib/core';
+import { SCOTUS_ID, courtFullName, courtHash, courtShortName } from '../../lib/courts';
 import { loadCase } from '../../lib/data';
 import { entityNamer, packForCase } from '../../lib/export';
-import { formatDate, plural } from '../../lib/format';
+import { caseNameClass, formatDate, plural } from '../../lib/format';
 import { isRecordStale } from '../../lib/freshness';
 import { eventLabel, relationshipLabel, SCOPE_LABELS, useTagLabels } from '../../lib/labels';
 import { relationshipsForRecord } from '../../lib/relations';
@@ -78,7 +79,7 @@ function DocketEntry({ event, documents }: { event: LegalEvent; documents: Reado
       <time dateTime={event.date}>{formatDate(event.date)}</time>
       <div>
         <p className="entry-text">{event.description}</p>
-        <p className="entry-kind">{eventLabel(event.eventType)}</p>
+        <p className="entry-kind">{eventLabel(event.eventType, event.classificationRule)}</p>
         {main.length > 0 ? (
           <ul className="entry-docs">
             {main.map(({ doc, label }) => (
@@ -161,9 +162,67 @@ export function CaseDetail({ id, route }: { id: string; route: Route }) {
   );
 }
 
-function CaseBody({ record, route, links }: { record: LegalCase; route: Route; links: Loadable<EntityRelationship[]> }) {
-  const core = useCore();
+/** Which issue tags the keyword rules gave the case, with the text each matched. */
+function IssueTags({ record }: { record: LegalCase }) {
   const labels = useTagLabels();
+  return (
+    <Section title="Issue tags" note="Applied by keyword rules to the stated text. They describe subject matter only, never the merits.">
+      {record.issueTags.length === 0 ? (
+        <p className="quiet">{record.removedTags.length > 0 ? 'No tag is assigned.' : 'No rule matched. The case is listed without tags rather than with a guess.'}</p>
+      ) : (
+        <TableScroll label="Issue tags">
+          <table className="table">
+            <thead><tr><th scope="col">Tag</th><th scope="col">Matched in</th><th scope="col">Matched text</th></tr></thead>
+            <tbody>
+              {record.issueTags.map((tag) => (
+                <tr key={tag.tag}>
+                  <td><a className="tag" href={buildHash(['litigation'], { tag: tag.tag })}>{labels.get(tag.tag) ?? tag.tag}</a><br /><span className="quiet">rule {tag.ruleId}</span></td>
+                  <td>{tag.matchedField}{tag.matchCount ? ` (${tag.matchCount} matches; first shown)` : ''}</td>
+                  <td>&hellip;{tag.matchedText}&hellip;</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </TableScroll>
+      )}
+      {record.removedTags.length > 0 ? (
+        <div className="removed-tags">
+          <h3>Removed by a maintainer</h3>
+          <p className="section-note">
+            The rules count words, and a long opinion can reach a rule&rsquo;s count while it only cites decisions on another subject. A tag is removed only on a passage of the case&rsquo;s own document, which is checked on every data run (rule{' '}
+            <A to={buildHash(['sources'], { section: 'rules' })}>{record.removedTags[0]!.removalRuleId}</A>).
+          </p>
+          <ul className="rows">
+            {record.removedTags.map((tag) => (
+              <li key={tag.tag} className="row">
+                <p className="row-title">{labels.get(tag.tag) ?? tag.tag}</p>
+                <p className="row-line">{tag.reason}</p>
+                <p className="row-line">The document reads: <q>{tag.quote}</q> (<Ext href={tag.quoteUrl}>the document</Ext>)</p>
+                <p className="row-meta">
+                  Rule {tag.ruleId} had matched in the {tag.matchedField}{tag.matchCount ? `, ${plural(tag.matchCount, 'time')}` : ''}. The first match: &hellip;{tag.matchedText}&hellip;
+                </p>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+    </Section>
+  );
+}
+
+/** The pairings of rule case-below-1 that this case is one side of. */
+function useCaseLinks(caseId: string): CaseLink[] {
+  const core = useCore();
+  return (dataOf(core.caseLinks) ?? []).filter((link) => link.review.caseId === caseId || link.below.caseId === caseId);
+}
+
+function CaseBody(props: { record: LegalCase; route: Route; links: Loadable<EntityRelationship[]> }) {
+  return props.record.courtId === SCOTUS_ID ? <SupremeBody {...props} /> : <AppealBody {...props} />;
+}
+
+function SupremeBody({ record, route, links }: { record: LegalCase; route: Route; links: Loadable<EntityRelationship[]> }) {
+  const core = useCore();
+  const below = useCaseLinks(record.id);
   const sources = dataOf(core.sources) ?? [];
   const source = sources.find((s) => s.id === record.sourceId);
   const showAll = route.query.entries === 'all';
@@ -200,7 +259,7 @@ function CaseBody({ record, route, links }: { record: LegalCase; route: Route; l
     <>
       <header className="view-head">
         <TypeMark type="case" />
-        <h1 tabIndex={-1} className="case-name">{record.caseName}</h1>
+        <h1 tabIndex={-1} className={caseNameClass(record.caseName)}>{record.caseName}</h1>
         <p className="lede">No. {record.docketNumber}, Supreme Court of the United States</p>
         <div className="btn-row">
           <WatchButton item={{ type: 'case', id: record.id, label: `${record.caseName}, No. ${record.docketNumber}` }} />
@@ -233,9 +292,16 @@ function CaseBody({ record, route, links }: { record: LegalCase; route: Route; l
               : 'Not recorded on the docket'],
           ]}
         />
-        {record.linkedNote || record.relatedDockets.length > 0 || record.sameLowerCourt.length > 0 ? (
+        {below.length > 0 || record.linkedNote || record.relatedDockets.length > 0 || record.sameLowerCourt.length > 0 ? (
           <Facts
             items={[
+              ...(below.length ? [['The case below, in this dataset', (
+                <span key="below">{below.map((link, i) => (
+                  <span key={link.id}>
+                    {i > 0 ? '; ' : ''}<a href={buildHash(['litigation', link.below.caseId])}><span className="case-name">{link.below.caseName}</span>, No. {link.below.docket}</a>
+                  </span>
+                ))}. Paired by rule <A to={buildHash(['sources'], { section: 'rules' })}>{below[0]!.ruleId}</A> from the lower court and case number on this docket.</span>
+              )] as [string, ReactNode]] : []),
               ...(record.linkedNote ? [['Linked dockets', <DocketRefs key="linked" text={record.linkedNote} />] as [string, ReactNode]] : []),
               ...(record.relatedDockets.length ? [['Consolidated or related', <DocketRefs key="related" text={record.relatedDockets.map((d) => `${d.docket ?? ''}${d.type ? ` (${d.type})` : ''}`).join(', ')} />] as [string, ReactNode]] : []),
               ...(record.sameLowerCourt.length ? [['From the same lower-court case', (
@@ -264,26 +330,7 @@ function CaseBody({ record, route, links }: { record: LegalCase; route: Route; l
         <ScopeList links={links} record={record} />
       </Section>
 
-      <Section title="Issue tags" note="Applied by keyword rules to the stated text. They describe subject matter only, never the merits.">
-        {record.issueTags.length === 0 ? (
-          <p className="quiet">No rule matched. The case is listed without tags rather than with a guess.</p>
-        ) : (
-          <TableScroll label="Issue tags">
-            <table className="table">
-              <thead><tr><th scope="col">Tag</th><th scope="col">Matched in</th><th scope="col">Matched text</th></tr></thead>
-              <tbody>
-                {record.issueTags.map((tag) => (
-                  <tr key={tag.tag}>
-                    <td><a className="tag" href={buildHash(['litigation'], { tag: tag.tag })}>{labels.get(tag.tag) ?? tag.tag}</a><br /><span className="quiet">rule {tag.ruleId}</span></td>
-                    <td>{tag.matchedField}{tag.matchCount ? ` (${tag.matchCount} matches; first shown)` : ''}</td>
-                    <td>&hellip;{tag.matchedText}&hellip;</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </TableScroll>
-        )}
-      </Section>
+      <IssueTags record={record} />
 
       <Section title="Docket entries" id="docket">
         <div className="toolbar">
@@ -321,6 +368,245 @@ function CaseBody({ record, route, links }: { record: LegalCase; route: Route; l
         printHash={buildHash(['pack', 'case', record.id])}
         // While the links or the source list are loading the pack is not offered; a file that failed is named in the pack
         // instead of being left out.
+        build={() => (links.status === 'loading' || core.sources.status === 'loading' ? null : packForCase({
+          record, relationships: dataOf(links), now: new Date().toISOString(), link: shareUrl, manifest: dataOf(core.manifest), sources: dataOf(core.sources),
+          nameOf: entityNamer({ geo: dataOf(core.geo), bills: dataOf(core.bills)?.bills, cases: dataOf(core.cases) }),
+        }))}
+      />
+    </>
+  );
+}
+
+/* ---------- a case of a court of appeals ---------- */
+
+const GOVINFO_STANDARD_NOTE = 'Hosted by govinfo.gov; linked, not mirrored.';
+
+/** A document of a court of appeals case as a link names it: "Opinion of Sep 9, 2026". */
+function appealDocumentLabel(doc: CourtDocument): string {
+  return `${doc.documentType} of ${formatDate(doc.filingDate)}`;
+}
+
+/** What the data says about a document's file beyond where it is hosted: a clerk's cover letter, or a file a program cannot read. */
+function documentCaveat(doc: CourtDocument): string | null {
+  const rest = (doc.accessNote ?? '').replace(GOVINFO_STANDARD_NOTE, '').trim();
+  return rest || null;
+}
+
+function AppealDocumentLink({ doc }: { doc: CourtDocument }) {
+  return doc.url
+    ? <Ext href={doc.url}>{appealDocumentLabel(doc)} (PDF, govinfo.gov)</Ext>
+    : <span>{appealDocumentLabel(doc)} (GovInfo gives no address for this document)</span>;
+}
+
+function AppealEntry({ event, documents }: { event: LegalEvent; documents: ReadonlyMap<string, CourtDocument> }) {
+  const docs = event.documentIds.map((id) => documents.get(id)).filter((d): d is CourtDocument => Boolean(d));
+  return (
+    <li className={`entry${event.significance === 'major' ? ' entry-major' : ''}`}>
+      <time dateTime={event.date}>{formatDate(event.date)}</time>
+      <div>
+        <p className="entry-text">{event.description}</p>
+        <p className="entry-kind">{eventLabel(event.eventType, event.classificationRule)}</p>
+        {docs.length > 0 ? (
+          <ul className="entry-docs">
+            {docs.map((doc) => (
+              <li key={doc.id}>
+                <AppealDocumentLink doc={doc} />
+                {documentCaveat(doc) ? <p className="quiet">{documentCaveat(doc)}</p> : null}
+              </li>
+            ))}
+          </ul>
+        ) : null}
+      </div>
+    </li>
+  );
+}
+
+/** The parties as the court's record lists them, by role in the order the record first gives each role. */
+function Parties({ parties }: { parties: LegalCase['parties'] }) {
+  const byRole = new Map<string, string[]>();
+  for (const party of parties) {
+    const role = party.role ?? 'Role not given in the record';
+    byRole.set(role, [...(byRole.get(role) ?? []), party.name]);
+  }
+  const list = <Facts items={[...byRole].map(([role, names]) => [role, names.join('; ')])} />;
+  return (
+    <Section title={`Parties (${parties.length})`} note="As the court’s record on GovInfo lists them. The record does not say who filed what.">
+      {parties.length > 12 ? (
+        <details className="reading-details">
+          <summary>Show the {parties.length} parties</summary>
+          {list}
+        </details>
+      ) : list}
+    </Section>
+  );
+}
+
+/** Why the selection rule picked the case: one line for each test of the rule that it met, with what the rule counted. */
+function WhyListed({ record, documents }: { record: LegalCase; documents: ReadonlyMap<string, CourtDocument> }) {
+  const core = useCore();
+  const selection = record.selection;
+  if (!selection) return null;
+  const partyMinimum = dataOf(core.appeals)?.selection.textTests.party?.wordMatches;
+  const doc = selection.documentId ? documents.get(selection.documentId) : undefined;
+  const counted = doc ? <AppealDocumentLink doc={doc} /> : 'One of its documents';
+  const byText = selection.tests.some((test) => test === 'long' || test === 'dense');
+  const words = selection.wordMatches ?? 0;
+  return (
+    <Section
+      title="Why this case is listed"
+      note={<>Cases of the courts of appeals are picked by a published rule (<A to={buildHash(['sources'], { section: 'coverage' })}>rule {selection.ruleId}</A>), not by a maintainer. The rule reads the court&rsquo;s record and counts words. It does not say what the case decides.</>}
+    >
+      <ul className="plain-list spaced">
+        {selection.tests.includes('record') ? (
+          <li>The court&rsquo;s record gives the case the nature of suit {[selection.natureOfSuitCode, selection.natureOfSuit ? `(${selection.natureOfSuit})` : null].filter(Boolean).join(' ')}.</li>
+        ) : null}
+        {byText && selection.wordCount ? (
+          <li>
+            {counted} has {plural(words, 'election word')} in {selection.wordCount.toLocaleString('en-US')} words{selection.density != null ? ` (${selection.density} per 1,000)` : ''} and {plural(selection.phraseMatches ?? 0, 'election phrase')}, which meets the rule&rsquo;s count for the text of a document.
+            {selection.phrases.length > 0 ? ` Phrases counted most often: ${selection.phrases.map((phrase) => `“${phrase.term}” (${phrase.count})`).join(', ')}.` : ''}
+          </li>
+        ) : null}
+        {selection.tests.includes('party') ? (
+          <li>
+            The case title or a party names an election authority, &ldquo;{selection.party}&rdquo;, and {doc ? <AppealDocumentLink doc={doc} /> : 'one of its documents'} has {plural(words, 'election word')}
+            {partyMinimum ? ` (the rule asks for at least ${partyMinimum} where an election authority is named)` : ''}.
+          </li>
+        ) : null}
+      </ul>
+      <GapNotice>The rule can include a case that only discusses elections. A maintainer removes a case only where the opinion itself shows that no public election is at issue.</GapNotice>
+    </Section>
+  );
+}
+
+function AppealBody({ record, route, links }: { record: LegalCase; route: Route; links: Loadable<EntityRelationship[]> }) {
+  const core = useCore();
+  const reviews = useCaseLinks(record.id);
+  const geo = dataOf(core.geo);
+  const court = dataOf(core.courts)?.get(record.courtId);
+  const sources = dataOf(core.sources) ?? [];
+  const source = sources.find((s) => s.id === record.sourceId);
+  const newestFirst = route.query.order === 'newest';
+  const documents = useMemo(() => new Map(record.documents.map((d) => [d.id, d])), [record.documents]);
+  const entries = useMemo(() => (newestFirst ? [...record.events].reverse() : record.events), [record.events, newestFirst]);
+  const ruling = record.latestDispositiveEntry;
+  // The entry the latest decision was read from, for the link to its document.
+  const rulingEvent = ruling ? [...record.events].reverse().find((e) => e.date === ruling.date && e.description === ruling.text) : undefined;
+  const rulingDocs = (rulingEvent?.documentIds ?? []).map((id) => documents.get(id)).filter((d): d is CourtDocument => Boolean(d));
+  const section = route.query.section;
+  useEffect(() => {
+    if (section === 'docket') revealElement(() => document.getElementById('docket-h'));
+  }, [section]);
+  const stale = source ? isRecordStale(record.lastCheckedAt, source.staleAfterDays, core.now) : false;
+  const originState = record.origin?.stateFips ? geo?.state(record.origin.stateFips) : undefined;
+  const nature = [record.selection?.natureOfSuitCode, record.natureOfSuit].filter(Boolean).join(' ');
+  const span = record.dateFirstEntry && record.sourceLastActivity && record.dateFirstEntry !== record.sourceLastActivity
+    ? `, dated ${formatDate(record.dateFirstEntry)} to ${formatDate(record.sourceLastActivity)}`
+    : record.sourceLastActivity ? `, dated ${formatDate(record.sourceLastActivity)}` : '';
+
+  return (
+    <>
+      <header className="view-head">
+        <TypeMark type="case" />
+        <h1 tabIndex={-1} className={caseNameClass(record.caseName)}>{record.caseName}</h1>
+        <p className="lede">No. {record.docketNumber}, <a href={courtHash(record.courtId)}>{courtFullName(court, record.courtId)}</a></p>
+        <div className="btn-row">
+          <WatchButton item={{ type: 'case', id: record.id, label: `${record.caseName}, No. ${record.docketNumber} (${courtShortName(court, record.courtId)})` }} />
+          <CopyLinkButton hash={buildHash(['litigation', record.id], route.query)} />
+        </div>
+      </header>
+
+      <Section
+        title="What the court’s record shows"
+        note="DemocracyHQ quotes the court’s own entry for each document that GovInfo holds for this case. It does not summarise a decision or say what became of it."
+      >
+        {ruling ? (
+          <figure className="quote-block">
+            <blockquote>{ruling.text}</blockquote>
+            <figcaption>
+              The court&rsquo;s entry of {formatDate(ruling.date)}, classified as &ldquo;{eventLabel(ruling.eventType, ruling.ruleId)}&rdquo; by rule <A to={buildHash(['sources'], { section: 'rules' })}>{ruling.ruleId}</A>.
+              It is the latest opinion, decision or judgment among the documents GovInfo holds for this case.
+              {rulingDocs.map((doc) => <span key={doc.id}> <AppealDocumentLink doc={doc} />.{documentCaveat(doc) ? ` ${documentCaveat(doc)}` : ''}</span>)}
+            </figcaption>
+          </figure>
+        ) : (
+          <p>No opinion, decision or judgment was identified among the documents GovInfo holds for this case. That does not mean the court has not decided it: read the documents below.</p>
+        )}
+        <Facts
+          items={[
+            ['Court', <a key="court" href={courtHash(record.courtId)}>{courtShortName(court, record.courtId)}</a>],
+            ['Published or unpublished', record.publication ? `${record.publication}, as the court’s entry for the decision says` : 'The court’s entry does not say'],
+            ['Nature of suit', nature ? `${nature}, as the court’s record gives it` : 'Not given in the court’s record'],
+            ['Documents on GovInfo', `${record.documentCount}${span}`],
+            ['Court below', record.origin ? (
+              <span key="origin">
+                {record.origin.court}. The opinion reads: <q>{record.origin.quote}</q> (<Ext href={record.origin.documentUrl}>the document</Ext>, read by rule <A to={buildHash(['sources'], { section: 'rules' })}>{record.origin.ruleId}</A>).
+              </span>
+            ) : 'Not read from the opinion. Only a line of the form “Appeal from the United States District Court for …” is read.'],
+            ...(record.decidedWith.length > 0 ? [['Decided in the same opinion', (
+              <span key="with">{record.decidedWith.map((other, i) => (
+                <span key={other.caseId}>
+                  {i > 0 ? '; ' : ''}<a href={buildHash(['litigation', other.caseId])}>No. {other.docket}</a>{other.caseName !== record.caseName ? <>, <span className="case-name">{other.caseName}</span></> : null}
+                </span>
+              ))}. Found by comparing the texts of the opinions (rule <A to={buildHash(['sources'], { section: 'rules' })}>same-opinion-1</A>).</span>
+            )] as [string, ReactNode]] : []),
+            ...(reviews.length > 0 ? [['In the Supreme Court', (
+              <span key="review">{reviews.map((link, i) => (
+                <span key={link.id}>
+                  {i > 0 ? '; ' : ''}<a href={buildHash(['litigation', link.review.caseId])}><span className="case-name">{link.review.caseName}</span>, No. {link.review.docket}</a>
+                </span>
+              ))}. <Ext href={reviews[0]!.sourceUrl}>The Court&rsquo;s docket</Ext> names this court and case number as the case below (rule <A to={buildHash(['sources'], { section: 'rules' })}>{reviews[0]!.ruleId}</A>).</span>
+            )] as [string, ReactNode]] : []),
+          ]}
+        />
+        <GapNotice>
+          This is not the court&rsquo;s full docket. GovInfo holds the documents a court sends to the Government Publishing Office, mostly opinions.
+          {reviews.length > 0 ? ' What happened to the case after its latest document is recorded here only as far as the linked Supreme Court docket shows it.' : ' Whether a decision was later reheard, vacated or reviewed is not recorded here.'}
+        </GapNotice>
+      </Section>
+
+      <WhyListed record={record} documents={documents} />
+
+      {record.parties.length > 0 ? <Parties parties={record.parties} /> : null}
+
+      <Section title="Places and legislation linked to this case" note="A link appears only where a court document supports it. The court’s location is never used to place a case.">
+        <ScopeList links={links} record={record} />
+        {record.origin && originState ? (
+          <p className="quiet">
+            The appeal began in a federal district court in <a href={buildHash(['place', originState.key])}>{originState.name}</a>, as the opinion names the court below. That says where the case began, not what it concerns.
+          </p>
+        ) : null}
+      </Section>
+
+      <IssueTags record={record} />
+
+      <Section title={`Documents on GovInfo (${record.events.length})`} id="docket" note="Each entry is the court’s own text for a document, in the order of their dates.">
+        {record.events.length > 1 ? (
+          <div className="toolbar">
+            <Segmented
+              label="Order"
+              value={newestFirst ? 'newest' : 'oldest'}
+              options={[{ value: 'oldest', label: 'Oldest first' }, { value: 'newest', label: 'Newest first' }]}
+              onChange={(value) => patchQuery(route, { order: value === 'newest' ? 'newest' : '' })}
+            />
+          </div>
+        ) : null}
+        <ol className="entries">
+          {entries.map((event) => <AppealEntry key={event.id} event={event} documents={documents} />)}
+        </ol>
+        <p className="quiet">What kind of document an entry is, is decided by published rules, listed under <A to={buildHash(['sources'], { section: 'rules' })}>Data and methodology</A>.</p>
+      </Section>
+
+      <SourceLine
+        sourceName={source?.name ?? 'GovInfo, United States Courts Opinions'}
+        sourceUrl={record.sourceUrl}
+        verification={record.verification}
+        lastCheckedAt={record.lastCheckedAt}
+        sourceActivity={{ label: 'Latest document GovInfo holds for the case', date: record.sourceLastActivity }}
+        stale={stale}
+        correctionSubject={`${record.caseName}, No. ${record.docketNumber} (${courtShortName(court, record.courtId)})`}
+      />
+      <ExportMenu
+        printHash={buildHash(['pack', 'case', record.id])}
         build={() => (links.status === 'loading' || core.sources.status === 'loading' ? null : packForCase({
           record, relationships: dataOf(links), now: new Date().toISOString(), link: shareUrl, manifest: dataOf(core.manifest), sources: dataOf(core.sources),
           nameOf: entityNamer({ geo: dataOf(core.geo), bills: dataOf(core.bills)?.bills, cases: dataOf(core.cases) }),

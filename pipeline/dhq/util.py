@@ -119,6 +119,18 @@ def read_json(path: Path, default: Any = None) -> Any:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def iso_to_http_date(value: Optional[str]) -> Optional[str]:
+    """``2026-07-10T15:07:38Z`` as an HTTP date (``Fri, 10 Jul 2026 15:07:38 GMT``), for a conditional request."""
+    if not value:
+        return None
+    from email.utils import format_datetime
+
+    try:
+        return format_datetime(datetime.fromisoformat(value.replace("Z", "+00:00")).astimezone(timezone.utc), usegmt=True)
+    except (TypeError, ValueError):
+        return None
+
+
 def http_date_to_iso(value: Optional[str]) -> Optional[str]:
     if not value:
         return None

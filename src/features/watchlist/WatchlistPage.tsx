@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { courtHash } from '../../lib/courts';
 import { formatDateTime, plural } from '../../lib/format';
 import { buildHash } from '../../lib/router';
 import { clearWatchlist, storageAvailable, toggleWatch, useWatchlist, type WatchItem } from '../../lib/watchlist';
@@ -7,10 +8,9 @@ import { A, Empty, Section, TypeMark } from '../../components/ui';
 function itemHash(item: WatchItem): string {
   if (item.type === 'case') return buildHash(['litigation', item.id]);
   if (item.type === 'bill') return buildHash(['laws', item.id]);
+  if (item.type === 'court') return courtHash(item.id);
   return buildHash(['place', item.id]);
 }
-
-const KIND: Readonly<Record<WatchItem['type'], 'case' | 'bill' | 'place'>> = { case: 'case', bill: 'bill', place: 'place' };
 
 /**
  * Where keyboard focus goes after an item is removed (its Remove button goes with it): the Remove button of the item
@@ -47,7 +47,7 @@ export function WatchlistPage() {
       <header className="view-head">
         <TypeMark type="data" label="Watchlist" />
         <h1 tabIndex={-1}>Your watchlist</h1>
-        <p className="lede">A list of places, cases and measures you want to come back to.</p>
+        <p className="lede">A list of places, courts, cases and measures you want to come back to.</p>
         <p className="coverage-note">
           This list is saved only in this browser on this device. It does not sync anywhere, it is not sent to any server, and it does not send alerts. Clearing your browser data removes it.
           {shared ? ' This copy of the site is served from a github.io address: other sites served from the same github.io address can read and change the list.' : null}
@@ -59,7 +59,7 @@ export function WatchlistPage() {
         </Empty>
       ) : items.length === 0 ? (
         <Empty title="Nothing on your watchlist yet.">
-          <p>Open a place, a case or a measure and choose &ldquo;Add to watchlist&rdquo;.</p>
+          <p>Open a place, a court, a case or a measure and choose &ldquo;Add to watchlist&rdquo;.</p>
           <p><A to={buildHash(['litigation'])}>Browse court cases</A> or <A to={buildHash(['laws'])}>browse legislation</A>.</p>
         </Empty>
       ) : (
@@ -68,7 +68,7 @@ export function WatchlistPage() {
             {items.map((item, index) => (
               <li key={`${item.type}:${item.id}`} className="row row-split">
                 <div>
-                  <TypeMark type={KIND[item.type]} />
+                  <TypeMark type={item.type} />
                   <p className="row-title"><a className={item.type === 'case' ? 'case-name' : undefined} href={itemHash(item)}>{item.label}</a></p>
                   <p className="row-foot">Added {formatDateTime(item.addedAt)}</p>
                 </div>

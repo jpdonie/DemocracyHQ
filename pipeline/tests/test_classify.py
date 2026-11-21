@@ -12,10 +12,63 @@ def test_one_match_in_a_short_authoritative_field_assigns_the_tag():
     found = tags_of([("questions presented", "Whether the State's congressional districting plan violates Section 2.")])
     assert set(found) == {"redistricting"}
     t = found["redistricting"]
-    assert t.ruleId == "tag-redist-1"
+    assert t.ruleId == "tag-redist-2"
     assert t.matchedField == "questions presented"
     assert "districting plan" in t.matchedText
     assert t.matchCount is None
+
+
+def test_a_seat_named_by_its_district_is_not_redistricting():
+    """An election contest names the seat it is about. The words "Congressional District" there are the seat's name."""
+    contest = "Dismissing the election contest relating to the office of Representative from the Fourteenth Congressional District of Florida."
+    assert "redistricting" not in tags_of([("display title", contest)])
+    for seat in ("Representative from the at-large Congressional District of Alaska", "the Member from the Twenty-eighth Congressional District of Texas",
+                 "the Delegate for the First Congressional District", "a Member of Congress from the Second Congressional District of Louisiana"):
+        assert "redistricting" not in tags_of([("display title", seat)]), seat
+    # Districts as the thing a measure is about are still read, and so is a title that does both.
+    for title in ("To require the congressional districts established by a State to meet certain requirements.",
+                  "Whether the State's second majority-minority congressional district is a racial gerrymander.",
+                  "A bill on the congressional district of each Representative.",
+                  "Condemning the redistricting that changed the seat of the Representative from the Ninth Congressional District of Texas."):
+        assert "redistricting" in tags_of([("official title", title)]), title
+
+
+def test_another_act_whose_name_ends_in_voting_rights_act_is_not_the_federal_act():
+    """The Youth Voting Rights Act (H.R. 4916 and S. 5481 of the 119th Congress) is a bill of its own, not the act of 1965."""
+    for name in ("Youth Voting Rights Act", "Native American Voting Rights Act of 2021", "California Voting Rights Act of 2001",
+                 "Washington Voting Rights Act", "John R. Lewis Voting Rights Act of New York", "the New\nYork Voting Rights Act",
+                 "a State  Voting Rights Act", "Youth\nVoting Rights Act"):
+        assert "voting-rights-act" not in tags_of([("display title", name)]), name
+    for title in ("To amend the Voting Rights Act of 1965 to revise the criteria for determining which States are subject to section 4.",
+                  "Fannie Lou Hamer, Rosa Parks, and Coretta Scott King Voting Rights Act Reauthorization and Amendments Act of 2006",
+                  "Youth Voting Rights Act, a bill to enforce the twenty-sixth amendment and section 2 of the Voting Rights Act of 1965."):
+        assert "voting-rights-act" in tags_of([("official title", title)]), title
+
+
+def test_the_name_of_a_federal_project_is_not_a_voter_initiative():
+    """The Ninth Circuit's order of October 30, 2026 in No. 26-7139 is about a project the Department of Homeland Security
+    calls its "Unlawful Voter Initiative". The lines are as text extraction gives them."""
+    order = ("2026, DHS began its Unlawful Voter Initiative (“Initiative”). The Initiative is a\ndepartmental project. Carrying out the\n"
+             "Initiative includes door-to-door interrogations. Members fear DHS’s Unlawful Voter Initiative.\nThey are the people the\n"
+             "Initiative has already targeted. The agencies are implementing the Unlawful Voter\nInitiative, in substantial part.\n")
+    assert tag([("full text of the opinion", order * 4, classify.LONG)]) == []
+    assert "direct-democracy" not in tags_of([("case caption", "In re Unlawful Voter Initiative")])
+    # A voter initiative under that word's other meaning is still read, in a long document and in a caption.
+    measure = "The voter initiative qualified for the ballot. Opponents of the ballot measure sued. "
+    found = tags_of([("full text of the opinion", order + measure * 3, classify.LONG)])
+    assert found["direct-democracy"].matchCount == 6 and "voter initiative qualified" in found["direct-democracy"].matchedText
+    assert "direct-democracy" in tags_of([("case caption", "Committee for the Voter Initiative v. Synthetic Secretary of State")])
+
+
+def test_a_line_of_a_long_document_is_not_a_subject_line():
+    """A subject line that begins with "Initiatives" names its subject. In a filing a PDF breaks the lines anywhere."""
+    assert "direct-democracy" in tags_of([("official subject line", "Initiatives: petition circulators.")])
+    assert "direct-democracy" in tags_of([("official subject line", "Elections: initiatives.")])
+    assert "direct-democracy" in tags_of([("digest", "(1) Existing law regulates synthetic petitions.\nInitiatives must be titled.", classify.DIGEST)])
+    wrapped = "The agency announced the Synthetic Border\nInitiative in the spring and funded the\ninitiative for two years. "
+    assert tag([("full text of the opinion", wrapped * 5, classify.LONG)]) == []
+    # The beginning of the document itself is still a beginning, and words after a colon are read as before.
+    assert "direct-democracy" in tags_of([("full text of the opinion", "Initiatives are proposed by petition. " + "Subject: initiatives. " * 4, classify.LONG)])
 
 
 def test_matched_text_is_a_short_excerpt_of_the_source_not_a_summary():

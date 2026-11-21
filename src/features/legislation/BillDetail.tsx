@@ -1,20 +1,20 @@
 import type { EntityRelationship, LegislativeInstrument } from '../../types/schemas';
+import { billHeading, isFederalBill } from '../../lib/bills';
 import { useCore } from '../../lib/core';
 import { loadBill } from '../../lib/data';
 import { EARLIER_SUBJECT_EXPLAINER, earlierSubject, earlierSubjectNote } from '../../lib/billHistory';
 import { passageDeadlineNote, pendingAfterDeadline } from '../../lib/caSession';
 import { BALLOT_RESULTS_NOTE, entityNamer, expiryScope, metCaveat, packForBill, turnsOnBallot, withoutMetCaveat } from '../../lib/export';
-import { formatDate, formatNumber, plural } from '../../lib/format';
+import { formatDate, plural } from '../../lib/format';
 import { isRecordStale } from '../../lib/freshness';
-import { eventLabel, relationshipLabel, reverseRelationshipLabel, useTagLabels } from '../../lib/labels';
+import { eventLabel } from '../../lib/labels';
 import { relationshipsForRecord, sameWords } from '../../lib/relations';
 import { buildHash, patchQuery, shareUrl, type Route } from '../../lib/router';
-import { allOf, dataOf, mapLoadable, useLoad, type Loadable } from '../../lib/useLoad';
-import { LINK_CHECK_SCOPE, METHOD_LABELS } from '../../lib/verification';
-import {
-  A, Async, BackLink, CopyLinkButton, ErrorNote, ExportMenu, Ext, Facts, GapNotice, Loading, Section, Segmented, SourceLine, TableScroll, TypeMark, VerificationBadge, WatchButton,
-} from '../../components/ui';
+import { dataOf, mapLoadable, useLoad, type Loadable } from '../../lib/useLoad';
+import { A, Async, BackLink, CopyLinkButton, ExportMenu, Facts, Loading, Section, Segmented, SourceLine, TypeMark, WatchButton } from '../../components/ui';
 import { latestTextLine, statusLine } from './BillDirectory';
+import { CourtsCell, LinkedMeasuresAndPlaces, ListedAndTags, TextVersions, endsSentence, linkedCasesOf } from './billParts';
+import { FederalBillBody } from './FederalBillDetail';
 
 const BASIS_LABELS: Readonly<Record<string, string>> = {
   not_verified: 'Not verified',
@@ -67,11 +67,6 @@ export function effectiveHeadlineGuide(): string {
   return `Otherwise the cell shows ${quoted('notApplicable')}; ${quoted('notEnacted')}; ${quoted('vetoed')}; ${quoted('notEnactedAsOf')}; ${quoted('notAdopted')}; ${quoted('notAdoptedAsOf')}; and ${quoted('notVerified')}.`;
 }
 
-/** A quotation that ends a sentence already carries its full stop: "… becomes operative." takes no second one. */
-function endsSentence(quote: string): boolean {
-  return /[.?!]["'”’)\]]*\s*$/.test(quote);
-}
-
 /** Resolutions and constitutional amendments are adopted and filed, not enacted. */
 function isAdoptedMeasure(bill: LegislativeInstrument): boolean {
   return bill.chapter?.type === 'CHR' || /Resolution|Constitutional Amendment/.test(bill.measureType);
@@ -84,7 +79,10 @@ export function BillDetail({ id, route }: { id: string; route: Route }) {
     <article className="view">
       <BackLink to={buildHash(['laws'])}>All tracked legislation</BackLink>
       <Async of={record} what="this measure" heading="Measure">
-        {(data) => <BillBody bill={data} route={route} links={mapLoadable(core.relationships, (all) => relationshipsForRecord('bill', data.id, all))} />}
+        {(data) => {
+          const links = mapLoadable(core.relationships, (all) => relationshipsForRecord('bill', data.id, all));
+          return isFederalBill(data) ? <FederalBillBody bill={data} route={route} links={links} /> : <BillBody bill={data} route={route} links={links} />;
+        }}
       </Async>
     </article>
   );
@@ -92,11 +90,8 @@ export function BillDetail({ id, route }: { id: string; route: Route }) {
 
 function BillBody({ bill, route, links }: { bill: LegislativeInstrument; route: Route; links: Loadable<EntityRelationship[]> }) {
   const core = useCore();
-  const labels = useTagLabels();
   const sources = dataOf(core.sources) ?? [];
-  // Until the links (and, for the court cell, the case index) are loaded, the page says so rather than "no link".
   const relationships = dataOf(links) ?? [];
-  const courts = allOf(links, core.cases);
   const cases = dataOf(core.cases) ?? [];
   const allBills = dataOf(core.bills)?.bills ?? [];
   const geo = dataOf(core.geo);
@@ -107,9 +102,7 @@ function BillBody({ bill, route, links }: { bill: LegislativeInstrument; route: 
   const numbered = bill.actions.map((action, index) => ({ action, key: action.historyId ?? `row-${index}` }));
   const actions = showAll ? numbered : numbered.filter(({ action }) => action.significance === 'major');
   const majorCount = bill.actions.filter((a) => a.significance === 'major').length;
-  const caseLinks = relationships.filter((r) => r.source.type === 'case' || r.target.type === 'case');
-  const linkedCases = caseLinks.map((r) => cases.find((c) => c.id === (r.source.type === 'case' ? r.source.id : r.target.id))).filter((c): c is NonNullable<typeof c> => Boolean(c));
-  const otherLinks = relationships.filter((r) => !caseLinks.includes(r));
+  const linkedCases = linkedCasesOf(relationships, cases);
   const enacted = Boolean(bill.chapteredDate || bill.approvedDate);
   const adopted = isAdoptedMeasure(bill);
   // A statute can be in effect while a part of it waits on another measure. Surface that next to the date.
@@ -133,7 +126,7 @@ function BillBody({ bill, route, links }: { bill: LegislativeInstrument; route: 
     <>
       <header className="view-head">
         <TypeMark type="bill" />
-        <h1 tabIndex={-1}><span className="bill-id">California {bill.identifier}</span></h1>
+        <h1 tabIndex={-1}><span className="bill-id">{billHeading(bill)}</span></h1>
         <p className="lede">{bill.subject ?? 'No subject recorded'}</p>
         <p className="quiet">{bill.measureType}, {bill.session}{bill.leadAuthors ? `. ${bill.leadAuthors}` : ''}</p>
         <div className="btn-row">
@@ -199,75 +192,12 @@ function BillBody({ bill, route, links }: { bill: LegislativeInstrument; route: 
             {ballot && !conditional ? <p className="status-met">{BALLOT_RESULTS_NOTE}</p> : null}
           </div>
           <div className={effectiveWide ? 'status-cell status-cell--wide' : 'status-cell'}>
-            <h3>In the courts</h3>
-            {courts.status === 'loading' ? <Loading what="linked court cases" />
-            : courts.status === 'error' ? <ErrorNote error={courts.error} what="the links to court cases" />
-            : linkedCases.length > 0 ? (
-              <ul className="plain-list">
-                {caseLinks.map((r) => {
-                  const c = linkedCases.find((x) => x.id === (r.source.type === 'case' ? r.source.id : r.target.id));
-                  if (!c) return null;
-                  const ruling = c.latestDispositiveEntry;
-                  return (
-                    <li key={r.id}>
-                      <a className="case-name" href={buildHash(['litigation', c.id])}>{c.caseName}</a>, No. {c.docketNumber}
-                      {/* The Court's latest ruling entry comes first, so a request quoted below never reads as pending when it was decided. */}
-                      {ruling ? (
-                        <p className="row-line">
-                          Latest ruling entry on the docket: <span className="row-date">{formatDate(ruling.date)}</span> {eventLabel(ruling.eventType)}: <q>{ruling.text}</q>
-                        </p>
-                      ) : <p className="row-line quiet">No ruling entry identified on the docket by DemocracyHQ&rsquo;s rules; see the docket.</p>}
-                      {r.scope.note ? <p className="link-scope">{r.scope.note}</p> : null}
-                      {r.support.quote ? <p className="link-support">From <Ext href={r.support.url}>{r.support.document ?? 'the cited court document'}</Ext>: <q>{r.support.quote}</q></p> : null}
-                    </li>
-                  );
-                })}
-              </ul>
-            ) : (
-              <p className="status-value">No linked case in this dataset</p>
-            )}
-            <p className="quiet">{bill.judicialNote}</p>
+            <CourtsCell bill={bill} links={links} />
           </div>
         </div>
       </Section>
 
-      <Section title="Text versions" note="Each version is the legislature’s own published text, with the official subject line it carried. Compare any two to see what was added and removed.">
-        <TableScroll label="Text versions">
-          <table className="table">
-            <thead><tr><th scope="col">Version</th><th scope="col">Date</th><th scope="col" className="num">Words</th><th scope="col">Official subject and change from previous version</th></tr></thead>
-            <tbody>
-              {bill.versions.map((version, index) => {
-                const previous = index > 0 ? bill.versions[index - 1] : undefined;
-                return (
-                  <tr key={version.id}>
-                    <td className="cell-links">
-                      <span>
-                        {version.textAvailability === 'mirrored'
-                          ? <a href={buildHash(['laws', bill.id, 'compare'], { to: version.id })}>{version.label}</a>
-                          : <>{version.label} <span className="quiet">(text not mirrored)</span></>}
-                      </span>
-                      <span><Ext href={version.officialUrl} className="quiet">Official version</Ext></span>
-                    </td>
-                    <td className="cell-date">{formatDate(version.versionDate)}</td>
-                    <td className="num">{formatNumber(version.wordCount, 'n/a')}</td>
-                    <td>
-                      <div className="version-subject">Official subject: {version.subject?.trim() || <span className="quiet">not recorded</span>}</div>
-                      <div>{previous && version.diff && version.textAvailability === 'mirrored' && previous.textAvailability === 'mirrored' ? (
-                        version.diff.blocksAdded === 0 && version.diff.blocksRemoved === 0
-                          ? <span className="quiet">Identical text</span>
-                          : <a href={buildHash(['laws', bill.id, 'compare'], { from: previous.id, to: version.id })}>
-                              Compare with {previous.label}: {formatNumber(version.diff.blocksAdded)} added or changed, {formatNumber(version.diff.blocksRemoved)} removed or replaced
-                            </a>
-                      ) : previous ? <span className="quiet">Comparison unavailable</span> : <span className="quiet">First version</span>}</div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </TableScroll>
-        {bill.versions.length === 0 ? <GapNotice>No text version was found in the official data for this measure.</GapNotice> : null}
-      </Section>
+      <TextVersions bill={bill} />
 
       {bill.digest ? (
         <Section title="Legislative Counsel’s digest" note={`Prepared by the Legislative Counsel${digestVersion ? ` for the “${digestVersion.label}” version of ${formatDate(digestVersion.versionDate)}` : ''}. It is not part of the law, it is not voted on, and it is not DemocracyHQ analysis. Its account of existing law is as of that version.`}>
@@ -291,38 +221,7 @@ function BillBody({ bill, route, links }: { bill: LegislativeInstrument; route: 
         </Section>
       ) : null}
 
-      {links.status === 'loading' ? (
-        <Section title="Linked measures and places"><Loading what="the links to other measures and places" /></Section>
-      ) : links.status === 'error' ? (
-        <Section title="Linked measures and places"><ErrorNote error={links.error} what="the links between records" /></Section>
-      ) : otherLinks.length > 0 ? (
-        <Section title="Linked measures and places" note="Each link cites the passage of the bill text that supports it.">
-          <ul className="links">
-            {otherLinks.map((r) => {
-              const other = r.source.type === 'bill' && r.source.id === bill.id ? r.target : r.source;
-              const otherBill = other.type === 'bill' ? allBills.find((b) => b.id === other.id) : undefined;
-              const label = other.type === 'geography' ? geo?.get(other.id)?.name ?? other.id : otherBill ? `${otherBill.stateAbbr} ${otherBill.identifier}` : other.id;
-              const href = other.type === 'geography' ? buildHash(['place', other.id]) : buildHash(['laws', other.id]);
-              const outgoing = r.source.id === bill.id;
-              return (
-                <li key={r.id} className="link-item">
-                  <p className="link-head">
-                    <span className="link-kind">{outgoing ? relationshipLabel(r.relationshipType) : reverseRelationshipLabel(r.relationshipType)}</span> <a href={href}>{label}</a>
-                  </p>
-                  {r.scope.note ? <p className="link-scope">{r.scope.note}</p> : null}
-                  {r.support.quote ? <p className="link-support">From <Ext href={r.support.url}>{r.support.document ?? 'the official bill text'}</Ext>: <q>{r.support.quote}</q></p> : null}
-                  <p className="link-foot">
-                    <VerificationBadge status={r.verification.status} />{' '}
-                    <span className="quiet">
-                      {r.basis === 'curated' ? LINK_CHECK_SCOPE : `${METHOD_LABELS[r.verification.method] ?? r.verification.method}. The check does not test the description.`}
-                    </span>
-                  </p>
-                </li>
-              );
-            })}
-          </ul>
-        </Section>
-      ) : null}
+      <LinkedMeasuresAndPlaces bill={bill} links={links} />
 
       <Section title="Legislative history" id="history" note={anyEarlier ? EARLIER_SUBJECT_EXPLAINER : undefined}>
         <div className="toolbar">
@@ -339,7 +238,7 @@ function BillBody({ bill, route, links }: { bill: LegislativeInstrument; route: 
               <time dateTime={action.date}>{formatDate(action.date)}</time>
               <div>
                 <p className="entry-text">{action.text}{action.status ? <strong className="entry-status"> ({action.status.toLowerCase()} in the official record)</strong> : null}</p>
-                <p className="entry-kind">{eventLabel(action.eventType)}{action.location ? <span className="quiet">. Location after this action: {action.location}</span> : null}</p>
+                <p className="entry-kind">{eventLabel(action.eventType, action.classificationRule)}{action.location ? <span className="quiet">. Location after this action: {action.location}</span> : null}</p>
                 {earlier.get(key) ? <p className="entry-subject row-line">{earlierSubjectNote(earlier.get(key)!)}</p> : null}
               </div>
             </li>
@@ -348,27 +247,7 @@ function BillBody({ bill, route, links }: { bill: LegislativeInstrument; route: 
         {actions.length === 0 ? <p className="quiet">No {showAll ? '' : 'key '}actions recorded.</p> : null}
       </Section>
 
-      <Section title="Why this measure is listed, and its tags">
-        {bill.selection ? (
-          <p>Included because its {bill.selection.matchedField} contains &ldquo;{bill.selection.matchedText}&rdquo; (selection rule <A to={buildHash(['sources'], { section: 'coverage' })}>{bill.selection.ruleId}</A>).</p>
-        ) : null}
-        {bill.issueTags.length > 0 ? (
-          <TableScroll label="Issue tags">
-            <table className="table">
-              <thead><tr><th scope="col">Tag</th><th scope="col">Matched in</th><th scope="col">Matched text</th></tr></thead>
-              <tbody>
-                {bill.issueTags.map((tag) => (
-                  <tr key={tag.tag}>
-                    <td><a className="tag" href={buildHash(['laws'], { tag: tag.tag })}>{labels.get(tag.tag) ?? tag.tag}</a><br /><span className="quiet">rule {tag.ruleId}</span></td>
-                    <td>{tag.matchedField}</td>
-                    <td>&hellip;{tag.matchedText}&hellip;</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </TableScroll>
-        ) : <p className="quiet">No issue rule matched.</p>}
-      </Section>
+      <ListedAndTags bill={bill} />
 
       <SourceLine
         sourceName={source?.name ?? 'California Legislative Information'}

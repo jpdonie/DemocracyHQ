@@ -1,4 +1,62 @@
 {
+ "circuitDocumentRules": [
+  {
+   "documentType": "Errata",
+   "eventType": "errata",
+   "pattern": "\\berrat(?:a|um)\\b",
+   "ruleId": "ca-doc-errata",
+   "significance": "routine"
+  },
+  {
+   "documentType": "Order",
+   "eventType": "order",
+   "pattern": "\\A\\W*order (?:amending|correcting|modifying|vacating|withdrawing)\\b",
+   "ruleId": "ca-doc-order-on-opinion",
+   "significance": "major"
+  },
+  {
+   "documentType": "Opinion",
+   "eventType": "opinion",
+   "pattern": "\\bopinions?\\b",
+   "ruleId": "ca-doc-opinion",
+   "significance": "major"
+  },
+  {
+   "documentType": "Decision",
+   "eventType": "decision",
+   "pattern": "\\bdisposition\\b|\\bterminated on the merits\\b",
+   "ruleId": "ca-doc-decision",
+   "significance": "major"
+  },
+  {
+   "documentType": "Judgment",
+   "eventType": "judgment",
+   "pattern": "\\bjudgments?\\b",
+   "ruleId": "ca-doc-judgment",
+   "significance": "major"
+  },
+  {
+   "documentType": "Order",
+   "eventType": "order",
+   "pattern": "\\borders?\\b",
+   "ruleId": "ca-doc-order",
+   "significance": "major"
+  },
+  {
+   "documentType": "Procedural termination",
+   "eventType": "procedural_termination",
+   "pattern": "\\bprocedural termination\\b",
+   "ruleId": "ca-doc-procedural",
+   "significance": "routine"
+  },
+  {
+   "documentType": "Document",
+   "eventType": "court_document",
+   "pattern": "(any entry no rule above matches, or an entry without text)",
+   "ruleId": "ca-doc-other",
+   "significance": "major"
+  }
+ ],
  "curatedRuleId": "tag-curated-1",
  "docketEntryRules": [
   {
@@ -198,11 +256,172 @@
    "significance": "routine"
   }
  ],
+ "federalActionRules": [
+  {
+   "actionCodes": [
+    "36000",
+    "E40000",
+    "41000"
+   ],
+   "eventType": "became_law",
+   "pattern": "^Became (?:Public|Private) Law No: ?[0-9]+-[0-9]+",
+   "ruleId": "us-became-law",
+   "significance": "major"
+  },
+  {
+   "actionCodes": [
+    "36000",
+    "E30000",
+    "29000"
+   ],
+   "eventType": "approved_by_president",
+   "pattern": "^Signed by President",
+   "ruleId": "us-signed",
+   "significance": "major"
+  },
+  {
+   "actionCodes": [
+    "32000",
+    "34000"
+   ],
+   "eventType": "veto_override_passed",
+   "pattern": "^Passed (?:House|Senate) over veto",
+   "ruleId": "us-veto-overridden",
+   "significance": "major"
+  },
+  {
+   "actionCodes": [
+    "33000",
+    "35000"
+   ],
+   "eventType": "veto_override_failed",
+   "pattern": "^Failed of passage in (?:House|Senate) over veto",
+   "ruleId": "us-veto-sustained",
+   "significance": "major"
+  },
+  {
+   "actionCodes": [
+    "31000"
+   ],
+   "eventType": "vetoed",
+   "pattern": "^(?:Pocket )?[Vv]etoed by President",
+   "ruleId": "us-vetoed",
+   "significance": "major"
+  },
+  {
+   "actionCodes": [
+    "28000"
+   ],
+   "eventType": "presented_to_president",
+   "pattern": "^Presented to President",
+   "ruleId": "us-presented",
+   "significance": "major"
+  },
+  {
+   "actionCodes": [
+    "23000",
+    "25000"
+   ],
+   "eventType": "conference_report_agreed",
+   "pattern": "^Conference report agreed to in (?:House|Senate)",
+   "ruleId": "us-conference",
+   "significance": "major"
+  },
+  {
+   "actionCodes": [
+    "19500",
+    "20500"
+   ],
+   "eventType": "resolving_differences",
+   "pattern": "^Resolving differences -- (?:House|Senate) actions",
+   "ruleId": "us-differences",
+   "significance": "major"
+  },
+  {
+   "actionCodes": [
+    "8000"
+   ],
+   "eventType": "passed_house",
+   "pattern": "^Passed/agreed to in House",
+   "ruleId": "us-passed-house",
+   "significance": "major"
+  },
+  {
+   "actionCodes": [
+    "17000"
+   ],
+   "eventType": "passed_senate",
+   "pattern": "^Passed/agreed to in Senate",
+   "ruleId": "us-passed-senate",
+   "significance": "major"
+  },
+  {
+   "actionCodes": [
+    "9000"
+   ],
+   "eventType": "vote_failed",
+   "pattern": "^Failed of passage/not agreed to in House",
+   "ruleId": "us-failed-house",
+   "significance": "major"
+  },
+  {
+   "actionCodes": [
+    "18000"
+   ],
+   "eventType": "vote_failed",
+   "pattern": "^Failed of passage/not agreed to in Senate",
+   "ruleId": "us-failed-senate",
+   "significance": "major"
+  },
+  {
+   "actionCodes": [
+    "5000",
+    "14000",
+    "1010"
+   ],
+   "eventType": "reported",
+   "pattern": "[Rr]eported",
+   "ruleId": "us-reported",
+   "significance": "major"
+  },
+  {
+   "actionCodes": [
+    "5500",
+    "14500"
+   ],
+   "eventType": "committee_discharged",
+   "pattern": "discharged",
+   "ruleId": "us-discharged",
+   "significance": "routine"
+  },
+  {
+   "actionCodes": [
+    "1000",
+    "10000",
+    "1025",
+    "10025",
+    "Intro-H",
+    "Intro-S"
+   ],
+   "eventType": "introduced",
+   "pattern": "^(?:Introduced|Submitted) in (?:the )?(?:House|Senate)",
+   "ruleId": "us-introduced",
+   "significance": "major"
+  },
+  {
+   "actionCodes": [],
+   "eventType": "committee_action, floor_action, referral, calendar or legislative_action",
+   "pattern": "(any action no rule above matches; named by the kind the record gives it)",
+   "ruleId": "us-other",
+   "significance": "routine"
+  }
+ ],
  "issueRules": [
   {
+   "exclusionPattern": "\\b(?:Alabama|Alaska|Arizona|Arkansas|California|Colorado|Connecticut|Delaware|Florida|Georgia|Hawaii|Idaho|Illinois|Indiana|Iowa|Kansas|Kentucky|Louisiana|Maine|Maryland|Massachusetts|Michigan|Minnesota|Mississippi|Missouri|Montana|Nebraska|Nevada|New\\s+Hampshire|New\\s+Jersey|New\\s+Mexico|New\\s+York|North\\s+Carolina|North\\s+Dakota|Ohio|Oklahoma|Oregon|Pennsylvania|Rhode\\s+Island|South\\s+Carolina|South\\s+Dakota|Tennessee|Texas|Utah|Vermont|Virginia|Washington|West\\s+Virginia|Wisconsin|Wyoming|State|Youth|Native\\s+American)\\s+Voting\\s+Rights\\s+Act\\b|\\bVoting\\s+Rights\\s+Act\\s+of\\s+(?:Alabama|Alaska|Arizona|Arkansas|California|Colorado|Connecticut|Delaware|Florida|Georgia|Hawaii|Idaho|Illinois|Indiana|Iowa|Kansas|Kentucky|Louisiana|Maine|Maryland|Massachusetts|Michigan|Minnesota|Mississippi|Missouri|Montana|Nebraska|Nevada|New\\s+Hampshire|New\\s+Jersey|New\\s+Mexico|New\\s+York|North\\s+Carolina|North\\s+Dakota|Ohio|Oklahoma|Oregon|Pennsylvania|Rhode\\s+Island|South\\s+Carolina|South\\s+Dakota|Tennessee|Texas|Utah|Vermont|Virginia|Washington|West\\s+Virginia|Wisconsin|Wyoming)\\b",
    "label": "Voting Rights Act (federal)",
-   "pattern": "(?<!California )(?<!State )Voting Rights Act|52 U\\.\\s?S\\.\\s?C\\.\\s?§\\s?1030[1-9]",
-   "ruleId": "tag-vra-3",
+   "pattern": "Voting Rights Act|52 U\\.\\s?S\\.\\s?C\\.\\s?§\\s?1030[1-9]",
+   "ruleId": "tag-vra-5",
    "tag": "voting-rights-act"
   },
   {
@@ -212,9 +431,10 @@
    "tag": "state-voting-rights-act"
   },
   {
+   "exclusionPattern": "\\b(?:Representative|Delegate|Member|Resident Commissioner)s?(?: (?:of|in|to) (?:Congress|the House(?: of Representatives)?))? (?:from|for) the [\\w-]+ congressional district\\b",
    "label": "Redistricting",
    "pattern": "redistrict\\w*|districting (plan|map)|congressional (map|district)|gerrymander\\w*|legislative districts?|reapportion\\w*",
-   "ruleId": "tag-redist-1",
+   "ruleId": "tag-redist-2",
    "tag": "redistricting"
   },
   {
@@ -278,10 +498,10 @@
    "tag": "elections-clause"
   },
   {
-   "exclusionPattern": "\\bballot measure committees?\\b|\\bcommittees? for or against (a|an|any|the) (initiative or referendum|state or local ballot|ballot) measures?\\b|\\b(support(s|ed|ing)?|oppos(e|es|ed|ing)|support of|opposition to)\\b[^.;:]{0,60}?\\b(candidates?|offices?)\\b[^.;:]{0,40}?\\bballot measures?\\b|\\b(support(s|ed|ing)?|oppos(e|es|ed|ing)|support of|opposition to)\\b[^.;:]{0,60}?\\bballot measures?\\b[^.;:]{0,60}?\\b(candidates?|offices?)\\b|\\ban initiative measure (that authorizes the Legislature to amend|approved by the (electors|voters))\\b",
+   "exclusionPattern": "\\bballot measure committees?\\b|\\bcommittees? for or against (a|an|any|the) (initiative or referendum|state or local ballot|ballot) measures?\\b|\\b(support(s|ed|ing)?|oppos(e|es|ed|ing)|support of|opposition to)\\b[^.;:]{0,60}?\\b(candidates?|offices?)\\b[^.;:]{0,40}?\\bballot measures?\\b|\\b(support(s|ed|ing)?|oppos(e|es|ed|ing)|support of|opposition to)\\b[^.;:]{0,60}?\\bballot measures?\\b[^.;:]{0,60}?\\b(candidates?|offices?)\\b|\\ban initiative measure (that authorizes the Legislature to amend|approved by the (electors|voters))\\b|\\bUnlawful\\s+Voter\\s+Initiative\\b",
    "label": "Initiatives, referenda and recalls",
    "pattern": "\\brecall (elections?|petitions?)|\\brecalls? of .{0,40}?offic(ers?|ials?)\\b|\\b(statewide|local|voter|ballot|citizens?) initiatives?\\b|(?<!for or against any )\\binitiatives? (and|or) referend(um|a)\\b|(?<!1974, an )\\binitiative (measures?|petitions?|statutes?|constitutional amendments?)\\b|(^|: )initiatives?\\b|\\breferend(um|a)\\b|ballot measures?|local (tax |bond )?measures?|title and summary",
-   "ruleId": "tag-direct-3",
+   "ruleId": "tag-direct-4",
    "tag": "direct-democracy"
   },
   {
@@ -377,7 +597,7 @@
    "significance": "routine"
   }
  ],
- "note": "Tags are produced by case-insensitive keyword rules applied to the stated field. In a caption, the questions presented or a bill's subject line and title, one match assigns the tag. In a bill's digest one match assigns the tag too, but the sentences about state-mandated local costs are not read, because they name elections officials in almost every election bill. For the Voting Rights Act (federal) rule only the digest's sentences that contain the word 'would', which say what the bill would do, are read, because a digest also names the federal act when it describes existing law. For the Initiatives, referenda and recalls rule a match does not count inside a campaign-finance phrase, where a committee or a payment supports or opposes a candidate or a ballot measure, or inside the words with which a digest says that an act the bill amends was itself adopted by initiative; the phrases are those of this pattern: \\bballot measure committees?\\b|\\bcommittees? for or against (a|an|any|the) (initiative or referendum|state or local ballot|ballot) measures?\\b|\\b(support(s|ed|ing)?|oppos(e|es|ed|ing)|support of|opposition to)\\b[^.;:]{0,60}?\\b(candidates?|offices?)\\b[^.;:]{0,40}?\\bballot measures?\\b|\\b(support(s|ed|ing)?|oppos(e|es|ed|ing)|support of|opposition to)\\b[^.;:]{0,60}?\\bballot measures?\\b[^.;:]{0,60}?\\b(candidates?|offices?)\\b|\\ban initiative measure (that authorizes the Legislature to amend|approved by the (electors|voters))\\b . In text taken from a PDF (questions presented, filings and opinions), a word that the document breaks across two lines with a hyphen is joined again before the rules are applied; the hyphen is kept where the document also writes the word with one, or the first part is one of these words, which begin compounds: 'case', 'half', 'party', 'race', 'self', 'three', 'two', 'vote', 'voter', 'well'. Where a docket has no questions presented, the full text of its initiating filing or opinion is read instead, and a rule must be prominent there: at least 5 matches, and at least 15% as many as the rule that matches most often in that document. A tag with rule id tag-curated-1 was added by a maintainer where the rules miss the central subject of a case; it is shown with the passage it rests on, which is checked against the cited document on every run. Tags indicate subject matter only. They are not legal conclusions and can be wrong or incomplete.",
+ "note": "Tags are produced by case-insensitive keyword rules applied to the stated field. In a caption, the questions presented or a bill's subject line and title, one match assigns the tag. In a bill's digest one match assigns the tag too, but the sentences about state-mandated local costs are not read, because they name elections officials in almost every election bill. For the Voting Rights Act (federal) rule only the digest's sentences that contain the word 'would', which say what the bill would do, are read, because a digest also names the federal act when it describes existing law. The rule does not count the name of another act that ends in the same words: a state's act named after the state (the California Voting Rights Act, the Voting Rights Act of New York), a 'State Voting Rights Act', the Youth Voting Rights Act and the Native American Voting Rights Act; the phrases are those of this pattern: \\b(?:Alabama|Alaska|Arizona|Arkansas|California|Colorado|Connecticut|Delaware|Florida|Georgia|Hawaii|Idaho|Illinois|Indiana|Iowa|Kansas|Kentucky|Louisiana|Maine|Maryland|Massachusetts|Michigan|Minnesota|Mississippi|Missouri|Montana|Nebraska|Nevada|New\\s+Hampshire|New\\s+Jersey|New\\s+Mexico|New\\s+York|North\\s+Carolina|North\\s+Dakota|Ohio|Oklahoma|Oregon|Pennsylvania|Rhode\\s+Island|South\\s+Carolina|South\\s+Dakota|Tennessee|Texas|Utah|Vermont|Virginia|Washington|West\\s+Virginia|Wisconsin|Wyoming|State|Youth|Native\\s+American)\\s+Voting\\s+Rights\\s+Act\\b|\\bVoting\\s+Rights\\s+Act\\s+of\\s+(?:Alabama|Alaska|Arizona|Arkansas|California|Colorado|Connecticut|Delaware|Florida|Georgia|Hawaii|Idaho|Illinois|Indiana|Iowa|Kansas|Kentucky|Louisiana|Maine|Maryland|Massachusetts|Michigan|Minnesota|Mississippi|Missouri|Montana|Nebraska|Nevada|New\\s+Hampshire|New\\s+Jersey|New\\s+Mexico|New\\s+York|North\\s+Carolina|North\\s+Dakota|Ohio|Oklahoma|Oregon|Pennsylvania|Rhode\\s+Island|South\\s+Carolina|South\\s+Dakota|Tennessee|Texas|Utah|Vermont|Virginia|Washington|West\\s+Virginia|Wisconsin|Wyoming)\\b . For the Initiatives, referenda and recalls rule a match does not count inside a campaign-finance phrase, where a committee or a payment supports or opposes a candidate or a ballot measure, inside the words with which a digest says that an act the bill amends was itself adopted by initiative, or inside the name 'Unlawful Voter Initiative', which is a project of the Department of Homeland Security and not a voter initiative; the phrases are those of this pattern: \\bballot measure committees?\\b|\\bcommittees? for or against (a|an|any|the) (initiative or referendum|state or local ballot|ballot) measures?\\b|\\b(support(s|ed|ing)?|oppos(e|es|ed|ing)|support of|opposition to)\\b[^.;:]{0,60}?\\b(candidates?|offices?)\\b[^.;:]{0,40}?\\bballot measures?\\b|\\b(support(s|ed|ing)?|oppos(e|es|ed|ing)|support of|opposition to)\\b[^.;:]{0,60}?\\bballot measures?\\b[^.;:]{0,60}?\\b(candidates?|offices?)\\b|\\ban initiative measure (that authorizes the Legislature to amend|approved by the (electors|voters))\\b|\\bUnlawful\\s+Voter\\s+Initiative\\b . For the Redistricting rule a match does not count inside words that name a seat by its district ('the office of Representative from the Fourteenth Congressional District of Florida'), which say nothing about how districts are drawn; the phrases are those of this pattern: \\b(?:Representative|Delegate|Member|Resident Commissioner)s?(?: (?:of|in|to) (?:Congress|the House(?: of Representatives)?))? (?:from|for) the [\\w-]+ congressional district\\b . In text taken from a PDF (questions presented, filings and opinions), a word that the document breaks across two lines with a hyphen is joined again before the rules are applied; the hyphen is kept where the document also writes the word with one, or the first part is one of these words, which begin compounds: 'case', 'half', 'party', 'race', 'self', 'three', 'two', 'vote', 'voter', 'well'. Where a docket has no questions presented, the full text of its initiating filing or opinion is read instead, and a rule must be prominent there: at least 5 matches, and at least 15% as many as the rule that matches most often in that document. In such a text '^' in a pattern stands for the beginning of the document and not of each line, because a PDF breaks its lines anywhere: a line that happens to begin with 'Initiative' is not a subject line that begins with the word. A tag with rule id tag-curated-1 was added by a maintainer where the rules miss the central subject of a case; it is shown with the passage it rests on, which is checked against the cited document on every run. Tags indicate subject matter only. They are not legal conclusions and can be wrong or incomplete.",
  "otherRules": [
   {
    "appliesTo": "Which court cases are included, and which places they are linked to",
@@ -388,6 +608,11 @@
    "appliesTo": "Dockets shown as coming from the same case below",
    "description": "Two dockets in the dataset are shown as related when the Court's docket pages give both the same lower court and a lower-court case number for the same case. A district court case number is compared without its letter case and leading zeros, and its year, case type and sequence number must agree. Some districts number cases separately in each division, so two different prefixes of the same kind (two division numbers, or two sets of office letters) are read as two cases. Where one number has a division number and the other office letters, or only one has a prefix, the judges' initials after the number must be given on both and agree (so 3:21-cv-00259-DCG-JES-JVB and EP-21-CV-00259-DCG-JES-JVB agree). Other numbers must agree exactly. The Court does not state the relation; it is derived by this rule.",
    "ruleId": "same-lower-court-2"
+  },
+  {
+   "appliesTo": "A Supreme Court docket shown with the court of appeals case it comes from",
+   "description": "A Supreme Court docket is paired with a court of appeals case in the dataset when the Court's docket page names that court of appeals as the lower court and gives a lower-court case number that is the case's docket number. The court's name must agree in full, and the numbers are compared by their two-digit year and their serial number without leading zeros. A number that would name two cases of the court is paired with neither. Neither record states the pairing; it is derived by this rule, and each of the two pages links the other. Most dockets from a court of appeals have no such link, because the case below is older than the documents read or was not picked by the selection rule.",
+   "ruleId": "case-below-1"
   },
   {
    "appliesTo": "Links between a bill and another bill, a case or a place",
@@ -413,6 +638,73 @@
    "appliesTo": "Repeal dates quoted beside a California measure's effective date",
    "description": "A sentence of the latest mirrored text is quoted when it says that the measure, or a named part of it ('This section', 'This chapter'), shall remain in effect until, or only until, a date or an event and as of that date is repealed. The clause applies to the provision the sentence names, not necessarily to the whole measure, and only if the measure is enacted. Where the sentence gives a calendar date it is recorded; where it names an event, no date is recorded. A sentence repeated in several sections is quoted once. The pattern is (\\b(This|That) (act|bill|chapter|section|article|part|division|title|subdivision|paragraph|subparagraph)\\b|\\bSections? (?:[^.;]|\\.(?=\\d)){0,60}? of this (act|bill)\\b)[^.;]{0,80}?\\bshall remain in effect (only )?until (?P<until>(?:(?!\\. [A-Z(])[^;]){1,300}?),? and,? as of (that|such) date,? (is|are) repealed . A sunset worded differently (for example 'is repealed on' or 'becomes inoperative on') is not found, so the absence of a quoted clause does not mean there is none, and a later statute may have changed the date.",
    "ruleId": "ca-sunset-1"
+  },
+  {
+   "appliesTo": "Which measures of Congress are included",
+   "description": "Every measure of the Congress named in congress/index.json is read. A measure is included when one of its titles (display, official or short title) meets one of three tests, tried in this order: the title names election law (the first pattern); the title has a general election word (the second pattern) and the policy area the Congressional Research Service assigned is Government Operations and Politics, or none is assigned yet; the title has an election word (the third pattern) and the policy area is one of the three listed with it. A measure in the policy area International Affairs is not included, because its titles speak of elections in other countries. Before a title is read, the phrases of the exclusion pattern are removed from it: procedure of the two chambers (a rule for the consideration of a bill, the election of the Speaker) and voting outside public elections (proxy voting, votes of shareholders). Each measure's page names the test it met and the words that met it. The patterns, the policy areas and the number of measures read are published in congress/index.json and shown under Coverage and selection. A measure whose titles do not say that it concerns elections is missed.",
+   "ruleId": "us-select-1"
+  },
+  {
+   "appliesTo": "The stage shown for a measure of Congress",
+   "description": "The stage is the furthest step among the measure's recorded actions, read from the labels the action rules assign: became law; vetoed; sent to the President; for a resolution of one chamber, agreed to (or not agreed to) there; passed in each chamber; passed one chamber; failed in a chamber; reported by a committee; introduced. It says how far the measure got, not what is happening to it now, and it is not an official status. The official record's own latest action is shown beside it. The stage 'Passed House and Senate, not sent to the President' (for a concurrent resolution, 'Agreed to in House and Senate') means only that the record has a vote of passage in each chamber. The two votes can be on different texts, as when one chamber passes the other's bill with an amendment, so the stage does not say that Congress has passed the measure.",
+   "order": [
+    "Introduced",
+    "Reported by committee",
+    "Failed in the House",
+    "Failed in the Senate",
+    "Not agreed to in the House",
+    "Not agreed to in the Senate",
+    "Passed the House",
+    "Passed the Senate",
+    "Agreed to in the House",
+    "Agreed to in the Senate",
+    "Passed House and Senate, not sent to the President",
+    "Agreed to in House and Senate",
+    "Sent to the President",
+    "Vetoed",
+    "Became law"
+   ],
+   "ruleId": "us-status-1"
+  },
+  {
+   "appliesTo": "Which court of appeals cases are included",
+   "description": "Every case of the thirteen courts of appeals that GovInfo lists with an opinion or order issued since 2025-01-01 is read. A case is included when the court's own record gives it the nature of suit 441 (Civil Rights: Voting), or when one of its documents meets one of three text tests: 'long' (at least 8 election words, at least 8 election phrases and at least 2 election words in every 1,000 words), 'dense' (at least 8 election words, at least 3 phrases and at least 5 election words in every 1,000 words) or 'party' (a party or the case title names an election authority, and the document has at least 3 election words). The text tests are not applied where the record gives the case a nature of suit of another field of law (contract, torts, labor, intellectual property, securities, freedom of information), and a document with many labor-law terms is not read as an election document, because union representation elections are not public elections. A clerk's cover letter (rule cover-letter-1) is not counted. Counts are taken after words broken across lines are joined. Each case's page shows the tests it met, the document they rest on and the phrases counted in it. The patterns, thresholds and nature of suit codes are published in circuits/index.json, with the number of cases and documents read for each court. The rule counts words: it can miss an election case, and it can include a case that only discusses elections.",
+   "ruleId": "circuit-select-1"
+  },
+  {
+   "appliesTo": "An issue tag of a court of appeals case that a maintainer removed",
+   "description": "The issue rules count words. In a long opinion a rule can reach its count although the case is about something else, for example where a court compares the standing of its plaintiffs with that in the gerrymandering decisions. A maintainer may then list the case and the tag in pipeline/seeds/tag_removals.json, with the reason and a passage of the opinion that shows what the case is about. On every run the pipeline looks for the passage in the documents of the case, ignoring white space, hyphens and dashes, letter case and the style of quotation marks, and reading Unicode compatibility characters (such as ligatures and superscript digits) as their plain forms. Only if it is found is the tag taken off, and the removal is then published with the case and shown on its page under Issue tags, with the rule that had assigned the tag and the words it had matched. If the passage is not found, the tag stays and the entry is listed in the review queue. A tag is never removed because of who the parties are or how the case was decided.",
+   "ruleId": "tag-removal-1"
+  },
+  {
+   "appliesTo": "Court of appeals cases the selection rule picks that a maintainer removed",
+   "description": "A maintainer may list a case in pipeline/seeds/circuit_exclusions.json when the opinion itself shows that no public election is at issue: an election of another kind (a student council, a union, a company board), a record that classifies the case as a voting case by mistake, election cases cited only as precedent, or a dispute in which an election office is only the employer. Each entry gives the reason and quotes a passage of the opinion. On every run the pipeline looks for the passage in the documents of the case, ignoring white space, hyphens and dashes, letter case and the style of quotation marks, and reading Unicode compatibility characters (such as ligatures and superscript digits) as their plain forms. Only if it is found is the case left out, and the entry is then published in circuits/index.json and shown under Coverage and selection. If the passage is not found, the case stays in the dataset and the entry is listed in the review queue. A case is never excluded because of who its parties are or how it was decided.",
+   "ruleId": "circuit-exclusion-1"
+  },
+  {
+   "appliesTo": "Court of appeals documents that are a clerk's cover letter",
+   "description": "Some courts send GovInfo the clerk's letter that tells counsel an opinion was issued, in place of the opinion. A document is read as such a letter when the pattern \\bDear [^:]{1,60}:\\s*(?:The court (?:has |today )?issued an? (?:amended )?opinion in th(?:is|ese) cases?|Enclosed is a copy of (?:the|an) (?:amended )?(?:opinion|order and judgment)) matches in its first 4,000 characters. The selection rule does not count such a document, and the case page says that the file is the letter and not the opinion.",
+   "ruleId": "cover-letter-1"
+  },
+  {
+   "appliesTo": "The district court a court of appeals case came from",
+   "description": "The opinion's own line naming the court below is quoted when the pattern (?:On )?(?:Appeals?|Petitions? for (?:a )?Writ of Mandamus) (?:from|to) (?:a |an |the )?(?:(?:judgment|order|orders|decision|final judgment)s? of (?:a |an |the )?)?(United\\s+States\\s+District\\s+Court\\s+for\\s+the\\s+((?:(?:Northern|Southern|Eastern|Western|Middle|Central)\\s+)?District\\s+of\\s+(?:the\\s+)?)([A-Z][A-Za-z]+(?:\\s+[A-Z][A-Za-z]+){0,3})) matches in the first 20,000 characters of the opinion. The state is the one the district's name gives. It says where the case began, not what it concerns: a case from one state can concern another, or federal law alone. Many opinions name the court below in another form (an abbreviation, a caption set in columns), and then no origin is shown; the absence of one does not mean the case did not come from a district court.",
+   "ruleId": "origin-court-1"
+  },
+  {
+   "appliesTo": "Whether a court of appeals decision is shown as published or unpublished",
+   "description": "Read from the court's own entry for the case's latest opinion, decision or judgment in GovInfo's record, and from no other entry: 'Unpublished' when the pattern \\b(?:un|non-?)published\\b|\\bnot precedential\\b|\\bnon-?precedential\\b|\\bnot for publication\\b matches, otherwise 'Published' when the pattern \\bpublished\\b|\\bprecedential\\b|\\bfor publication\\b matches, otherwise nothing is shown. The courts' rules on what an unpublished decision is worth as precedent differ and are not stated here.",
+   "ruleId": "publication-1"
+  },
+  {
+   "appliesTo": "Court of appeals cases shown as decided together",
+   "description": "Two cases of the same court are shown as decided together when each has a document of the same day whose text, reduced to its letters, is identical and at least 2,000 letters long. That is how a court files one opinion that decides several appeals. The record does not state the relation; it is derived by this rule. Such an opinion appears once in timelines, with the numbers of all its cases.",
+   "ruleId": "same-opinion-1"
+  },
+  {
+   "appliesTo": "Which states and territories each judicial circuit is drawn with",
+   "description": "The pipeline keeps a table of the states and territories of each circuit. On every run of the boundary stage it reads 28 U.S.C. § 41 and 48 U.S.C. § 1821(a) in the edition of the United States Code that GovInfo publishes, and compares the table with the statute's entry for every circuit. The map and the list of courts are published only if they agree, and each court's page quotes the statute's entry. A name in the statute that is not a unit on the map, and a unit on the map that the statute places in no circuit, are listed in geo/circuits.json. The circuit outlines are the Census Bureau's state boundaries merged by DemocracyHQ, not an official map.",
+   "ruleId": "circuit-composition-1"
   },
   {
    "appliesTo": "Timeline entries for a changed text version",

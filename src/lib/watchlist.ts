@@ -5,7 +5,7 @@
 import { useSyncExternalStore } from 'react';
 
 export interface WatchItem {
-  type: 'case' | 'bill' | 'place';
+  type: 'case' | 'bill' | 'place' | 'court';
   id: string;
   label: string;
   addedAt: string;
@@ -17,7 +17,7 @@ const EVENT = 'dhq:watchlist';
 function isItem(value: unknown): value is WatchItem {
   if (!value || typeof value !== 'object') return false;
   const v = value as Record<string, unknown>;
-  return (v.type === 'case' || v.type === 'bill' || v.type === 'place') && typeof v.id === 'string' && typeof v.label === 'string' && typeof v.addedAt === 'string';
+  return (v.type === 'case' || v.type === 'bill' || v.type === 'place' || v.type === 'court') && typeof v.id === 'string' && typeof v.label === 'string' && typeof v.addedAt === 'string';
 }
 
 export function parseWatchlist(raw: string | null): WatchItem[] {

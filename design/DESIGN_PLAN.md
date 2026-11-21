@@ -150,6 +150,14 @@ Screenshots were taken with Playwright from the production build at 1366 x 768,
 | The redistricting "Show" control wrapped to two rows. | Labels shortened. |
 | On a phone the map was hidden behind the bottom sheet, and controls overlapped each other. | The phone layout was rebuilt: the map takes exactly the area above the sheet, the map re-fits when the sheet moves, and the zoom, jump and legend controls share one row at the bottom of the map. |
 | A county's timeline listed every statewide legislative action (about 800). | A control limits the timeline to records that name the place. |
+| The title of a view and its tabs sat on the same white as the text below, so the panel had no head. | The title block and the tabs sit on a band of the sheet colour that runs to the panel's edges, closed by a rule. |
+| Section headings (16px) read as bold body text; sections ran together. | Section headings are 18px and each section opens with a short ink tick on its rule. |
+| A place opened with a population table before the records the reader came for. | The overview lists the records tied to the place first, then related geography, then population. The boundary file is named under related geography, not in the header. |
+| Case names that a court's record writes in capitals shouted among the others. | Such a name keeps its letters and is set a size smaller. |
+| The coverage note was a tinted box competing with the records. | It is a quiet sentence in the secondary ink. |
+| Court of appeals documents were labelled "Court Court document". | The label is "Other document". |
+| The table of what was read for each court had eight columns and scrolled sideways on a phone. | Two tables of five and four columns, with smaller figures on a phone. |
+| With the federal level there were two kinds of thing to choose on the map. | Two labelled groups share one control: Level (Federal, States, Counties, Districts) and Courts (Supreme Court, Circuits, with a menu of the thirteen courts). |
 
 ## Identity
 

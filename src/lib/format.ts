@@ -53,6 +53,30 @@ export function plural(count: number, singular: string, pluralForm = `${singular
   return `${NUMBER.format(count)} ${count === 1 ? singular : pluralForm}`;
 }
 
+/** Whether a name is written in capitals throughout, as some courts' records write their case names. */
+export function isAllCaps(text: string): boolean {
+  return /[A-Z]/.test(text) && text === text.toUpperCase();
+}
+
+/**
+ * The classes of a case name. A name the court's record writes in capitals keeps its letters and is set a size smaller,
+ * so that it does not shout among names in upper and lower case.
+ */
+export function caseNameClass(name: string): string {
+  return isAllCaps(name) ? 'case-name case-name-caps' : 'case-name';
+}
+
+/**
+ * The opening of a long text, cut at a word boundary, or null when the text is within the limit. Whoever shows the
+ * opening says that it is one and offers the whole text.
+ */
+export function openingOf(text: string, limit: number): string | null {
+  if (text.length <= limit) return null;
+  const cut = text.slice(0, limit);
+  const end = cut.lastIndexOf(' ');
+  return (end > limit / 2 ? cut.slice(0, end) : cut).replace(/[\s,;:(]+$/, '');
+}
+
 /** Human label for a snake_case code such as an event type. */
 export function humanize(code: string): string {
   const text = code.replace(/_/g, ' ');

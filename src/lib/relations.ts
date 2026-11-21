@@ -5,7 +5,8 @@
  * court's location or a party's name.
  */
 import type { EntityRelationship, LegalCaseSummary, LegislativeInstrumentSummary, TimelineEvent, EventCategory } from '../types/schemas';
-import { parseGeoKey } from './geo';
+import { FEDERAL_STATE } from '../types/schemas';
+import { NATION_KEY, isCensusLayer, parseGeoKey } from './geo';
 
 export interface LinkedRecord<T> {
   record: T;
@@ -14,19 +15,29 @@ export interface LinkedRecord<T> {
   via: 'direct' | 'statewide' | 'within';
 }
 
-function keyState(key: string): string | null {
+/**
+ * The state a Census unit lies in: "06" for county:06037. The United States and the judicial circuits lie in no single
+ * state, and a circuit's number is not a state code ("circuit:05" is the Fifth Circuit, not Arkansas), so they have none.
+ */
+export function keyState(key: string): string | null {
   const parsed = parseGeoKey(key);
-  return parsed ? parsed.geoid.slice(0, 2) : null;
+  return parsed && isCensusLayer(parsed.layer) ? parsed.geoid.slice(0, 2) : null;
 }
 
 export function relationshipsForPlace(key: string, relationships: readonly EntityRelationship[]): Array<{ relationship: EntityRelationship; via: LinkedRecord<unknown>['via'] }> {
   const parsed = parseGeoKey(key);
   if (!parsed) return [];
-  const stateFips = parsed.geoid.slice(0, 2);
+  const stateFips = keyState(key);
   const out: Array<{ relationship: EntityRelationship; via: LinkedRecord<unknown>['via'] }> = [];
   for (const relationship of relationships) {
     if (relationship.target.type !== 'geography') continue;
     const target = relationship.target.id;
+    if (stateFips === null) {
+      // The United States or a circuit: only a link to the unit itself counts. A link to a state is not a link to
+      // the circuit the state is in, and still less to the country.
+      if (target === key) out.push({ relationship, via: 'direct' });
+      continue;
+    }
     const wholeState = relationship.scope.kind === 'statewide' || relationship.scope.kind === 'multi_state';
     // A link to the state whose scope is one county or district (for example "the county concerned is in Texas")
     // concerns a unit inside the state, not the state as a whole.
@@ -53,8 +64,12 @@ export function casesForPlace(key: string, relationships: readonly EntityRelatio
   return out.sort((a, b) => order[a.via] - order[b.via] || (b.record.sourceLastActivity ?? '').localeCompare(a.record.sourceLastActivity ?? ''));
 }
 
-/** Bills are listed for the whole state. Some concern one county or district, but they are not linked to it here. */
+/**
+ * Bills are listed for the whole state. Some concern one county or district, but they are not linked to it here.
+ * The measures of Congress belong to the United States as a whole and are listed for no state; a circuit has no legislature.
+ */
 export function billsForPlace(key: string, bills: readonly LegislativeInstrumentSummary[]): LegislativeInstrumentSummary[] {
+  if (key === NATION_KEY) return bills.filter((b) => b.state === FEDERAL_STATE);
   const stateFips = keyState(key);
   return stateFips ? bills.filter((b) => b.state === stateFips) : [];
 }
@@ -77,7 +92,8 @@ export interface TimelineFilters { categories?: readonly EventCategory[]; from?:
 export function eventsForPlace(key: string, events: readonly TimelineEvent[], filters: TimelineFilters = {}): Array<TimelineEvent & { via: 'direct' | 'statewide' | 'within' }> {
   const parsed = parseGeoKey(key);
   if (!parsed) return [];
-  const stateFips = parsed.geoid.slice(0, 2);
+  // Null for the United States and for a circuit: those list only the events recorded for the unit itself.
+  const stateFips = keyState(key);
   const stateKey = `state:${stateFips}`;
   const out: Array<TimelineEvent & { via: 'direct' | 'statewide' | 'within' }> = [];
   for (const event of events) {
@@ -86,6 +102,7 @@ export function eventsForPlace(key: string, events: readonly TimelineEvent[], fi
     if (filters.to && event.date > filters.to) continue;
     let via: 'direct' | 'statewide' | 'within' | null = null;
     if (event.geoKeys.includes(key)) via = 'direct';
+    else if (stateFips === null) via = null;
     else if (parsed.layer !== 'state' && event.geoKeys.includes(stateKey)) via = 'statewide';
     else if (parsed.layer === 'state' && event.geoKeys.some((k) => keyState(k) === stateFips)) via = 'within';
     if (via) out.push({ ...event, via });

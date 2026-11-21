@@ -3,22 +3,25 @@ import { BILL, expect, heading, open, test } from './fixtures';
 test.describe('Voting law change monitor', () => {
   test('lists the tracked measures and filters them by reported status', async ({ page }) => {
     await open(page, '#/laws');
-    await expect(heading(page)).toHaveText('California election legislation');
+    await expect(heading(page)).toHaveText('Election legislation');
     const status = page.locator('.filters-status');
     await expect(status).toContainText(/^\d+ measures in this dataset/);
     const total = Number((await status.innerText()).match(/^(\d+)/)![1]);
     expect(total).toBeGreaterThanOrEqual(50);
 
+    // A status belongs to one legislature, so the menu appears once a legislature is chosen.
+    await expect(page.getByRole('combobox', { name: 'Status as reported' })).toHaveCount(0);
+    await open(page, '#/laws?jur=ca');
     await page.getByRole('combobox', { name: 'Status as reported' }).selectOption('Chaptered');
     await expect(page).toHaveURL(/status=Chaptered/);
-    await expect(status).toContainText(new RegExp(`^\\d+ measures of ${total} match these filters`));
+    await expect(status).toContainText(/^\d+ California measures of \d+ match these filters/);
     const chaptered = Number((await status.innerText()).match(/^(\d+)/)![1]);
     expect(chaptered).toBeGreaterThan(0);
     expect(chaptered).toBeLessThan(total);
     await expect(page.locator('main ul.rows > li')).toHaveCount(chaptered);
 
-    await page.getByRole('searchbox', { name: 'Search bill number or subject' }).fill('AB 604');
-    await expect(status).toContainText(/^\d measures? of/);
+    await page.getByRole('searchbox', { name: 'Search measure number or subject' }).fill('AB 604');
+    await expect(status).toContainText(/^\d California measures? of/);
     await page.locator('main ul.rows > li a.row-title').filter({ has: page.locator('.bill-id', { hasText: /^CA AB 604$/ }) }).click();
     await expect(page).toHaveURL(new RegExp(`#/laws/${BILL.id}$`));
     await expect(heading(page)).toHaveText(BILL.heading);

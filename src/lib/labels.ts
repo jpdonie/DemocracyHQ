@@ -41,6 +41,16 @@ const EVENT_LABELS: Readonly<Record<string, string>> = {
   docket_entry: 'Docket entry',
   introduced: 'Introduced',
   passed_house: 'Passed a house',
+  passed_senate: 'Passed or agreed to in the Senate',
+  reported: 'Reported by committee',
+  committee_discharged: 'Committee discharged',
+  presented_to_president: 'Presented to the President',
+  approved_by_president: 'Signed by the President',
+  became_law: 'Became law',
+  veto_override_passed: 'Passed over the veto',
+  veto_override_failed: 'Failed of passage over the veto',
+  conference_report_agreed: 'Conference report agreed to',
+  resolving_differences: 'Resolving differences between the chambers',
   enrolled: 'Enrolled',
   approved_by_governor: 'Approved by the Governor',
   chaptered: 'Chaptered',
@@ -52,14 +62,49 @@ const EVENT_LABELS: Readonly<Record<string, string>> = {
   died: 'Died',
   amended: 'Amended',
   committee_action: 'Committee action',
+  floor_action: 'Floor action',
+  referral: 'Referral',
+  calendar: 'Calendar entry',
   legislative_action: 'Legislative action',
   text_version_changed: 'Text changed',
+  opinion: 'Opinion',
+  judgment: 'Judgment',
+  order: 'Order',
+  errata: 'Errata',
+  procedural_termination: 'Procedural termination',
+  court_document: 'Court document',
   boundary_data_published: 'Boundary data published',
   boundary_files_updated: 'Census boundary files updated',
 };
 
-export function eventLabel(eventType: string): string {
-  return EVENT_LABELS[eventType] ?? humanize(eventType);
+/**
+ * Labels that depend on whose record an entry comes from. The id of the rule that named the entry says so: "us-" is a
+ * rule for the measures of Congress and "ca-doc-" a rule for the documents of the courts of appeals ("ca-" alone is a
+ * rule for California's legislature). The same type means different things there: "passed_house" is either house in
+ * Sacramento and the House of Representatives in Washington.
+ */
+const FEDERAL_EVENT_LABELS: Readonly<Record<string, string>> = {
+  passed_house: 'Passed or agreed to in the House',
+  vote_failed: 'Failed of passage or not agreed to',
+  vetoed: 'Vetoed by the President',
+};
+
+const CIRCUIT_EVENT_LABELS: Readonly<Record<string, string>> = {
+  decision: 'Decision',
+  // A document the rules give no closer kind. "Court document" after the timeline's "Court" would read "Court Court document".
+  court_document: 'Other document',
+};
+
+export const isFederalRule = (ruleId: string | null | undefined): boolean => Boolean(ruleId?.startsWith('us-'));
+export const isCircuitRule = (ruleId: string | null | undefined): boolean => Boolean(ruleId?.startsWith('ca-doc-'));
+
+/**
+ * The label of an event type. Pass the id of the rule that assigned the type wherever the record gives one, so that an
+ * entry of Congress or of a court of appeals gets its own wording.
+ */
+export function eventLabel(eventType: string, ruleId?: string | null): string {
+  const own = isFederalRule(ruleId) ? FEDERAL_EVENT_LABELS[eventType] : isCircuitRule(ruleId) ? CIRCUIT_EVENT_LABELS[eventType] : undefined;
+  return own ?? EVENT_LABELS[eventType] ?? humanize(eventType);
 }
 
 const RELATIONSHIP_LABELS: Readonly<Record<string, string>> = {

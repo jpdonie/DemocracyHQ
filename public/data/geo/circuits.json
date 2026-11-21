@@ -1,0 +1,365 @@
+{
+ "circuitOfState": {
+  "01": "ca11",
+  "02": "ca9",
+  "04": "ca9",
+  "05": "ca8",
+  "06": "ca9",
+  "08": "ca10",
+  "09": "ca2",
+  "10": "ca3",
+  "11": "cadc",
+  "12": "ca11",
+  "13": "ca11",
+  "15": "ca9",
+  "16": "ca9",
+  "17": "ca7",
+  "18": "ca7",
+  "19": "ca8",
+  "20": "ca10",
+  "21": "ca6",
+  "22": "ca5",
+  "23": "ca1",
+  "24": "ca4",
+  "25": "ca1",
+  "26": "ca6",
+  "27": "ca8",
+  "28": "ca5",
+  "29": "ca8",
+  "30": "ca9",
+  "31": "ca8",
+  "32": "ca9",
+  "33": "ca1",
+  "34": "ca3",
+  "35": "ca10",
+  "36": "ca2",
+  "37": "ca4",
+  "38": "ca8",
+  "39": "ca6",
+  "40": "ca10",
+  "41": "ca9",
+  "42": "ca3",
+  "44": "ca1",
+  "45": "ca4",
+  "46": "ca8",
+  "47": "ca6",
+  "48": "ca5",
+  "49": "ca10",
+  "50": "ca2",
+  "51": "ca4",
+  "53": "ca9",
+  "54": "ca4",
+  "55": "ca7",
+  "56": "ca10",
+  "66": "ca9",
+  "69": "ca9",
+  "72": "ca1",
+  "78": "ca3"
+ },
+ "courts": [
+  {
+   "basis": {
+    "also": null,
+    "citation": "28 U.S.C. § 41",
+    "quote": "Maine, Massachusetts, New Hampshire, Puerto Rico, Rhode Island.",
+    "url": "https://www.govinfo.gov/content/pkg/USCODE-2024-title28/html/USCODE-2024-title28-partI-chap3-sec41.htm"
+   },
+   "courtType": "federal_appellate",
+   "geoKey": "circuit:01",
+   "id": "ca1",
+   "jurisdiction": "Federal",
+   "name": "United States Court of Appeals for the First Circuit",
+   "shortName": "First Circuit",
+   "states": [
+    "23",
+    "25",
+    "33",
+    "44",
+    "72"
+   ],
+   "website": "https://www.ca1.uscourts.gov/"
+  },
+  {
+   "basis": {
+    "also": null,
+    "citation": "28 U.S.C. § 41",
+    "quote": "Connecticut, New York, Vermont.",
+    "url": "https://www.govinfo.gov/content/pkg/USCODE-2024-title28/html/USCODE-2024-title28-partI-chap3-sec41.htm"
+   },
+   "courtType": "federal_appellate",
+   "geoKey": "circuit:02",
+   "id": "ca2",
+   "jurisdiction": "Federal",
+   "name": "United States Court of Appeals for the Second Circuit",
+   "shortName": "Second Circuit",
+   "states": [
+    "09",
+    "36",
+    "50"
+   ],
+   "website": "https://www.ca2.uscourts.gov/"
+  },
+  {
+   "basis": {
+    "also": null,
+    "citation": "28 U.S.C. § 41",
+    "quote": "Delaware, New Jersey, Pennsylvania, Virgin Islands.",
+    "url": "https://www.govinfo.gov/content/pkg/USCODE-2024-title28/html/USCODE-2024-title28-partI-chap3-sec41.htm"
+   },
+   "courtType": "federal_appellate",
+   "geoKey": "circuit:03",
+   "id": "ca3",
+   "jurisdiction": "Federal",
+   "name": "United States Court of Appeals for the Third Circuit",
+   "shortName": "Third Circuit",
+   "states": [
+    "10",
+    "34",
+    "42",
+    "78"
+   ],
+   "website": "https://www.ca3.uscourts.gov/"
+  },
+  {
+   "basis": {
+    "also": null,
+    "citation": "28 U.S.C. § 41",
+    "quote": "Maryland, North Carolina, South Carolina, Virginia, West Virginia.",
+    "url": "https://www.govinfo.gov/content/pkg/USCODE-2024-title28/html/USCODE-2024-title28-partI-chap3-sec41.htm"
+   },
+   "courtType": "federal_appellate",
+   "geoKey": "circuit:04",
+   "id": "ca4",
+   "jurisdiction": "Federal",
+   "name": "United States Court of Appeals for the Fourth Circuit",
+   "shortName": "Fourth Circuit",
+   "states": [
+    "24",
+    "37",
+    "45",
+    "51",
+    "54"
+   ],
+   "website": "https://www.ca4.uscourts.gov/"
+  },
+  {
+   "basis": {
+    "also": null,
+    "citation": "28 U.S.C. § 41",
+    "quote": "District of the Canal Zone, Louisiana, Mississippi, Texas.",
+    "url": "https://www.govinfo.gov/content/pkg/USCODE-2024-title28/html/USCODE-2024-title28-partI-chap3-sec41.htm"
+   },
+   "courtType": "federal_appellate",
+   "geoKey": "circuit:05",
+   "id": "ca5",
+   "jurisdiction": "Federal",
+   "name": "United States Court of Appeals for the Fifth Circuit",
+   "shortName": "Fifth Circuit",
+   "states": [
+    "22",
+    "28",
+    "48"
+   ],
+   "website": "https://www.ca5.uscourts.gov/"
+  },
+  {
+   "basis": {
+    "also": null,
+    "citation": "28 U.S.C. § 41",
+    "quote": "Kentucky, Michigan, Ohio, Tennessee.",
+    "url": "https://www.govinfo.gov/content/pkg/USCODE-2024-title28/html/USCODE-2024-title28-partI-chap3-sec41.htm"
+   },
+   "courtType": "federal_appellate",
+   "geoKey": "circuit:06",
+   "id": "ca6",
+   "jurisdiction": "Federal",
+   "name": "United States Court of Appeals for the Sixth Circuit",
+   "shortName": "Sixth Circuit",
+   "states": [
+    "21",
+    "26",
+    "39",
+    "47"
+   ],
+   "website": "https://www.ca6.uscourts.gov/"
+  },
+  {
+   "basis": {
+    "also": null,
+    "citation": "28 U.S.C. § 41",
+    "quote": "Illinois, Indiana, Wisconsin.",
+    "url": "https://www.govinfo.gov/content/pkg/USCODE-2024-title28/html/USCODE-2024-title28-partI-chap3-sec41.htm"
+   },
+   "courtType": "federal_appellate",
+   "geoKey": "circuit:07",
+   "id": "ca7",
+   "jurisdiction": "Federal",
+   "name": "United States Court of Appeals for the Seventh Circuit",
+   "shortName": "Seventh Circuit",
+   "states": [
+    "17",
+    "18",
+    "55"
+   ],
+   "website": "https://www.ca7.uscourts.gov/"
+  },
+  {
+   "basis": {
+    "also": null,
+    "citation": "28 U.S.C. § 41",
+    "quote": "Arkansas, Iowa, Minnesota, Missouri, Nebraska, North Dakota, South Dakota.",
+    "url": "https://www.govinfo.gov/content/pkg/USCODE-2024-title28/html/USCODE-2024-title28-partI-chap3-sec41.htm"
+   },
+   "courtType": "federal_appellate",
+   "geoKey": "circuit:08",
+   "id": "ca8",
+   "jurisdiction": "Federal",
+   "name": "United States Court of Appeals for the Eighth Circuit",
+   "shortName": "Eighth Circuit",
+   "states": [
+    "05",
+    "19",
+    "27",
+    "29",
+    "31",
+    "38",
+    "46"
+   ],
+   "website": "https://www.ca8.uscourts.gov/"
+  },
+  {
+   "basis": {
+    "also": [
+     {
+      "citation": "48 U.S.C. § 1821(a)",
+      "quote": "The Northern Mariana Islands shall constitute a part of the same judicial circuit of the United States as Guam.",
+      "url": "https://www.govinfo.gov/content/pkg/USCODE-2024-title48/html/USCODE-2024-title48-chap17-subchapII-sec1821.htm"
+     }
+    ],
+    "citation": "28 U.S.C. § 41",
+    "quote": "Alaska, Arizona, California, Idaho, Montana, Nevada, Oregon, Washington, Guam, Hawaii.",
+    "url": "https://www.govinfo.gov/content/pkg/USCODE-2024-title28/html/USCODE-2024-title28-partI-chap3-sec41.htm"
+   },
+   "courtType": "federal_appellate",
+   "geoKey": "circuit:09",
+   "id": "ca9",
+   "jurisdiction": "Federal",
+   "name": "United States Court of Appeals for the Ninth Circuit",
+   "shortName": "Ninth Circuit",
+   "states": [
+    "02",
+    "04",
+    "06",
+    "15",
+    "16",
+    "30",
+    "32",
+    "41",
+    "53",
+    "66",
+    "69"
+   ],
+   "website": "https://www.ca9.uscourts.gov/"
+  },
+  {
+   "basis": {
+    "also": null,
+    "citation": "28 U.S.C. § 41",
+    "quote": "Colorado, Kansas, New Mexico, Oklahoma, Utah, Wyoming.",
+    "url": "https://www.govinfo.gov/content/pkg/USCODE-2024-title28/html/USCODE-2024-title28-partI-chap3-sec41.htm"
+   },
+   "courtType": "federal_appellate",
+   "geoKey": "circuit:10",
+   "id": "ca10",
+   "jurisdiction": "Federal",
+   "name": "United States Court of Appeals for the Tenth Circuit",
+   "shortName": "Tenth Circuit",
+   "states": [
+    "08",
+    "20",
+    "35",
+    "40",
+    "49",
+    "56"
+   ],
+   "website": "https://www.ca10.uscourts.gov/"
+  },
+  {
+   "basis": {
+    "also": null,
+    "citation": "28 U.S.C. § 41",
+    "quote": "Alabama, Florida, Georgia.",
+    "url": "https://www.govinfo.gov/content/pkg/USCODE-2024-title28/html/USCODE-2024-title28-partI-chap3-sec41.htm"
+   },
+   "courtType": "federal_appellate",
+   "geoKey": "circuit:11",
+   "id": "ca11",
+   "jurisdiction": "Federal",
+   "name": "United States Court of Appeals for the Eleventh Circuit",
+   "shortName": "Eleventh Circuit",
+   "states": [
+    "01",
+    "12",
+    "13"
+   ],
+   "website": "https://www.ca11.uscourts.gov/"
+  },
+  {
+   "basis": {
+    "also": null,
+    "citation": "28 U.S.C. § 41",
+    "quote": "District of Columbia.",
+    "url": "https://www.govinfo.gov/content/pkg/USCODE-2024-title28/html/USCODE-2024-title28-partI-chap3-sec41.htm"
+   },
+   "courtType": "federal_appellate",
+   "geoKey": "circuit:DC",
+   "id": "cadc",
+   "jurisdiction": "Federal",
+   "name": "United States Court of Appeals for the District of Columbia Circuit",
+   "shortName": "D.C. Circuit",
+   "states": [
+    "11"
+   ],
+   "website": "https://www.cadc.uscourts.gov/"
+  },
+  {
+   "basis": {
+    "also": null,
+    "citation": "28 U.S.C. § 41",
+    "quote": "All Federal judicial districts.",
+    "url": "https://www.govinfo.gov/content/pkg/USCODE-2024-title28/html/USCODE-2024-title28-partI-chap3-sec41.htm"
+   },
+   "courtType": "federal_appellate",
+   "geoKey": null,
+   "id": "cafc",
+   "jurisdiction": "Federal",
+   "name": "United States Court of Appeals for the Federal Circuit",
+   "shortName": "Federal Circuit",
+   "states": [],
+   "website": "https://www.cafc.uscourts.gov/"
+  }
+ ],
+ "notOnTheMap": [
+  "District of the Canal Zone"
+ ],
+ "statute": {
+  "checkedAt": "2026-11-21T06:05:19Z",
+  "currentThrough": "2025-01-06",
+  "edition": "United States Code, 2024 Edition",
+  "ruleId": "circuit-composition-1",
+  "sections": [
+   {
+    "citation": "28 U.S.C. § 41",
+    "url": "https://www.govinfo.gov/content/pkg/USCODE-2024-title28/html/USCODE-2024-title28-partI-chap3-sec41.htm"
+   },
+   {
+    "citation": "48 U.S.C. § 1821(a)",
+    "url": "https://www.govinfo.gov/content/pkg/USCODE-2024-title48/html/USCODE-2024-title48-chap17-subchapII-sec1821.htm"
+   }
+  ],
+  "sourceId": "govinfo-uscode"
+ },
+ "withoutCircuit": [
+  "60"
+ ]
+}

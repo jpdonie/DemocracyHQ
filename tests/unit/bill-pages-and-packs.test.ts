@@ -221,7 +221,7 @@ describe('W2 / DL1 (C6): an unavailable court document is never exported as a wo
   const record = makeFullCase({
     documents: [
       ...makeFullCase().documents,
-      { id: 'synthetic-case-1:d3', caseId: 'synthetic-case-1', entryIndex: 2, title: 'Opinion (linked in docket entry)', filingDate: '2026-03-01', documentType: 'Opinion', url: dead, availability: 'unavailable', accessNote },
+      { id: 'synthetic-case-1:d3', caseId: 'synthetic-case-1', entryIndex: 2, title: 'Opinion (linked in docket entry)', filingDate: '2026-03-01', documentType: 'Opinion', url: dead, availability: 'unavailable', accessNote, sameTextAs: [] },
     ],
     events: makeFullCase().events.map((e) => (e.id === 'synthetic-case-1:e3' ? { ...e, documentIds: ['synthetic-case-1:d3'] } : e)),
   });

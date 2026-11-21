@@ -12,9 +12,10 @@ import os
 import socket
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Mapping, Optional
+from typing import Any, Callable, Dict, Mapping, Optional, Sequence
 from urllib.parse import urljoin, urlsplit
 
 import requests
@@ -55,12 +56,92 @@ CREDENTIAL_HEADERS = frozenset({"authorization", "proxy-authorization", "x-api-k
 
 
 class FetchError(RuntimeError):
-    """Raised when a resource cannot be retrieved after all retries."""
+    """Raised when a resource cannot be retrieved after all retries.
 
-    def __init__(self, url: str, status: Optional[int], message: str):
+    ``retry_after`` is the wait in seconds the server asked for with its last answer, when it named one.
+    """
+
+    def __init__(self, url: str, status: Optional[int], message: str, retry_after: Optional[float] = None):
         super().__init__(f"{message} [{status}] {url}")
         self.url = url
         self.status = status
+        self.retry_after = retry_after
+
+    @property
+    def may_pass(self) -> bool:
+        """Whether asking again later can succeed: the request failed in transit, or with an answer that is retried."""
+        return self.status is None or self.status in RETRYABLE_STATUS
+
+
+#: How often one of many files is asked for at most when the failed ones are asked for again together.
+ROUNDS = 12
+#: The pause before the second round when the server names none; it doubles from round to round, up to the longest.
+ROUND_PAUSE = 5.0
+ROUND_PAUSE_MAX = 60.0
+#: A round that asked for this many files or more and had not one answered ends the rounds: the server is down.
+DOWN_AT = 20
+#: The longest wait a server may ask for before the next round. One that asks for longer is not asked again in the run.
+ROUND_WAIT_MAX = 600.0
+
+
+def retry_after_seconds(value: Optional[str], now: Optional[float] = None) -> Optional[float]:
+    """The wait a ``Retry-After`` header asks for, in seconds: a number of seconds or an HTTP date. None when absent or unreadable."""
+    text = (value or "").strip()
+    if text.isdigit():
+        return float(text)
+    if not text:
+        return None
+    from email.utils import parsedate_to_datetime
+
+    try:
+        when = parsedate_to_datetime(text)
+    except (TypeError, ValueError, IndexError):
+        return None
+    if when is None or when.tzinfo is None:
+        return None
+    return max(0.0, when.timestamp() - (time.time() if now is None else now))
+
+
+def in_rounds(fetcher: "Fetcher", items: Sequence[str], one: Callable[[str], Optional[BaseException]], *, what: str,
+              workers: int = 4) -> Dict[str, BaseException]:
+    """Do ``one`` for each item, and again for the items it failed, with one pause for all of them between two rounds.
+
+    ``one`` makes each of its requests once (``attempts=1``) and returns what ended it, or nothing when it succeeded.
+    An item is tried again when that is a :class:`FetchError` that :attr:`~FetchError.may_pass`. The pause is the
+    longest wait the server asked for in the round, or a growing one when it named none. A server that asks for a wait
+    longer than ``ROUND_WAIT_MAX`` is not asked again in the run. Returns the items that failed in the end, each with
+    what ended its last attempt.
+
+    A server can fail every second request for hours and ask with each failure to come back a minute later (GovInfo
+    did, on 21 November 2026). Waiting that minute for each file in turn takes hours; waiting it once for all the
+    failed files takes minutes, and no failed file is asked for again sooner than the server said. Within a round the
+    other files are still asked for, as the server's answers to them show that it is serving.
+    """
+    pending = list(dict.fromkeys(items))
+    failed: Dict[str, BaseException] = {}
+    for round_number in range(1, ROUNDS + 1):
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            ended = list(pool.map(one, pending))
+        for item, error in zip(pending, ended):
+            if error is None:
+                failed.pop(item, None)
+            else:
+                failed[item] = error
+        again = [item for item, error in zip(pending, ended) if isinstance(error, FetchError) and error.may_pass]
+        if not again or round_number == ROUNDS:
+            break
+        if len(again) == len(pending) >= DOWN_AT:
+            log.warning("%s: not one of %s was answered; not asked again in this run", what, len(pending))
+            break
+        asked = max((failed[item].retry_after or 0.0 for item in again), default=0.0)  # type: ignore[attr-defined]
+        if asked > ROUND_WAIT_MAX:
+            log.warning("%s: the server asked to wait %.0f s; the %s not answered are not asked again in this run", what, asked, len(again))
+            break
+        pause = asked or min(ROUND_PAUSE * 2 ** (round_number - 1), ROUND_PAUSE_MAX)
+        log.warning("%s: %s of %s not answered in round %s; asked for again in %.0f s", what, len(again), len(pending), round_number, pause)
+        fetcher.wait(pause)
+        pending = again
+    return failed
 
 
 class CredentialMissing(RuntimeError):
@@ -302,7 +383,11 @@ class Fetcher:
       whether a TLS handshake, the response headers or the body is under way
       (see :class:`_Deadline`, and :func:`_prepare` for a session passed in).
     * Retries use exponential backoff (``backoff * 2**attempt``) and honour a
-      numeric ``Retry-After`` header on 429/503. GET and HEAD follow the same policy.
+      ``Retry-After`` header (seconds or an HTTP date) of an answer that is
+      retried, waiting at most 120 seconds between two attempts; the error
+      carries the whole wait asked for. GET and HEAD follow the same policy. A caller that asks for many
+      files and retries the failed ones together passes ``attempts=1`` and waits
+      once for all of them (:meth:`wait`).
     * Bodies are streamed: the status (and, for a range, ``Content-Range``) is
       checked before the body is read, and no more than ``max_bytes`` are read.
     * Redirects (at most ``MAX_REDIRECTS``) are followed by the Fetcher itself, and
@@ -347,13 +432,17 @@ class Fetcher:
         self._last_request = 0.0
         self.headers = {"User-Agent": user_agent(), **(headers or {})}
         self.request_count = 0
+        # The fetcher is shared by worker threads: the spacing of requests and their count are kept under a lock.
+        self._lock = threading.Lock()
 
     def _throttle(self) -> None:
-        if self.min_interval <= 0:
-            return
-        wait = self.min_interval - (time.monotonic() - self._last_request)
-        if wait > 0:
-            self._sleep(wait)
+        """Wait until ``min_interval`` has passed since the last request, then count this one as the last."""
+        with self._lock:
+            if self.min_interval > 0:
+                wait = self.min_interval - (time.monotonic() - self._last_request)
+                if wait > 0:
+                    self._sleep(wait)
+            self._last_request = time.monotonic()
 
     def _late(self, url: str, status: Optional[int]) -> FetchError:
         return FetchError(url, status, f"response not complete within {self.deadline:g} seconds")
@@ -383,7 +472,6 @@ class Fetcher:
         for hop in range(MAX_REDIRECTS + 1):
             if hop:  # each redirect is a request of its own, spaced like any other
                 self._throttle()
-                self._last_request = time.monotonic()
             left = self.deadline - (self._clock() - started)
             if left <= 0:
                 raise self._late(url, None)
@@ -410,9 +498,15 @@ class Fetcher:
             current, query = target, None
         raise FetchError(url, resp.status_code, f"more than {MAX_REDIRECTS} redirects")
 
+    def wait(self, seconds: float) -> None:
+        """Pause, by the same means as between two attempts (a test passes its own)."""
+        if seconds > 0:
+            self._sleep(seconds)
+
     def _request(self, method: str, url: str, *, headers: Optional[Mapping[str, str]] = None,
                  params: Optional[Mapping[str, Any]] = None, ok_statuses: tuple[int, ...] = (200,),
-                 accept: Optional[Callable[[Any], None]] = None, max_bytes: Optional[int] = None) -> FetchResult:
+                 accept: Optional[Callable[[Any], None]] = None, max_bytes: Optional[int] = None,
+                 attempts: Optional[int] = None) -> FetchResult:
         """One request under the retry policy. ``accept`` may refuse a response before its body is read."""
         merged = {**self.headers, **(headers or {})}
         limit = self.max_bytes if max_bytes is None else max_bytes
@@ -420,24 +514,27 @@ class Fetcher:
         outer = getattr(_current, "deadline", None)
         _current.deadline = deadline
         try:
-            return self._attempts(method, url, merged, params, ok_statuses, accept, limit, deadline)
+            return self._attempts(method, url, merged, params, ok_statuses, accept, limit, deadline,
+                                  self.retries + 1 if attempts is None else max(1, attempts))
         finally:
             _current.deadline = outer
             deadline.cancel()
 
     def _attempts(self, method: str, url: str, merged: Mapping[str, str], params: Optional[Mapping[str, Any]],
                   ok_statuses: tuple[int, ...], accept: Optional[Callable[[Any], None]], limit: int,
-                  deadline: _Deadline) -> FetchResult:
+                  deadline: _Deadline, tries: int) -> FetchResult:
         started = self._clock()
         last_status: Optional[int] = None
         last_error = "request failed"
         attempts = 0
-        for attempt in range(self.retries + 1):
+        asked: Optional[float] = None
+        for attempt in range(tries):
             self._throttle()
-            self._last_request = time.monotonic()
-            self.request_count += 1
+            with self._lock:
+                self.request_count += 1
             attempts += 1
             wait: Optional[float] = None
+            asked = None
             try:
                 resp = self._open(method, url, merged, params, started, deadline)
                 try:
@@ -453,15 +550,15 @@ class Fetcher:
                     # 4xx such as 401/403/404 will not improve by retrying.
                     raise FetchError(url, resp.status_code, "non-retryable response")
                 last_error = "retryable response"
-                retry_after = str(resp.headers.get("Retry-After") or "")
-                if retry_after.isdigit():
-                    wait = min(float(retry_after), 120.0)
+                asked = retry_after_seconds(str(resp.headers.get("Retry-After") or ""))
+                if asked is not None:
+                    wait = min(asked, 120.0)
             except requests.RequestException as exc:  # network-level failure, also while reading the body
                 if deadline.fired:  # the connection was ended by the deadline, not by the server
                     raise self._late(url, None) from None
                 last_error = f"network error: {exc.__class__.__name__}"
                 last_status = None
-            if attempt == self.retries:
+            if attempt == tries - 1:
                 break  # no pointless wait after the last attempt
             delay = wait if wait is not None else self.backoff * (2**attempt)
             if self._clock() - started + delay > self.deadline:
@@ -469,7 +566,7 @@ class Fetcher:
                 break
             log.warning("retry %s in %.1fs: %s (%s)", attempt + 1, delay, url, last_error)
             self._sleep(delay)
-        raise FetchError(url, last_status, f"{last_error} after {attempts} attempts")
+        raise FetchError(url, last_status, f"{last_error} after {attempts} attempt{'' if attempts == 1 else 's'}", retry_after=asked)
 
     def get(
         self,
@@ -479,8 +576,11 @@ class Fetcher:
         params: Optional[Mapping[str, Any]] = None,
         ok_statuses: tuple[int, ...] = (200, 206),
         max_bytes: Optional[int] = None,
+        attempts: Optional[int] = None,
     ) -> FetchResult:
-        return self._request("GET", url, headers=headers, params=params, ok_statuses=ok_statuses, max_bytes=max_bytes)
+        """``attempts`` is how often the request is made at most, when that is not ``retries + 1``."""
+        return self._request("GET", url, headers=headers, params=params, ok_statuses=ok_statuses, max_bytes=max_bytes,
+                             attempts=attempts)
 
     def get_range(self, url: str, start: int, end: int, total: Optional[int] = None) -> FetchResult:
         """Bytes ``start`` to ``end`` (inclusive) of ``url``.

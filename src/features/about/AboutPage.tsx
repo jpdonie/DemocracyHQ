@@ -18,7 +18,7 @@ export function AboutPage({ route }: { route: Route }) {
       </header>
 
       <Section title="What this is">
-        <p>{APP_NAME} is a free, open-source research tool that puts three kinds of public record on one map: court dockets in election cases, election bills with their text versions, and the official boundaries those cases and bills are about. Every record links to the court, legislature or Census Bureau page it came from, and says when it was last checked.</p>
+        <p>{APP_NAME} is a free, open-source research tool that puts three kinds of public record on one map: court records in election cases, election bills with their text versions, and the official boundaries those cases and bills are about. Every record links to the official page it came from, published by a court, a legislature, the Government Publishing Office or the Census Bureau, and says when it was last checked.</p>
         <p>It is built for people who need to get to a primary source quickly: lawyers and legal researchers, reporters, academics, students, election officials and interested members of the public. Naming these audiences describes who the tool is meant to serve. It does not mean any organisation uses, endorses or is affiliated with it.</p>
       </Section>
 
@@ -33,7 +33,7 @@ export function AboutPage({ route }: { route: Route }) {
       </Section>
 
       <Section title="Neutrality">
-        <p>The same rules apply to every record, whichever party or interest benefits. Records are described in the words of the source: docket entries are quoted, bills carry the legislature&rsquo;s own subject line and digest. Where {APP_NAME} adds something of its own, such as an issue tag or a link between a case and a place, the rule or the supporting passage is shown next to it. Map colours avoid red and blue.</p>
+        <p>The same rules apply to every record, whichever party or interest benefits. Records are described in the words of the source: docket entries and court records are quoted, and a bill carries its official titles, subject line and summary. Where {APP_NAME} adds something of its own, such as an issue tag or a link between a case and a place, the rule or the supporting passage is shown next to it. Map colours avoid red and blue.</p>
       </Section>
 
       <Section title="Corrections" id="corrections">
@@ -59,7 +59,7 @@ export function AboutPage({ route }: { route: Route }) {
       <Section title="Source code and licence" id="source">
         <p>The code is open source under the Apache License 2.0. That licence covers the code, the documentation and the design files written for this project. It does not cover the upstream data the pipeline retrieves and publishes: those records belong to, or are published by, their sources and are reused under the terms listed for each source in <A to={buildHash(['sources'])}>Data and methodology</A>.</p>
         {REPO_URL ? <p><Ext href={REPO_URL}>Repository on GitHub</Ext></p> : <p className="quiet">The repository address is added when the site is published.</p>}
-        <p>Built with public data from the U.S. Census Bureau, the Supreme Court of the United States and the California Legislative Counsel, and with the open-source projects MapLibre GL JS, React, Mapshaper, and the Archivo, Newsreader and Noto Sans typefaces. Their licence notices ship with the site: <a href="third-party-licenses.md">third-party licences</a> (code bundled into the site) and <a href="fonts/README.md">font licences</a>.</p>
+        <p>Built with public data from the U.S. Census Bureau, the Supreme Court of the United States, the U.S. Government Publishing Office (GovInfo) and the California Legislative Counsel, and with the open-source projects MapLibre GL JS, React, Mapshaper, and the Archivo, Newsreader and Noto Sans typefaces. Their licence notices ship with the site: <a href="third-party-licenses.md">third-party licences</a> (code bundled into the site) and <a href="fonts/README.md">font licences</a>.</p>
       </Section>
     </article>
   );
