@@ -56,7 +56,7 @@ test.describe('Static hosting under a sub-path', () => {
   });
 
   test('the browser back button returns to the earlier view', async ({ page }) => {
-    await open(page, '#/litigation');
+    await open(page, '#/litigation?court=scotus');
     await page.getByRole('link', { name: CASE.name }).click();
     await expect(heading(page)).toHaveText(CASE.name);
     await page.goBack();

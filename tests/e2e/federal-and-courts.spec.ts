@@ -58,7 +58,7 @@ test.describe('Federal level', () => {
 test.describe('Courts', () => {
   test('the overview lists the Supreme Court and the thirteen courts of appeals', async ({ page }) => {
     await open(page, '#/courts');
-    await expect(heading(page)).toHaveText('Federal courts');
+    await expect(heading(page)).toHaveText('Courts');
     const appeals = page.getByRole('region', { name: 'Courts of appeals' });
     for (const name of ['First Circuit', 'Ninth Circuit', 'Eleventh Circuit', 'D.C. Circuit', 'Federal Circuit']) await expect(appeals.getByRole('link', { name, exact: true }).first()).toBeVisible();
     await expect(page.getByRole('region', { name: 'How the circuits are drawn' })).toContainText('28 U.S.C. § 41');
@@ -85,7 +85,7 @@ test.describe('Courts', () => {
       ['Counties', /layer=county/, null],
       ['Districts', /layer=cd120/, null],
       ['Supreme Court', /#\/court\/scotus/, 'Supreme Court of the United States'],
-      ['Circuits', /#\/courts/, 'Federal courts'],
+      ['Circuits', /#\/courts/, 'Courts'],
       ['Federal', /#\/place\/nation:US/, 'United States'],
     ] as const) {
       await page.keyboard.press('ArrowRight');

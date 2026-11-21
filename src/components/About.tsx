@@ -28,16 +28,27 @@ export function aboutLabel(about: AboutText): string {
   }
 }
 
-/** Where the quoted text can be read, named for a link. */
-function sourceName(about: AboutText): string {
+/** The host of the address the quoted text is published at, in lower case, or '' where it has none. */
+function hostOf(url: string | null | undefined): string {
+  try {
+    return url ? new URL(url).hostname.toLowerCase() : '';
+  } catch {
+    return '';
+  }
+}
+
+/** Where the quoted text can be read, named for a link: by the site it is published on, which the address tells. */
+export function sourceName(about: AboutText): string {
+  const host = hostOf(about.url);
+  const on = (site: string) => host === site || host.endsWith(`.${site}`);
   switch (about.source) {
-    case 'crs-summary':
-    case 'official-title': return 'Congress.gov';
+    case 'crs-summary': return 'Congress.gov';
+    case 'official-title': return on('congress.gov') ? 'Congress.gov' : 'the legislature’s page';
     case 'digest': return 'California Legislative Information';
     case 'question-presented': return 'the Court’s document';
     case 'cited-passage': return 'the document';
     case 'docket-entry': return 'the docket';
-    case 'opinion': return 'the opinion on GovInfo';
+    case 'opinion': return on('courtlistener.com') ? 'the decision on CourtListener' : 'the opinion on GovInfo';
   }
 }
 

@@ -454,7 +454,7 @@ function Shell() {
       title = bill ? `${billLabel(bill)}: ${bill.subject ?? ''}` : 'Legislation';
       if (view.name === 'compare') title = `Text versions, ${title}`;
     } else if (view.name === 'place') title = geo?.get(view.key)?.name ?? 'Place';
-    else if (view.name === 'courts') title = 'Federal courts';
+    else if (view.name === 'courts') title = 'Courts';
     else if (view.name === 'court') title = courtFullName(courts?.get(view.id), view.id);
     else if (view.name === 'litigation') title = 'Election litigation';
     else if (view.name === 'laws') title = 'Election legislation';

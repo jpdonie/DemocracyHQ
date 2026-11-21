@@ -48,11 +48,13 @@ test.describe('Verification wording', () => {
     await expect(section).toContainText('Reporting a correction does not change a record’s badge.');
     const meaning = (label: string) => section.locator('.definitions > div').filter({ has: page.locator('dt', { hasText: label }) }).locator('dd');
     await expect(meaning('Checked against the official source')).toContainText('parsed without error');
-    await expect(meaning('Checked against the official source')).toContainText('Every record in this release carries this state.');
+    // The decisions read from CourtListener are imported from a secondary source, so both states are carried.
+    await expect(meaning('Checked against the official source')).not.toContainText('Every record in this release carries this state.');
+    await expect(meaning('Checked against the official source')).not.toContainText('No record in this release carries this state.');
     for (const label of ['Awaiting review', 'Disputed', 'Outdated']) {
       await expect(meaning(label)).toContainText('Defined but not yet used: nothing in DemocracyHQ assigns this state, and no record carries it.');
     }
-    await expect(meaning('Imported from secondary source')).toContainText('No record in this release carries this state.');
+    await expect(meaning('Imported from secondary source')).not.toContainText('No record in this release carries this state.');
   });
 
   test('the methodology page does not promise dates taken from the bill text or routine hand-run checks', async ({ page }) => {

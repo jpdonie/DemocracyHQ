@@ -34,7 +34,7 @@ test.describe('Focus on a record that is still loading', () => {
     await page.route(dataFile(`litigation/cases/${CASE.id}.json`), caseFile.handler);
     await page.route(dataFile(`legislation/bills/${BILL.id}.json`), after(800));
 
-    await open(page, '#/litigation');
+    await open(page, '#/litigation?court=scotus');
     await expect(heading(page)).toHaveText('Election litigation');
     await page.locator('.rows').getByRole('link', { name: CASE.name, exact: true }).focus();
     await page.keyboard.press('Enter');
@@ -65,7 +65,7 @@ test.describe('Focus on a record that is still loading', () => {
   test('focus is not taken back from the search box if the reader moved there while the record loaded', async ({ page }) => {
     const caseFile = gate();
     await page.route(dataFile(`litigation/cases/${CASE.id}.json`), caseFile.handler);
-    await open(page, '#/litigation');
+    await open(page, '#/litigation?court=scotus');
     await expect(heading(page)).toHaveText('Election litigation');
     await page.locator('.rows').getByRole('link', { name: CASE.name, exact: true }).click();
     // The new view is drawn and waiting for its record when the reader moves to the search box.
@@ -81,7 +81,7 @@ test.describe('Focus on a record that is still loading', () => {
   test('focus is not taken from the search box if the reader moved there before the new view was even drawn', async ({ page }) => {
     const caseFile = gate();
     await page.route(dataFile(`litigation/cases/${CASE.id}.json`), caseFile.handler);
-    await open(page, '#/litigation');
+    await open(page, '#/litigation?court=scotus');
     await expect(heading(page)).toHaveText('Election litigation');
     await expect(page.locator(`.rows a[href="#/litigation/${CASE.id}"]`)).toBeVisible();
     // The click and the move to the search box in one task: before the address changes and the new view renders.
@@ -97,7 +97,7 @@ test.describe('Focus on a record that is still loading', () => {
   test('a record that cannot be loaded still has a heading, and focus moves to it', async ({ page, problems }) => {
     const GILL = 'scotus-16-1161';
     await page.route(dataFile(`litigation/cases/${GILL}.json`), unavailable);
-    await open(page, '#/litigation');
+    await open(page, '#/litigation?court=scotus');
     await expect(heading(page)).toHaveText('Election litigation');
     await page.locator(`.rows a[href="#/litigation/${GILL}"]`).focus();
     await page.keyboard.press('Enter');

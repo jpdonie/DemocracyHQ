@@ -292,7 +292,7 @@ great deal of litigation.
 - **The opening paragraph is quoted only from a PDF.** A decision CourtListener
   holds as a web page (many New York, Maryland and Oklahoma decisions) is listed
   without one, and so is a PDF whose layout the rule cannot read with confidence.
-  Of the 95 cases, 67 quote one.
+  Of the 95 cases, 74 quote one.
 - **One case may be listed twice.** Decisions one court files under two dockets
   with the same number are shown as one case (rule `cl-same-docket`); an order
   filed under a docket number that differs by a letter (California's "H053842M"

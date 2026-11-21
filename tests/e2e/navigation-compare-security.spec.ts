@@ -35,15 +35,17 @@ async function hiddenFocusStops(page: Page, presses: number): Promise<string[]> 
 
 test.describe('Litigation map and list (DB1)', () => {
   test('selecting a state with no linked case empties the list and names the state in the menu', async ({ page }) => {
-    await open(page, '#/litigation', { withMap: true });
+    // The Supreme Court's dockets of this dataset name no case of Wyoming; the courts of Wyoming may have some.
+    await open(page, '#/litigation?court=scotus', { withMap: true });
     await mapReady(page, 'state');
     await clickMap(page, [-107.5, 43]);
     await expect(page).toHaveURL(/state=56/);
+    await expect(page).toHaveURL(/court=scotus/);
     await expect(page.getByText('No case in this dataset matches these filters.')).toBeVisible();
     await expect(page.getByText('A data gap is not evidence of absence.').first()).toBeVisible();
     await expect(page.getByRole('status').filter({ hasText: /^0 cases of \d+ match these filters/ })).toBeVisible();
     await expect(page.getByLabel('State', { exact: true })).toHaveValue('56');
-    await expect(page.getByLabel('State', { exact: true }).locator('option:checked')).toHaveText('Wyoming (0)');
+    await expect(page.getByLabel('State', { exact: true }).locator('option:checked')).toHaveText(/^Wyoming \(\d+\)$/);
   });
 
   test('a link with a code that is not a state still shows the whole list', async ({ page }) => {
@@ -225,7 +227,7 @@ test.describe('Titles and the case list (DB12, DL7)', () => {
   });
 
   test('a long ruling in the case list shows its operative words', async ({ page }) => {
-    await open(page, '#/litigation');
+    await open(page, '#/litigation?court=scotus');
     const row = page.locator('main .rows li').filter({ has: page.locator('.row-meta', { hasText: 'No. 25A1197,' }) });
     await expect(row.locator('.row-line q')).toContainText('is granted.');
   });

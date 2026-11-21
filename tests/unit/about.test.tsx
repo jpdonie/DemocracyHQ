@@ -5,7 +5,7 @@
  */
 import { cleanup, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
-import { AboutBlock, AboutLine, Highlight, aboutLabel, aboutQuote, holdsTerm, laterLabel } from '../../src/components/About';
+import { AboutBlock, AboutLine, Highlight, aboutLabel, aboutQuote, holdsTerm, laterLabel, sourceName } from '../../src/components/About';
 import { BillRow, excerptAround, matchedElsewhere, termsInQuotation } from '../../src/features/legislation/BillDirectory';
 import { CaseRow } from '../../src/features/litigation/CaseDirectory';
 import { AboutTextSchema, LegalCaseSummarySchema, LegislativeInstrumentSummarySchema, type AboutText } from '../../src/types/schemas';
@@ -229,6 +229,13 @@ describe('the head of a record page', () => {
     expect(screen.getByRole('link', { name: /the opinion on GovInfo/ }).getAttribute('href')).toBe(`${SYNTHETIC_HOST}/opinion.pdf`);
     expect(screen.getByRole('link', { name: 'Rule about-opinion-1' }).getAttribute('href')).toBe('#/sources?section=rules');
     expect(screen.getByText(/Quoted, not summarised/)).toBeTruthy();
+  });
+
+  it('names the site the quoted text is on by its address', () => {
+    expect(sourceName(about({ source: 'opinion', ruleId: 'about-opinion-1', url: 'https://storage.courtlistener.com/pdf/2026/01/02/synthetic.pdf' }))).toBe('the decision on CourtListener');
+    expect(sourceName(about({ source: 'opinion', ruleId: 'about-opinion-1', url: 'https://www.govinfo.gov/content/pkg/synthetic.pdf' }))).toBe('the opinion on GovInfo');
+    expect(sourceName(about({ source: 'official-title', ruleId: 'about-title-1', url: 'https://www.congress.gov/bill/119th-congress/house-bill/1' }))).toBe('Congress.gov');
+    expect(sourceName(about({ source: 'official-title', ruleId: 'about-title-1', url: 'https://legislature.example.test/bill/1' }))).toBe('the legislature’s page');
   });
 
   it('repeats a further question of the Court under the question presented', () => {
