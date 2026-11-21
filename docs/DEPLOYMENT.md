@@ -3,11 +3,11 @@
 DemocracyHQ is a folder of static files. It is designed for GitHub Pages and works
 on any static host, at a domain root or under a sub-path, with no rewrite rules.
 
-> **Not yet run on GitHub.** The three workflows in `.github/workflows/` were
-> written and reviewed locally, and every action they use is pinned to a full
-> commit SHA with its version in a comment, but none of them has executed on
-> GitHub, because the project has not been pushed to a remote
-> repository. Treat the first run of each as a test and read its log.
+> **First runs on GitHub.** The site is published at
+> <https://jpdonie.github.io/DemocracyHQ/>. The CI and deploy workflows have run on
+> GitHub since 2026-11-21; the scheduled ingestion workflow has not run there yet.
+> Every action the workflows use is pinned to a full commit SHA with its version in
+> a comment. Treat the first ingestion runs as a test and read their logs.
 
 ## What was tested locally
 

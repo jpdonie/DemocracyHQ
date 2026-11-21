@@ -480,5 +480,5 @@ Synthetic data exists only in the unit and pipeline fixtures and never reaches
 - `.github/dependabot.yml`: weekly update pull requests for the actions, the npm
   packages and the pipeline's pinned Python packages.
 
-See [DEPLOYMENT.md](DEPLOYMENT.md). These workflows have been written and reviewed
-but have not yet run on GitHub.
+See [DEPLOYMENT.md](DEPLOYMENT.md). The CI and deploy workflows have run on GitHub
+since 2026-11-21; the scheduled ingestion workflow has not run there yet.

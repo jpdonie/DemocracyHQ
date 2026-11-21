@@ -19,6 +19,11 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    ignore:
+      # @types/node follows the Node.js major that the workflows run (22, see engines in package.json); a newer
+      # major would type-check against APIs that Node 22 does not have. Raise it together with node-version.
+      - dependency-name: '@types/node'
+        update-types: ['version-update:semver-major']
     groups:
       # The test runner, its browser and the accessibility checker move together.
       playwright:

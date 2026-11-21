@@ -121,7 +121,9 @@ To add or update a package:
 Dependabot is configured to propose these updates once a week
 (`.github/dependabot.yml`). Minor and patch updates of the pipeline's packages come
 in one pull request, because `pydantic` pins `pydantic-core` exactly; a major
-update comes on its own. Check such a pull request in the same way.
+update comes on its own. Check such a pull request in the same way. Major updates
+of `@types/node` are not proposed: those types follow the Node.js major that the
+workflows run (22), and are raised together with it.
 
 ## What a pipeline run reports
 

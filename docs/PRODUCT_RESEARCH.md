@@ -150,8 +150,8 @@ in the [data validation report](DATA_VALIDATION_REPORT.md).
 Built and working on the build machine: the three modules as described in the
 README, the place workspace, the timeline, links with quoted evidence, search, the
 watchlist, the export, the methodology page and the pipeline with tests. The
-workflows are written but have not yet run on GitHub, and the site has not been
-deployed.
+site is published on GitHub Pages and its CI and deploy workflows run on GitHub;
+the scheduled ingestion has not run there yet.
 
 Deliberately deferred:
 
