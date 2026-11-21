@@ -5,8 +5,8 @@
  */
 import { cleanup, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
-import { AboutBlock, AboutLine, Highlight, aboutLabel, aboutQuote, holdsTerm } from '../../src/components/About';
-import { BillRow, excerptAround, matchedElsewhere } from '../../src/features/legislation/BillDirectory';
+import { AboutBlock, AboutLine, Highlight, aboutLabel, aboutQuote, holdsTerm, laterLabel } from '../../src/components/About';
+import { BillRow, excerptAround, matchedElsewhere, termsInQuotation } from '../../src/features/legislation/BillDirectory';
 import { CaseRow } from '../../src/features/litigation/CaseDirectory';
 import { AboutTextSchema, LegalCaseSummarySchema, LegislativeInstrumentSummarySchema, type AboutText } from '../../src/types/schemas';
 import { SYNTHETIC_HOST, makeAppealsCase, makeBill, makeCase, makeFederalBill } from './fixtures';
@@ -42,6 +42,12 @@ describe('the label says which official text is quoted', () => {
     expect(aboutLabel(about({ source: 'opinion', date: null }))).toBe('Opening of the opinion');
   });
 
+  it('says which paragraph of an opinion is quoted where its first could not be', () => {
+    expect(aboutLabel(about({ source: 'opinion', date: '2026-10-26', paragraph: 2 }))).toBe('Paragraph 2 of the opinion of Oct 26, 2026');
+    expect(aboutLabel(about({ source: 'opinion', date: null, paragraph: 3 }))).toBe('Paragraph 3 of the opinion');
+    expect(aboutLabel(about({ source: 'opinion', date: '2026-10-26', paragraph: null }))).toBe('Opening of the opinion of Oct 26, 2026');
+  });
+
   it('says whose words a passage cited from a filing is', () => {
     const document = 'the filing that opened this docket, written by the party seeking relief (not a ruling)';
     expect(aboutLabel(about({ source: 'cited-passage', document }))).toBe(`From ${document}`);
@@ -73,6 +79,18 @@ describe('the words a selection rule matched are marked, and no word is changed'
     expect([...container.querySelectorAll('mark')].map((mark) => mark.textContent)).toEqual(['voter registration']);
   });
 
+  it('marks a term only where it stands as whole words, the way the rules count it', () => {
+    const { container } = render(
+      <p><Highlight text="Mail-ins and mail-in ballots: the electors of an election; voter rolls, a voter roll." terms={['mail-in', 'elect', 'voter roll', 'voter']} /></p>,
+    );
+    // "Mail-ins", "electors" and "election" hold a term inside a longer word. In "voter rolls" only "voter" is whole.
+    expect([...container.querySelectorAll('mark')].map((mark) => mark.textContent)).toEqual(['mail-in', 'voter', 'voter roll']);
+    expect(container.textContent).toBe('Mail-ins and mail-in ballots: the electors of an election; voter rolls, a voter roll.');
+    expect(holdsTerm('The mailing of ballots', ['mail'])).toBe(false);
+    expect(holdsTerm('Ballots sent by mail.', ['mail'])).toBe(true);
+    expect(holdsTerm('Señor Peña’s vote', ['pe'])).toBe(false);
+  });
+
   it('treats a term as words, not as a pattern, and marks nothing for no term', () => {
     const { container } = render(<p><Highlight text="Section 2 (a) of the Act (b)." terms={['(a)', '.*']} /><Highlight text=" Nothing here." terms={[]} /></p>);
     expect([...container.querySelectorAll('mark')].map((mark) => mark.textContent)).toEqual(['(a)']);
@@ -101,6 +119,26 @@ describe('a measure listed under a title that does not say why it is listed', ()
     // The quotation follows, under the name of the text it is from.
     expect(within(row).getByText('Congressional Research Service summary')).toBeTruthy();
     expect(row.querySelector('.row-about q')?.textContent).toBe('This bill requires synthetic proof of citizenship when registering to vote in federal elections.');
+  });
+
+  it('still names the matched title when the summary happens to use the same words, and marks nothing in the summary', () => {
+    // The selection rule reads the titles of a measure. It never read the summary, so the summary shows no reason.
+    const bill = makeFederalBill({ ...veterans, about: about({ text: 'This bill sets synthetic rules on voter eligibility for federal elections in every state.' }) });
+    expect(termsInQuotation(bill)).toEqual([]);
+    expect(matchedElsewhere(bill)?.title).toBe('Synthetic Voter Eligibility Act');
+    render(<ul><BillRow bill={bill} labels={LABELS} /></ul>);
+    const row = theRow();
+    expect(row.querySelector('.row-why')?.textContent).toContain('Also titled Synthetic Voter Eligibility Act');
+    expect(row.querySelector('.row-about mark')).toBeNull();
+    expect(row.querySelector('.row-why mark')?.textContent).toBe('Voter Eligibility');
+  });
+
+  it('marks the matched words in an official title that is quoted, because the rule reads titles', () => {
+    const bill = makeFederalBill({ ...veterans, about: about({ source: 'official-title', ruleId: 'about-title-1', text: 'To require synthetic proof of voter eligibility, and for other purposes.' }) });
+    expect(termsInQuotation(bill)).toEqual(['Voter Eligibility']);
+    render(<ul><BillRow bill={bill} labels={LABELS} /></ul>);
+    expect(theRow().querySelector('.row-about q mark')?.textContent).toBe('voter eligibility');
+    expect(theRow().querySelector('.row-why')).toBeNull();
   });
 
   it('does not repeat a title whose matched words the row already shows', () => {
@@ -165,6 +203,18 @@ describe('a case row says what the case is about before it says what happened la
     expect(row.querySelector('.row-why')).toBeNull();
   });
 
+  it('shows a further question of the Court after the question presented, as the Court set it', () => {
+    const later = { text: 'WHETHER THE STATE’S INTENTIONAL CREATION OF A SECOND SYNTHETIC DISTRICT VIOLATES THE FOURTEENTH AMENDMENT.', date: '2025-08-01', cut: false };
+    const record = makeCase({ about: about({ source: 'question-presented', ruleId: 'about-question-1', date: null, of: 4, text: 'Did the majority err in finding that race predominated in the synthetic plan?', later }) });
+    render(<ul><CaseRow record={record} labels={LABELS} /></ul>);
+    const row = theRow();
+    const lines = [...row.querySelectorAll('.row-about')];
+    expect(lines.map((line) => line.querySelector('.row-about-src')?.textContent)).toEqual(['Question presented (first of 4)', 'Further question from the Court, order of Aug 1, 2025']);
+    expect(lines[1]!.querySelector('q')?.textContent).toBe(later.text);
+    expect(laterLabel({ ...later, date: null })).toBe('Further question from the Court');
+    expect(LegalCaseSummarySchema.parse(record).about?.later?.date).toBe('2025-08-01');
+  });
+
   it('shows a case without a quotation with the nature of suit alone', () => {
     render(<ul><CaseRow record={makeAppealsCase({ natureOfSuit: 'Civil Rights Voting', about: null, matchedTerms: [] })} labels={LABELS} /></ul>);
     const row = theRow();
@@ -181,6 +231,14 @@ describe('the head of a record page', () => {
     expect(screen.getByText(/Quoted, not summarised/)).toBeTruthy();
   });
 
+  it('repeats a further question of the Court under the question presented', () => {
+    const later = { text: 'WHETHER THE STATE’S INTENTIONAL CREATION OF A SECOND SYNTHETIC DISTRICT VIOLATES THE FOURTEENTH AMENDMENT.', date: '2025-08-01', cut: false };
+    const { container } = render(<AboutBlock about={about({ source: 'question-presented', ruleId: 'about-question-1', of: 4, later })} type="case" />);
+    expect([...container.querySelectorAll('blockquote')].map((quote) => quote.textContent)).toEqual([about().text, later.text]);
+    expect(screen.getByText('Further question from the Court, order of Aug 1, 2025')).toBeTruthy();
+    expect(container.querySelectorAll('figcaption').length).toBe(1);
+  });
+
   it('renders nothing for a record without a quotation', () => {
     const { container } = render(<><AboutBlock about={null} type="bill" /><AboutLine about={undefined} /></>);
     expect(container.innerHTML).toBe('');
@@ -194,6 +252,9 @@ describe('the schemas hold a quotation to its form', () => {
     expect(AboutTextSchema.safeParse({ ...about(), text: 'Too short.' }).success).toBe(false);
     expect(AboutTextSchema.safeParse({ ...about(), url: 'http://example.test/plain' }).success).toBe(false);
     expect(AboutTextSchema.safeParse({ ...about(), ruleId: undefined }).success).toBe(false);
+    expect(AboutTextSchema.safeParse({ ...about(), paragraph: 1 }).success).toBe(false);
+    expect(AboutTextSchema.safeParse({ ...about(), paragraph: 2, later: null }).success).toBe(true);
+    expect(AboutTextSchema.safeParse({ ...about(), later: { text: 'Too short.' } }).success).toBe(false);
   });
 
   it('keeps the quotation and the matched words on the index entries', () => {

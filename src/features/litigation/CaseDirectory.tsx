@@ -54,11 +54,6 @@ export function rowCourtName(courtId: string): string {
 }
 
 /**
- * One case in a list. A Supreme Court docket is the Court's own docket. A court of appeals case is known here from the
- * documents GovInfo holds for it, which is not the court's docket, so its row speaks of documents and not of docket
- * activity.
- */
-/**
  * Why a court of appeals case is listed, as far as a row can say it: the nature of suit in the court's record and the
  * election phrases the selection rule found most often in the opinion, each with its count.
  */
@@ -84,6 +79,11 @@ export function WhyListed({ record }: { record: LegalCaseSummary }) {
   );
 }
 
+/**
+ * One case in a list. A Supreme Court docket is the Court's own docket. A court of appeals case is known here from the
+ * documents GovInfo holds for it, which is not the court's docket, so its row speaks of documents and not of docket
+ * activity.
+ */
 export function CaseRow({ record, labels, note }: { record: LegalCaseSummary; labels: ReadonlyMap<string, string>; note?: string }) {
   const ruling = record.latestDispositiveEntry;
   const appeal = record.courtId !== SCOTUS_ID;

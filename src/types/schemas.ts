@@ -213,6 +213,16 @@ export const AboutTextSchema = z.object({
   of: z.number().int().min(2).nullable().optional(),
   /** For a cited passage: which document of the docket it is from, and whose words it is. */
   document: z.string().nullable().optional(),
+  /**
+   * For a Question Presented: the latest further question an order of the Court put to the parties, in the Court's
+   * words, with the date of the order where the Court's document gives it. It is shown after the question presented.
+   */
+  later: z
+    .object({ text: z.string().min(20).max(700), date: isoDate.nullable().optional(), cut: z.boolean().default(false) })
+    .nullable()
+    .optional(),
+  /** For the opening of an opinion: which paragraph of the opinion is quoted, where its first could not be. */
+  paragraph: z.number().int().min(2).nullable().optional(),
   ruleId: z.string(),
 });
 export type AboutText = z.infer<typeof AboutTextSchema>;
@@ -392,8 +402,8 @@ export const BillSelectionSchema = z.object({
   ruleId: z.string(),
   matchedText: z.string(),
   matchedField: z.string(),
-  test: z.string().optional(),
-  matchedTitle: z.string().optional(),
+  test: z.string().nullable().optional(),
+  matchedTitle: z.string().nullable().optional(),
 });
 
 export const LegislativeInstrumentSummarySchema = z.object({
@@ -416,7 +426,7 @@ export const LegislativeInstrumentSummarySchema = z.object({
   /** What the measure would do, quoted from its official summary, digest or title. */
   about: AboutTextSchema.nullable().optional(),
   /** Why the measure is listed: the words of its title or subject line that the selection rule matched. */
-  selection: BillSelectionSchema.optional(),
+  selection: BillSelectionSchema.nullable().optional(),
   officialUrl: httpsUrl,
   sourceId: z.string(),
   firstObservedAt: isoDateTime,
@@ -495,7 +505,7 @@ export const LegislativeInstrumentSchema = PublishedBillSummarySchema.extend({
   judicialNote: z.string(),
   sourcePublishedAt: z.string().nullable().optional(),
   contentHash: z.string(),
-  selection: BillSelectionSchema.optional(),
+  selection: BillSelectionSchema.nullable().optional(),
   // --- measures of Congress only ---
   sponsors: z.array(SponsorSchema).default([]),
   cosponsorCount: z.number().int().nonnegative().nullable().optional(),

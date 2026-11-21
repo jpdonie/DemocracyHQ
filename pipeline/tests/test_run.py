@@ -90,7 +90,7 @@ def test_first_run_publishes_validated_records(env):
     # What the case is about: the Court's question, quoted, in the list and in the record.
     assert case["about"] == index[1]["about"] == {
         "text": "Whether the State of California's congressional districting plan, enacted as Synthetic Bill 9, is lawful.",
-        "source": "question-presented", "url": case["questionsPresented"]["url"], "date": None, "cut": False, "of": None, "document": None,
+        "source": "question-presented", "url": case["questionsPresented"]["url"], "date": None, "cut": False, "of": None, "document": None, "later": None, "paragraph": None,
         "ruleId": "about-question-1"}
     assert [t["tag"] for t in case["issueTags"]] == ["redistricting"]
     assert case["issueTags"][0]["matchedField"] == "questions presented"

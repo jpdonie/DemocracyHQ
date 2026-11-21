@@ -57,16 +57,26 @@ export function excerptAround(text: string, term: string, max = 170): string {
 }
 
 /**
+ * The words the selection rule matched, to be marked in the quotation of a measure. The rule reads the titles of a
+ * measure and nothing else, so the words are marked only where the quotation is a title (the official title of a
+ * measure without a summary). A summary or a digest that happens to use the same words is a text the rule never read.
+ */
+export function termsInQuotation(bill: LegislativeInstrumentSummary): string[] {
+  return bill.about?.source === 'official-title' && bill.selection?.matchedText ? [bill.selection.matchedText] : [];
+}
+
+/**
  * The title that put a measure in the dataset, when a row would not show it otherwise. A measure is listed under its
  * display title, and the selection rule may have matched another one: a bill named for veterans that carries the
- * "Safeguard American Voter Eligibility Act" as a short title of its amended text. Null when the matched words already
- * stand in the title shown or in the quotation below it.
+ * "Safeguard American Voter Eligibility Act" as a short title of its amended text. Null when the row already shows the
+ * matched words in a title: the one it is listed under, or the official title quoted below it. A summary that uses
+ * the same words does not count, because the rule did not read the summary.
  */
 export function matchedElsewhere(bill: LegislativeInstrumentSummary): { title: string; field: string; words: string } | null {
   const selection = bill.selection;
   if (!selection?.matchedTitle || !selection.matchedText) return null;
   const words = [selection.matchedText];
-  if (holdsTerm(shownTitle(bill), words) || holdsTerm(bill.about?.text, words)) return null;
+  if (holdsTerm(shownTitle(bill), words) || holdsTerm(bill.about?.text, termsInQuotation(bill))) return null;
   return { title: selection.matchedTitle, field: selection.matchedField, words: selection.matchedText };
 }
 
@@ -84,7 +94,7 @@ export function BillRow({ bill, labels }: { bill: LegislativeInstrumentSummary; 
           Also titled <q><Highlight text={excerptAround(elsewhere.title, elsewhere.words)} terms={matched} /></q> <span className="quiet">({elsewhere.field})</span>
         </p>
       ) : null}
-      <AboutLine about={bill.about} terms={matched} />
+      <AboutLine about={bill.about} terms={termsInQuotation(bill)} />
       <TagList tags={bill.issueTags} labels={labels} hrefFor={(tag) => buildHash(['laws'], { tag })} />
       <p className="row-line">
         {statusNoun(bill)}: {statusLine(bill)}

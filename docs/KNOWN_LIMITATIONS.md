@@ -61,26 +61,51 @@ great deal of litigation.
   the point.** A rule takes it from the beginning of an official text (rules
   `about-*`). The Congressional Research Service's summary and the Legislative
   Counsel's Digest are written to say what a measure does. The opening of an
-  opinion usually says who appeals from what, but a court may open with the
-  history of a statute or with procedure, and the passage then says little about
-  the election question. A passage cited from the filing that opened a Supreme
-  Court docket is the account of the party that filed it; the line says so. A
-  measure of Congress without a published summary shows its official title, which
-  can be as general as "and for other purposes". 12 of the 128 court of appeals
-  cases have no passage: ten have no opinion on GovInfo that a program can read,
-  and two are clerk's orders that name neither a panel nor an author, which the
-  rule needs to find where the text begins.
+  opinion is its first paragraph, whatever it says: most courts open with the
+  dispute, but a court may open with the history of a statute, with a general
+  remark on elections or with the standard for an injunction, and the passage
+  then says little about the election question. A passage cited from the filing
+  that opened a Supreme Court docket is the account of the party that filed it;
+  the line says so. A measure of Congress without a published summary shows its
+  official title, which can be as general as "and for other purposes". 12 of the
+  128 court of appeals cases have no passage: ten have no opinion on GovInfo that
+  a program can read, and two are clerk's orders that name neither a panel nor an
+  author, which the rule needs to find where the text begins.
+- **Three opinions are quoted from their second or third paragraph, and the row
+  says so.** A first paragraph that fails a check is not quoted: in two opinions
+  it is a sentence and a long citation, of which too few characters are letters,
+  and in one the file's typeface gives wrong signs for joined letters ("ff",
+  "ffi"). The same check refuses any paragraph that holds a letter outside the
+  Western European alphabets, so an opening that names a person with such a
+  letter is passed over as well. A passage the court sets in from the margin is
+  never quoted, and neither is the rest of its paragraph below it.
+- **A further question of the Supreme Court is found only by its usual words.**
+  The Court's document for a case lists its orders below the question presented.
+  An order that directs or invites briefs "addressing the following question" is
+  read, and the latest such question is shown under the question presented, in
+  the capitals the Court sets it in (three dockets). An order that changes the
+  question in other words is not recognised, and the document does not always
+  date an order.
 - **The opening of an opinion is checked against the file, not against a
   mirrored text.** The pipeline reads the passage from the layout of the PDF and
-  publishes it only if its letters stand in the same order in the plain text
-  that another program takes from the same file. That check ignores spacing,
-  punctuation, digits and letter case, because footnote marks and line-end
-  hyphens differ between the two readings; a wrong space or a wrongly joined
-  hyphenated word would pass it. The opinions are not mirrored here, so the
-  validator of the published data can only check that the passage points at the
-  opinion the selection rests on. When `pdftohtml` is missing or a file cannot be
-  fetched, a passage already published for the same document is kept, the case is
-  listed in the review queue, and a new case is published without a passage.
+  publishes it only if every letter of it stands, one after the other, in the
+  plain text that another program takes from the same file; other matter may
+  stand between the letters only where the passage crosses a page. That check
+  ignores spacing, punctuation, digits and letter case, because footnote marks
+  and line-end hyphens differ between the two readings; a wrong space, a wrong
+  digit or a wrongly joined hyphenated word would pass it. The opinions are not
+  mirrored here, so the validator of the published data can only check that the
+  passage points at the opinion the selection rests on. When `pdftohtml` is
+  missing or a file cannot be fetched, a passage already published for the same
+  document is kept only if it still stands in the plain text read in that run
+  (whole, or with the head of a page between its two parts); the case is listed
+  in the review queue, and a new case is published without a passage.
+- **Sentence ends are found by rule.** A quotation stops at the end of a
+  sentence. A full stop after a listed abbreviation does not end one, and a
+  short capitalised word before a full stop ends one only when a word that
+  commonly opens a sentence follows. A quotation can therefore run one sentence
+  longer than it should; the rule is set so that it does not stop inside a
+  sentence without an ellipsis.
 - **"Checked against the official source" has a narrow meaning.** On a record it
   means the record was retrieved from the official publisher by a program, parsed
   without error, links to that source, and matched what the source published at

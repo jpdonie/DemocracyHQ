@@ -447,9 +447,19 @@ for (const record of bills.values()) {
 // about-opinion-1) and this script checks that it points at the opinion the selection rests on.
 {
   const before = errors.length;
-  const letters = (text) => (text ?? '').normalize('NFKC').toLowerCase().replace(/[^\p{L}]/gu, '');
   const flat = (text) => (text ?? '').replace(/\s+/g, ' ').trim();
-  const within = (about, text) => letters(text).includes(letters(about.text));
+  // A quotation is in a text when its words stand there in the same order, as whole words, with every letter and
+  // digit. Punctuation and white space between the words may differ, because the pipeline sets a text that was broken
+  // into lines as running text. A word the text breaks with a hyphen at the end of a line counts as that word.
+  const escape = (character) => character.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const wordsOf = (text) => (text ?? '').normalize('NFKC').match(/[\p{L}\p{N}]+/gu) ?? [];
+  const lineBreak = '(?:-[^\\S\\n]*\\n\\s*)?';
+  const within = (about, text) => {
+    const words = wordsOf(about.text);
+    if (words.length === 0) return false;
+    const pattern = words.map((word) => [...word].map(escape).join(lineBreak)).join('[^\\p{L}\\p{N}]+');
+    return new RegExp(`(?<![\\p{L}\\p{N}])${pattern}(?![\\p{L}\\p{N}])`, 'iu').test((text ?? '').normalize('NFKC'));
+  };
   let quoted = 0;
   const checkAbout = (kind, id, record, summary, problemOf) => {
     if (JSON.stringify(summary?.about ?? null) !== JSON.stringify(record.about ?? null)) fail(`${kind} ${id}: the index and the record's own file say different things about what it is about`);
@@ -458,6 +468,7 @@ for (const record of bills.values()) {
     quoted += 1;
     if (!ruleIds.has(about.ruleId)) fail(`${kind} ${id}: the line on what it is about cites unknown rule ${about.ruleId}`);
     if (!about.url) fail(`${kind} ${id}: the line on what it is about does not say where the quoted text is published`);
+    if (about.later && about.source !== 'question-presented') fail(`${kind} ${id}: a further question of the Court is attached to a quotation that is not a Question Presented`);
     const problem = problemOf(about);
     if (problem) fail(`${kind} ${id}: the line on what it is about (${about.source}) ${problem}`);
   };
@@ -472,7 +483,9 @@ for (const record of bills.values()) {
       if (appeals) return 'is not from the opinion of the case';
       if (about.source === 'question-presented') {
         if (about.url !== record.questionsPresented?.url) return "does not point at the Court's Questions Presented document";
-        return within(about, record.questionsPresented?.text) ? null : 'is not in the text of the Questions Presented document';
+        if (!within(about, record.questionsPresented?.text)) return 'is not in the text of the Questions Presented document';
+        if (about.later && !within(about.later, record.questionsPresented?.text)) return 'carries a further question that is not in the text of the Questions Presented document';
+        return null;
       }
       if (about.source === 'cited-passage') {
         const cited = (relationships?.relationships ?? []).some((rel) => rel.source.type === 'case' && rel.source.id === record.id

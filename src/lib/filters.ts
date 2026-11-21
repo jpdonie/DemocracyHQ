@@ -55,7 +55,7 @@ export function caseStartDate(c: Pick<LegalCaseSummary, 'dateDocketed' | 'dateFi
 export function filterCases(cases: readonly LegalCaseSummary[], filters: CaseFilters): LegalCaseSummary[] {
   const result = cases.filter((c) => {
     // The search reads what a row shows: the names and numbers, and the passage quoted on what the case is about.
-    if (!matchesQuery([c.caseName, c.docketNumber, c.petitionerTitle, c.respondentTitle, c.lowerCourt.name, c.origin?.court, ...c.lowerCourt.caseNumbers, c.about?.text], filters.q ?? '')) return false;
+    if (!matchesQuery([c.caseName, c.docketNumber, c.petitionerTitle, c.respondentTitle, c.lowerCourt.name, c.origin?.court, ...c.lowerCourt.caseNumbers, c.about?.text, c.about?.later?.text], filters.q ?? '')) return false;
     if (filters.tag && !c.issueTags.some((t) => t.tag === filters.tag)) return false;
     if (filters.state && !caseStates(c).includes(filters.state)) return false;
     if (filters.court && !matchesCourt(c.courtId, filters.court)) return false;

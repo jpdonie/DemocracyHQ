@@ -715,5 +715,5 @@ def build_instrument(archive: CaliforniaArchive, entry: dict, history: List[List
         sourcePublishedAt=archive.archive_modified,
     )
     basis = {k: v for k, v in LegislativeInstrument(**body, contentHash="").model_dump(mode="json").items()
-             if k not in {"firstObservedAt", "lastCheckedAt", "verification", "contentHash", "sourcePublishedAt"}}
+             if k not in {"firstObservedAt", "lastCheckedAt", "verification", "contentHash", "sourcePublishedAt", "selection"}}
     return LegislativeInstrument(**body, contentHash=content_hash(basis)), texts

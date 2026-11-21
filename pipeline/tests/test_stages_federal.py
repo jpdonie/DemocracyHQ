@@ -88,7 +88,7 @@ def test_each_measure_says_in_official_words_what_it_would_do_and_which_words_th
     bill = listed["us-119-hr22"]
     # The Congressional Research Service's summary, where it has published one.
     assert bill["about"] == {"text": "This bill requires synthetic proof of eligibility for voter registration.", "source": "crs-summary",
-                             "url": bill["officialUrl"], "date": "2025-01-03", "cut": False, "of": None, "document": None, "ruleId": "about-crs-1"}
+                             "url": bill["officialUrl"], "date": "2025-01-03", "cut": False, "of": None, "document": None, "later": None, "paragraph": None, "ruleId": "about-crs-1"}
     assert bill["selection"] == laws.read("congress/bills/us-119-hr22.json")["selection"]
     assert laws.read("congress/bills/us-119-hr22.json")["about"] == bill["about"]
     # No summary yet, and the list already shows the measure under its official title: no second line repeats it.
@@ -340,7 +340,7 @@ def test_a_case_says_what_it_is_about_in_the_words_its_opinion_opens_with(courts
     assert code == 0 and ctx.review == []
     summary = courts.read("circuits/index.json")["cases"][0]
     assert summary["about"] == {"text": fed.OPENING, "source": "opinion", "url": OPINION_URL, "date": "2026-03-10", "cut": False,
-                                "of": None, "document": None, "ruleId": "about-opinion-1"}
+                                "of": None, "document": None, "later": None, "paragraph": None, "ruleId": "about-opinion-1"}
     case = courts.read("circuits/cases/ca5-25-30725.json")
     assert case["about"] == summary["about"]
     # The list also names the election phrases the selection rule found most often: why the case is listed at all.
@@ -370,11 +370,29 @@ def test_an_opinion_that_cannot_be_laid_out_keeps_the_passage_published_before_a
     assert code == 0
     queued = {r["entity"]: r["detail"] for r in ctx.review if r["kind"] == "opening_unavailable"}
     assert sorted(queued) == ["ca5-25-30725", "ca9-26-00100"]
-    assert "pdftohtml is not installed" in queued["ca5-25-30725"] and "the passage published before is kept" in queued["ca5-25-30725"]
+    assert "pdftohtml is not installed" in queued["ca5-25-30725"]
+    assert "the passage published before is still in the text of the opinion and is kept" in queued["ca5-25-30725"]
     assert "the case is published without one" in queued["ca9-26-00100"]
     listed = {c["id"]: c for c in courts.read("circuits/index.json")["cases"]}
     assert listed["ca5-25-30725"]["about"]["text"] == fed.OPENING and listed["ca5-25-30725"]["lastCheckedAt"] == T2
     assert listed["ca9-26-00100"]["about"] is None
+
+
+def test_a_passage_is_not_kept_once_the_opinion_at_the_same_address_no_longer_holds_it(courts, monkeypatch):
+    with_opening(courts)
+    courts.run(COURTS, now=T1)
+    monkeypatch.setattr(uscourts.opening, "pdf_layout", lambda _data: (_ for _ in ()).throw(uscourts.opening.LayoutError("pdftohtml timed out")))
+    # The court replaces the opinion under the same address by an amended one: its opening no longer says "reverse".
+    amended = fed.OPENING.replace("reverse the judgment", "affirm the judgment")
+    courts.courts.add(LEAGUE, "Synthetic Voters League v. Synthetic County", [fed.opinion_with_opening(fed.election_opinion(), amended)],
+                      changed="2026-06-01T08:00:00.000Z")
+    courts.courts.serve()
+    code, ctx = courts.run(COURTS, now=T2)
+    assert code == 0
+    case = courts.read("circuits/cases/ca5-25-30725.json")
+    assert case["selection"]["documentUrl"] == OPINION_URL and case["about"] is None
+    queued = {r["entity"]: r["detail"] for r in ctx.review if r["kind"] == "opening_unavailable"}
+    assert "the case is published without one" in queued["ca5-25-30725"]
 
 
 def test_a_passage_is_not_kept_for_another_document_than_the_one_it_was_read_from(courts, monkeypatch):

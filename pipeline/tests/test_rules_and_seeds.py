@@ -220,8 +220,7 @@ def test_the_schemas_refuse_a_bill_id_of_another_shape(env, session):
     session.serve_bytes(syn.ARCHIVE_URL, syn.archive())
     env.run(LAWS)
     bill = env.read("legislation/bills/ca-20252026-ab1.json")
-    bill.pop("selection")
-    LegislativeInstrument(**bill)
+    assert LegislativeInstrument(**bill).selection.ruleId == ca_leginfo.SELECTION_RULE_ID
     for bad in (f"ca-20252026-ab{TRAVERSAL_NUM}", "ca-2025-ab1", "CA-20252026-AB1", "ca-20252026-ab123456", "ca-20252026-ab1.json"):
         with pytest.raises(ValidationError):
             LegislativeInstrument(**{**bill, "id": bad})

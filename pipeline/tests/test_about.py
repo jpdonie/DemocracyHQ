@@ -28,6 +28,27 @@ def test_a_full_stop_after_an_abbreviation_does_not_end_a_sentence():
     assert about.sentence_ends("Smith v. Jones was decided by the D.C. Circuit. It is binding here.") == [47]
 
 
+@pytest.mark.parametrize("citation", [
+    "Tex. Elec. Code § 86.001 lets a voter over 65 vote by mail",
+    "Fulton Cnty. Bd. of Registration and Elections removed the names",
+    "168 Cong. Rec. S1234 records the debate on the amendment",
+    "Mt. Healthy City Sch. Dist. Bd. of Educ. v. Doyle governs the claim",
+    "Am. Civ. Liberties Union v. Synthetic County decided the same point",
+])
+def test_the_abbreviations_of_a_citation_do_not_end_a_sentence(citation):
+    # A quotation cut at such a full stop would stop inside a sentence without saying so.
+    paragraph = f"The district court relied on the rule that {citation}, and it dismissed the complaint. The League appeals."
+    assert about.sentence_ends(paragraph) == [paragraph.index(" The League appeals.")]
+
+
+def test_a_short_capitalised_word_ends_a_sentence_only_before_a_word_that_opens_one():
+    # "Act." and "Code." end sentences far more often than they abbreviate anything: the word after them decides.
+    assert about.sentence_ends("The county relied on the Act. The court disagreed.") == [29]
+    assert about.sentence_ends("The League sued under the Code. Plaintiffs then appealed.") == [31]
+    # An abbreviation the list does not hold, before a name: the sentence goes on. A missed ending only lengthens a quotation.
+    assert about.sentence_ends("The voters sued in Wyo. Sweetwater County answered. The court ruled.") == [51]
+
+
 def test_only_a_first_sentence_that_no_row_can_hold_is_cut_and_it_is_cut_at_a_word():
     endless = "Whether " + "the county may reject a ballot that arrives late and " * 14 + "nothing else."
     text, cut = about.quotation(endless)
@@ -46,6 +67,11 @@ def test_a_text_without_the_end_of_a_sentence_is_returned_whole_for_the_caller_t
     (["a self-", "described poll watcher"], "", "a self-described poll watcher"),
     (["the vote-", "counting machines"], "each vote was counted; the counting took a day", "the vote-counting machines"),
     (["the appel-", "lants filed late"], "the court heard the parties", "the appellants filed late"),
+    # "mailing" is another word than "mail-in": it does not show that the opinion writes the pair as one word.
+    (["ballots cast by mail-", "in voters"], "the mail-in ballot; the mailing of ballots; mailing lists", "ballots cast by mail-in voters"),
+    (["ballots cast by mail-", "in voters"], "the mailing of ballots; a mailing list; voters cast ballots by mail and in person", "ballots cast by mail-in voters"),
+    # The only place the document has the word is the broken one: its halves are not words of their own.
+    (["which the state as-", "serts is a pretext"], "the law, which the state as-\n serts is a pretext, as it stands", "which the state asserts is a pretext"),
     (["rights of felons—", "even those released"], "", "rights of felons—even those released"),
     (["a plain line", "follows another"], "", "a plain line follows another"),
 ])
@@ -66,7 +92,7 @@ def test_a_measure_of_congress_is_described_by_the_first_sentences_of_its_offici
                            "title": "A bill to require voter registration at licensing offices."})
     assert found == {"text": "This bill requires each state to offer voter registration at every office that issues a driver's license, "
                              "and to send each new voter a notice within ten days.",
-                     "source": "crs-summary", "url": URL, "date": "2025-01-03", "cut": False, "of": None, "document": None,
+                     "source": "crs-summary", "url": URL, "date": "2025-01-03", "cut": False, "of": None, "document": None, "later": None, "paragraph": None,
                      "ruleId": "about-crs-1"}
     AboutText(**found)
 
@@ -137,6 +163,46 @@ def test_a_question_asked_in_a_sentence_and_one_that_ends_with_a_question_mark_a
     assert asked["text"] == "Did the court err in ordering the candidate excluded from the primary ballot?"
 
 
+CALLAIS_LIKE = ("QUESTIONS PRESENTED:\n\n1. Did the majority err in finding that race predominated in the drawing of the second district?\n"
+                "2. Is this action non-justiciable?\n\nCONSOLIDATED FOR ONE HOUR ORAL ARGUMENT WITH 25-2.\n"
+                "THESE CASES ARE RESTORED TO THE CALENDAR FOR REARGUMENT.\nOrder of August 1, 2025:\n"
+                "THE PARTIES ARE DIRECTED TO FILE SUPPLEMENTAL BRIEFS ADDRESSING\nTHE FOLLOWING QUESTION RAISED ON PAGES 36—38 OF THE BRIEF FOR\n"
+                "APPELLEES: WHETHER THE STATE’S INTENTIONAL CREATION OF A SECOND\nMAJORITY-MINORITY CONGRESSIONAL DISTRICT VIOLATES THE FOURTEENTH\n"
+                "OR FIFTEENTH AMENDMENTS TO THE U. S. CONSTITUTION.\nJURISDICTION NOTED 11/4/2024\n")
+
+
+def test_a_question_the_court_put_to_the_parties_by_a_later_order_is_carried_with_the_question_presented():
+    found = question(CALLAIS_LIKE)
+    assert found["text"] == "Did the majority err in finding that race predominated in the drawing of the second district?" and found["of"] == 2
+    # The Court sets the question of its order in capitals: it is quoted as set, with the date of the order.
+    assert found["later"] == {"text": "WHETHER THE STATE’S INTENTIONAL CREATION OF A SECOND MAJORITY-MINORITY CONGRESSIONAL DISTRICT VIOLATES THE "
+                                      "FOURTEENTH OR FIFTEENTH AMENDMENTS TO THE U. S. CONSTITUTION.", "date": "2025-08-01", "cut": False}
+    AboutText(**found)
+    assert question("QUESTION PRESENTED:\n\nWhether a county may reject an absentee ballot that arrived after election day.\n")["later"] is None
+
+
+def test_of_several_orders_the_latest_question_is_carried_with_the_date_of_its_own_order():
+    text = ("QUESTION PRESENTED:\n\nWhether a state court may set aside the rules a legislature made for federal elections.\n\n"
+            "ORDER OF MARCH 2, 2023\nTHE PARTIES ARE DIRECTED TO FILE\nSUPPLEMENTAL LETTER BRIEFS ADDRESSING THE FOLLOWING QUESTION:\n"
+            "WHAT IS THE EFFECT ON THIS COURT’S JURISDICTION OF THE STATE COURT’S\nFEBRUARY 3, 2023 ORDER GRANTING REHEARING? THE BRIEFS ARE TO BE FILED\n"
+            "ON OR BEFORE 2 P.M., MONDAY, MARCH 20, 2023.\nORDER of MAY 4, 2023\n THE PARTIES ARE INVITED TO FILE\n"
+            "SUPPLEMENTAL LETTER BRIEFS ADDRESSING THE FOLLOWING QUESTION:\nWHAT IS THE EFFECT ON THIS COURT’S JURISDICTION OF THE APRIL 28, 2023\n"
+            "ORDER OF THE STATE SUPREME COURT? THE BRIEFS ARE TO BE FILED ON OR BEFORE\n2 p.m., THURSDAY, MAY 11, 2023.\n\nCERT. GRANTED 6/30/2022\n")
+    assert about.further_question(text) == {
+        "text": "WHAT IS THE EFFECT ON THIS COURT’S JURISDICTION OF THE APRIL 28, 2023 ORDER OF THE STATE SUPREME COURT?", "date": "2023-05-04", "cut": False}
+    # An order that asks for briefs without setting a question, and a text with no order at all, carry none.
+    assert about.further_question("QUESTION PRESENTED:\n\nWhether the plan is lawful.\n\nORDER OF MAY 4, 2023\nTHE PARTIES ARE DIRECTED TO FILE SUPPLEMENTAL BRIEFS.\n") is None
+    assert about.further_question("") is None and about.further_question(None) is None
+
+
+def test_the_paragraph_of_an_opinion_is_carried_only_where_it_is_not_the_first():
+    with pytest.raises(Exception):
+        AboutText(text="A passage long enough to be a quotation of something.", source="opinion", ruleId="about-opinion-1", paragraph=1)
+    assert AboutText(text="A passage long enough to be a quotation of something.", source="opinion", ruleId="about-opinion-1", paragraph=2).paragraph == 2
+    assert about.opinion("A passage long enough to be a quotation of something.", False, url=QP_URL, date=None)["paragraph"] is None
+    assert about.opinion("A passage long enough to be a quotation of something.", False, url=QP_URL, date=None, paragraph=3)["paragraph"] == 3
+
+
 def test_a_page_number_glued_to_the_last_word_is_not_the_courts_word():
     found = question("QUESTION PRESENTED:\n\nWhether the State's plan violates Section 2 of the Voting Rights Act, 52 U.S.C. §10301.21\n")
     assert found["text"].endswith("52 U.S.C. §10301.")
@@ -151,7 +217,7 @@ def test_a_docket_without_a_question_is_described_by_the_entry_that_opens_it():
     found = about.of_docket(record)
     assert found == {"text": "Application (25A1) to vacate the stay entered by the court of appeals, submitted to Justice Alito.",
                      "source": "docket-entry", "url": record["sourceUrl"], "date": "2026-01-20", "cut": False, "of": None,
-                     "document": None, "ruleId": "about-docket-1"}
+                     "document": None, "later": None, "paragraph": None, "ruleId": "about-docket-1"}
     assert about.of_docket({"events": [], "sourceUrl": record["sourceUrl"]}) is None
 
 
@@ -166,7 +232,7 @@ def test_a_docket_without_a_question_is_described_by_the_passage_cited_for_its_f
     whole = "Respondents challenged the new map of the State, contending that the legislature's motive was predominantly racial."
     found = about.of_docket(record, [link(whole), link("A second passage, cited for another place the case concerns.")])
     assert found == {"text": whole, "source": "cited-passage", "url": "https://www.supremecourt.gov/DocketPDF/25/25A1/1/application.pdf",
-                     "date": None, "cut": False, "of": None, "ruleId": "about-cited-1",
+                     "date": None, "cut": False, "of": None, "later": None, "paragraph": None, "ruleId": "about-cited-1",
                      "document": "the filing that opened this docket, written by the party seeking relief (not a ruling)"}
     AboutText(**found)
     # A passage that stops inside its sentence says so, and the reader is shown an ellipsis.

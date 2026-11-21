@@ -816,8 +816,9 @@ def opinion_about(reader: Reader, result: PackageResult, earlier: Optional[dict]
     """``(about, problem)`` for a selected case: the opening passage of the opinion the selection rests on.
 
     ``about`` is None where the case has no opinion a program can read, or where rule ``about-opinion-1`` finds no
-    passage it may publish. ``earlier`` is the passage published before. It is kept when the file could not be laid
-    out in this run and is still the same document, and ``problem`` then says what failed.
+    passage it may publish. ``earlier`` is the passage published before. Where the file cannot be laid out in this run,
+    it is kept only if it is from the same document and its letters still stand in the document's plain text as this
+    run reads it: a court can replace an opinion under the same address. ``problem`` then says what failed.
     """
     granule = result.evaluation["document"]
     doc = next((d for d in result.record["documents"] if d["granule"] == granule), None)
@@ -827,11 +828,14 @@ def opinion_about(reader: Reader, result: PackageResult, earlier: Optional[dict]
     try:
         layout = reader.layout(result.package, granule, result.changed_at)
     except Exception as exc:  # noqa: BLE001 - the passage is an addition to the record: the case is published without it
-        same = bool(earlier) and earlier.get("source") == "opinion" and earlier.get("url") == doc["url"]
-        outcome = "the passage published before is kept" if same else "the case is published without one"
+        same = (bool(earlier) and earlier.get("source") == "opinion" and earlier.get("url") == doc["url"]
+                and opening.confirmed(earlier.get("text") or "", text))
+        outcome = "the passage published before is still in the text of the opinion and is kept" if same else "the case is published without one"
         return (earlier if same else None), f"the opinion could not be laid out for its opening passage ({type(exc).__name__}: {exc}); {outcome}"[:300]
     found = opening.opening_passage(layout, text)
-    return (about_rules.opinion(found.text, found.cut, url=doc["url"], date=doc["date"]) if found else None), None
+    if not found:
+        return None, None
+    return about_rules.opinion(found.text, found.cut, url=doc["url"], date=doc["date"], paragraph=found.paragraph), None
 
 
 def packages_of(state: Optional[dict]) -> Dict[str, list]:

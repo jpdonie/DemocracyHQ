@@ -1,5 +1,5 @@
 {
- "contentHash": "406127d61996f9d3246c8a47b6a8187b256566a4ae43e5d9648b36062b436f92",
+ "contentHash": "0f0077e788947b3a634a81527bbbb0817874f552bd9205a4013fd766f87a85fd",
  "counts": {
   "appealsCourtCases": 128,
   "bills": 405,
@@ -11,7 +11,7 @@
   "stateBills": 132,
   "supremeCourtCases": 25
  },
- "generatedAt": "2026-11-21T14:35:54Z",
+ "generatedAt": "2026-11-21T17:18:40Z",
  "reviewQueue": {
   "byKind": {
    "text_version_note": 1
@@ -21,8 +21,8 @@
  "schemaVersion": 1,
  "sources": {
   "ca-leginfo-bulk": {
-   "lastAttempt": "2026-11-21T14:35:54Z",
-   "lastSuccessfulCheck": "2026-11-21T14:35:54Z",
+   "lastAttempt": "2026-11-21T17:18:40Z",
+   "lastSuccessfulCheck": "2026-11-21T17:18:40Z",
    "processingStatus": "ok"
   },
   "census-cb-2025": {
@@ -56,13 +56,13 @@
    "processingStatus": "credential_missing"
   },
   "govinfo-bills": {
-   "lastAttempt": "2026-11-21T14:35:54Z",
-   "lastSuccessfulCheck": "2026-11-21T14:35:54Z",
+   "lastAttempt": "2026-11-21T17:18:40Z",
+   "lastSuccessfulCheck": "2026-11-21T17:18:40Z",
    "processingStatus": "ok"
   },
   "govinfo-billstatus": {
-   "lastAttempt": "2026-11-21T14:35:54Z",
-   "lastSuccessfulCheck": "2026-11-21T14:35:54Z",
+   "lastAttempt": "2026-11-21T17:18:40Z",
+   "lastSuccessfulCheck": "2026-11-21T17:18:40Z",
    "processingStatus": "ok"
   },
   "govinfo-uscode": {
@@ -71,8 +71,8 @@
    "processingStatus": "ok"
   },
   "govinfo-uscourts": {
-   "lastAttempt": "2026-11-21T14:35:54Z",
-   "lastSuccessfulCheck": "2026-11-21T14:35:54Z",
+   "lastAttempt": "2026-11-21T17:18:40Z",
+   "lastSuccessfulCheck": "2026-11-21T17:18:40Z",
    "processingStatus": "ok"
   },
   "openstates-api": {
@@ -81,8 +81,8 @@
    "processingStatus": "credential_missing"
   },
   "scotus-docket": {
-   "lastAttempt": "2026-11-21T14:35:54Z",
-   "lastSuccessfulCheck": "2026-11-21T14:35:54Z",
+   "lastAttempt": "2026-11-21T17:18:40Z",
+   "lastSuccessfulCheck": "2026-11-21T17:18:40Z",
    "processingStatus": "ok"
   }
  }

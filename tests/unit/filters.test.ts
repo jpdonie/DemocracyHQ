@@ -40,6 +40,13 @@ describe('filterCases', () => {
     expect(filterCases(quoted, { q: 'undated postcard' })).toEqual([]);
   });
 
+  it('reads a further question the Court put to the parties, which the row shows too', () => {
+    const asked = [...cases, makeCase({ id: 'synthetic-case-5', caseName: 'Synthetic Theta v. Synthetic Iota', docketNumber: '99-0005', about: {
+      text: 'Did the majority err in finding that race predominated in the synthetic plan?', source: 'question-presented', cut: false, ruleId: 'about-question-1',
+      later: { text: 'WHETHER THE INTENTIONAL CREATION OF A SECOND SYNTHETIC DISTRICT VIOLATES THE FOURTEENTH AMENDMENT.', date: '2025-08-01', cut: false } } })];
+    expect(filterCases(asked, { q: 'intentional creation' }).map((c) => c.id)).toEqual(['synthetic-case-5']);
+  });
+
   it('filters by issue tag and by linked state', () => {
     expect(filterCases(cases, { tag: 'voter-id' }).map((c) => c.id)).toEqual(['synthetic-case-2']);
     expect(filterCases(cases, { state: '06' }).map((c) => c.id)).toEqual(['synthetic-case-1']);

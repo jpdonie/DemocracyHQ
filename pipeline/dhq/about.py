@@ -50,8 +50,33 @@ _ABBREVIATIONS = {
     "va", "vt", "wash", "wis", "wyo", "n.c", "s.c", "n.d", "s.d", "n.y", "n.j", "n.m", "n.h", "w.va", "d.c", "dep't", "dept", "ass'n",
     "assn", "comm'n", "dist", "div", "ct", "atty", "gen", "sup", "pub", "reg", "res", "sess", "ed", "eds", "etc", "jan", "feb", "mar", "apr",
     "jun", "jul", "aug", "sept", "sep", "oct", "nov", "dec", "f", "p", "r",
+    # Words of a citation: codes, reporters, records and the names of parties and bodies.
+    "elec", "cnty", "cntys", "cong", "rec", "am", "pls", "pl", "nat", "nat'l", "int'l", "comm", "comm'r", "mt", "ft", "bd", "educ", "ins",
+    "univ", "mun", "admin", "auth", "bros", "bldg", "ctr", "cmty", "def", "defs", "resp", "pet", "br", "mem", "mot", "tr", "hr'g", "aff",
+    "decl", "exh", "exs", "sch", "soc", "serv", "servs", "sys", "tel", "transp", "twp", "mfg", "mgmt", "gov't", "envtl", "fin", "indus",
+    "info", "legis", "lab", "liab", "litig", "org", "prod", "prot", "rd", "ry", "sav", "sec'y", "ave", "blvd", "hwy", "evid", "proc",
+    "prac", "subd", "subds", "par", "vol", "seq", "cert", "approx", "est", "assoc", "commw", "constr", "dev", "distrib", "emp", "enf",
+    "fed'n", "grp", "hosp", "hous", "indep", "inst", "invs", "jud", "ne", "nw", "se", "sw", "pship", "prop", "props",
+    "pub'g", "rehab", "retd", "rts", "sols", "tech", "techs", "telecomm", "util", "utils", "cas", "bankr", "mil", "vet", "rptr",
 }
 _SENTENCE_END_RE = re.compile(r"[.?!][\"”’)\]]*(?= [\"“‘\[(]?[A-Z])")
+#: A short capitalised word before a full stop is more often an abbreviation the list above does not hold ("Tex. Elec.
+#: Code", "Fulton Cnty. Bd.") than the end of a sentence ("... under the Act. The court ..."). It ends a sentence only
+#: when the next word is one a sentence commonly begins with. An ending missed this way makes a quotation run on to the
+#: next one; a wrong ending would cut it inside a sentence without saying so.
+_SHORT_WORD = 5
+_OPENERS = {
+    "a", "an", "the", "this", "that", "these", "those", "it", "its", "he", "she", "they", "we", "his", "her", "their", "our", "i",
+    "in", "on", "at", "by", "for", "to", "of", "from", "with", "under", "after", "before", "during", "since", "until", "upon", "as",
+    "and", "but", "or", "nor", "yet", "so", "if", "when", "while", "where", "whether", "because", "although", "though", "unless",
+    "once", "here", "there", "then", "thus", "now", "today", "nevertheless", "however", "moreover", "instead", "indeed", "accordingly",
+    "each", "every", "any", "no", "not", "none", "all", "both", "some", "most", "many", "such", "other", "another", "one", "two",
+    "three", "four", "five", "several", "who", "what", "which", "how", "why", "plaintiffs", "plaintiff", "defendants", "defendant",
+    "appellants", "appellant", "appellees", "appellee", "petitioners", "petitioner", "respondents", "respondent", "congress",
+    "existing", "according", "following", "does", "did", "do", "is", "are", "was", "were", "may", "can", "must", "should",
+    "would", "could", "will", "having", "given", "like", "unlike", "despite", "without", "within", "among", "between", "over",
+    "only", "even", "still", "also", "further", "finally", "first", "second", "third", "next", "later", "soon", "shortly",
+}
 
 
 def sentence_ends(text: str) -> List[int]:
@@ -60,9 +85,15 @@ def sentence_ends(text: str) -> List[int]:
     for match in _SENTENCE_END_RE.finditer(text):
         before = text[:match.start()]
         word = re.search(r"([\w.'’]+)$", before)
-        token = word.group(1).lower().rstrip(".") if word else ""
-        if text[match.start()] == "." and (token in _ABBREVIATIONS or re.fullmatch(r"[a-z]", token) or re.fullmatch(r"(?:[a-z]\.)+[a-z]?", token)):
-            continue
+        raw = word.group(1).rstrip(".") if word else ""
+        token = raw.lower()
+        if text[match.start()] == ".":
+            if token in _ABBREVIATIONS or re.fullmatch(r"[a-z]", token) or re.fullmatch(r"(?:[a-z]\.)+[a-z]?", token):
+                continue
+            following = re.match(r" [\"“‘\[(]?([A-Za-z’']+)", text[match.end():])
+            if (raw[:1].isupper() and raw.isalpha() and len(raw) <= _SHORT_WORD
+                    and (following is None or following.group(1).lower() not in _OPENERS)):
+                continue
         ends.append(match.end())
     return ends
 
@@ -91,6 +122,8 @@ def quotation(paragraph: str) -> Tuple[str, bool]:
 
 
 _LINE_HYPHEN_RE = re.compile(r"([A-Za-z]{2,})-$")
+#: A word, or a pair of words, that the plain text of a document breaks with a hyphen at the end of a line.
+_LINE_BROKEN_RE = re.compile(r"[A-Za-z]+-[^\S\n]*\n\s*[A-Za-z]+")
 
 
 #: First parts that form compounds with a hyphen ("self-described"), for a pair the document writes nowhere else.
@@ -104,13 +137,15 @@ def _hyphen_stays(left: str, right: str, document: str) -> bool:
     hyphen on one line; it goes where the document writes the joined word; and where the document has neither, it stays
     only if both parts are words the document uses by themselves."""
     left, right = left.lower(), right.lower()
-    hyphenated = len(re.findall(rf"\b{re.escape(left)}-{re.escape(right)}", document))
-    joined = len(re.findall(rf"\b{re.escape(left + right)}", document))
+    hyphenated = len(re.findall(rf"\b{re.escape(left)}-{re.escape(right)}\b", document))
+    joined = len(re.findall(rf"\b{re.escape(left + right)}\b", document))
     if hyphenated or joined:
         return hyphenated > joined
     if left in _COMPOUND_HEADS:
         return True
-    return bool(re.search(rf"\b{re.escape(left)}\b(?!-)", document)) and bool(re.search(rf"(?<!-)\b{re.escape(right)}\b", document))
+    # The two halves of a word that a line of the document breaks are not words it uses by themselves.
+    unbroken = _LINE_BROKEN_RE.sub(" ", document)
+    return bool(re.search(rf"\b{re.escape(left)}\b(?!-)", unbroken)) and bool(re.search(rf"(?<!-)\b{re.escape(right)}\b", unbroken))
 
 
 def join_lines(lines: List[str], document: str = "") -> str:
@@ -134,8 +169,10 @@ def join_lines(lines: List[str], document: str = "") -> str:
 # --- the sources ----------------------------------------------------------------------------------------------
 
 def _about(text: str, source: str, rule_id: str, *, cut: bool = False, url: Optional[str] = None, date: Optional[str] = None,
-           of: Optional[int] = None, document: Optional[str] = None) -> dict:
-    return {"text": text, "source": source, "url": url, "date": date, "cut": cut, "of": of, "document": document, "ruleId": rule_id}
+           of: Optional[int] = None, document: Optional[str] = None, later: Optional[dict] = None,
+           paragraph: Optional[int] = None) -> dict:
+    return {"text": text, "source": source, "url": url, "date": date, "cut": cut, "of": of, "document": document, "later": later,
+            "paragraph": paragraph, "ruleId": rule_id}
 
 
 def _is_sentence(text: str) -> bool:
@@ -237,6 +274,49 @@ def _numbered_from(paragraphs: List[str], index: int) -> int:
     return count
 
 
+#: An order of the Court that puts a further question to the parties: "... ADDRESSING THE FOLLOWING QUESTION ...: WHETHER ...".
+_QP_FURTHER_RE = re.compile(r"\baddressing the following questions?\b[^:?.]{0,80}:\s*", re.I)
+_QP_ORDER_DATE_RE = re.compile(r"\border of ([a-z]+) (\d{1,2}), (\d{4})", re.I)
+#: How far above the question the line that heads its order is looked for, in characters of the document's text.
+_QP_ORDER_HEAD = 240
+_MONTHS = ("january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december")
+
+
+def further_question(text: Optional[str]) -> Optional[dict]:
+    """``{"text", "date", "cut"}``: the latest question an order of the Court put to the parties after the question
+    presented, or ``None``.
+
+    The Court's document for a case goes on below the question with the Court's orders in the case. An order can ask
+    the parties to brief a further question ("... are directed to file supplemental briefs addressing the following
+    question ...: Whether ..."). Such a question can come to be what the case turns on, and the question the parties
+    presented does not show it. The question is quoted as the Court set it, which is in capitals, with the date of the
+    order where the document gives one. It does not replace the question presented; it is shown after it.
+    """
+    flat = re.sub(r"\s+", " ", text or "")
+    orders = [match.start() for match in _QP_FURTHER_RE.finditer(flat)]
+    found: Optional[dict] = None
+    seen = 0
+    for paragraph in _qp_paragraphs(text or ""):
+        for match in _QP_FURTHER_RE.finditer(paragraph):
+            seen += 1
+            rest = paragraph[match.end():].strip()
+            ends = sentence_ends(rest)
+            question, cut = (rest[:ends[0]] if ends else rest).strip(), False
+            if len(question) > MAX_CHARS:
+                question, cut = question[:question.rfind(" ", 0, MAX_CHARS)].rstrip(" ,;:"), True
+            if len(question) < 25 or not (cut or re.search(r"[.?]$", question)):
+                continue
+            # The date stands in the line that heads the order ("ORDER OF MAY 4, 2023"), close above the question.
+            date = None
+            if seen <= len(orders):
+                head = flat[max(0, orders[seen - 1] - _QP_ORDER_HEAD):orders[seen - 1]]
+                for month, day, year in _QP_ORDER_DATE_RE.findall(head):
+                    if month.lower() in _MONTHS:
+                        date = f"{year}-{_MONTHS.index(month.lower()) + 1:02d}-{int(day):02d}"
+            found = {"text": question, "date": date, "cut": cut}
+    return found
+
+
 def question_presented(text: Optional[str], *, url: Optional[str]) -> Optional[dict]:
     """The question a Supreme Court case presents, from the Court's Questions Presented document.
 
@@ -244,7 +324,8 @@ def question_presented(text: Optional[str], *, url: Optional[str]) -> Optional[d
     order: what follows the words "the question presented is:" (the latest such passage, since an order of the Court
     can amend the question); the sentence "the question presented is whether ..."; the first of several numbered
     questions; the first paragraph that begins with "Whether" or ends with a question mark; and otherwise the
-    beginning of the document's text.
+    beginning of the document's text. A further question that a later order of the Court put to the parties is
+    carried with it (:func:`further_question`).
     """
     paragraphs = _qp_paragraphs(text or "")
     if not paragraphs:
@@ -254,7 +335,7 @@ def question_presented(text: Optional[str], *, url: Optional[str]) -> Optional[d
         quoted, cut = quotation(passage)
         if len(quoted) < 25:
             return None
-        return _about(quoted, "question-presented", QUESTION_RULE_ID, cut=cut, url=url, of=of)
+        return _about(quoted, "question-presented", QUESTION_RULE_ID, cut=cut, url=url, of=of, later=further_question(text))
 
     for index in range(len(paragraphs) - 1, -1, -1):
         match = None
@@ -316,9 +397,10 @@ def docket_entry(events: List[dict], *, url: Optional[str]) -> Optional[dict]:
     return _about(text, "docket-entry", DOCKET_RULE_ID, cut=cut, url=url, date=opening[0].get("date"))
 
 
-def opinion(text: str, cut: bool, *, url: str, date: Optional[str]) -> dict:
-    """The opening passage :mod:`dhq.opening` found in an opinion, as a record's ``about``."""
-    return _about(text, "opinion", OPINION_RULE_ID, cut=cut, url=url, date=date)
+def opinion(text: str, cut: bool, *, url: str, date: Optional[str], paragraph: int = 1) -> dict:
+    """The opening passage :mod:`dhq.opening` found in an opinion, as a record's ``about``. ``paragraph`` is carried
+    only where the passage is not the opinion's first paragraph, so that the line can say which one it is."""
+    return _about(text, "opinion", OPINION_RULE_ID, cut=cut, url=url, date=date, paragraph=paragraph if paragraph > 1 else None)
 
 
 #: A passage shorter than this says nothing about a record and is not published.
@@ -367,7 +449,10 @@ RULES = [
                     "Court can amend the question); the sentence 'the question presented is whether ...'; the first of several "
                     "numbered questions, with their number; the first paragraph that begins with 'Whether' or ends with a question "
                     "mark; otherwise the beginning of the text. Lines the Court adds below the question (the grant, the argument "
-                    "calendar) are left out."},
+                    "calendar) are left out. Where an order of the Court below the question puts a further question to the "
+                    "parties ('... are directed to file supplemental briefs addressing the following question: ...'), the "
+                    "latest such question is shown after the question presented, as the Court set it (in capitals), with the "
+                    "date of the order."},
     {"ruleId": CITED_RULE_ID, "appliesTo": "What a Supreme Court docket without a Questions Presented document is about",
      "description": "The passage cited for the first of the docket's links to a place is shown (rule cases-seed-2): a maintainer "
                     "chose it from a document of the docket, and the pipeline finds it in that document on every run that refreshes "
@@ -381,16 +466,18 @@ RULES = [
      "description": "Quoted from the opening of the opinion the selection rule rests on. The layout of the opinion's first pages is "
                     "read (poppler's pdftohtml), so that running heads, page numbers, footnotes and footnote marks can be told from "
                     "the text by their place and type size and left out. The opinion begins after the line that names its author "
-                    "('SMITH, Circuit Judge.', 'PER CURIAM:') or, where there is none, after the line that names the panel. Of its "
-                    "first paragraphs, up to the first heading and four at most, the first whose quotation speaks of the case is "
-                    "taken: it holds one of a list of words such as 'appeals', 'challenges', 'sued', 'district court' or 'we hold'. "
-                    "Where none does, the first paragraph is taken. Formulas every order shares ('This appeal was considered on the "
-                    "record ...') are passed over. A word the page broke across two lines is joined again, with or without its "
-                    "hyphen as the rest of the opinion writes it. The passage is then checked against the plain text of the same "
-                    "file, read by another program (pdftotext): its letters must stand there in the same order, in at most four "
-                    "pieces, since the plain text runs footnotes and page heads into the body. A passage that fails a check (too "
-                    "short, not ending with a sentence, a remnant of a page head in it, not found in the plain text) is not "
-                    "published, and the case then has no quotation."},
+                    "('SMITH, Circuit Judge.', 'PER CURIAM:') or, where there is none, after the line that names the panel. Its "
+                    "first paragraph is quoted. The words every order begins with ('This appeal was considered on the record "
+                    "...') are passed over, and so is a passage the court sets in from the margin, such as a statute it "
+                    "quotes: it carries no quotation marks and would read as the court's words. A word the page broke across "
+                    "two lines is joined again, with or without its hyphen as the rest of the opinion writes it. The passage is "
+                    "then checked against the plain text of the same file, read by another program (pdftotext): its letters "
+                    "must stand there one after the other, with none left out; other matter may stand between them only where "
+                    "the passage crosses a page, since the plain text runs the footnotes and the page head in there. A "
+                    "paragraph that fails a check (too short, not ending with a sentence, a remnant of a page head in it, a "
+                    "character of a wrongly mapped typeface, not found in the plain text) is not quoted. The next paragraph is "
+                    "then tried, up to the first heading and the fourth paragraph, and the line says which paragraph of the "
+                    "opinion it quotes. Where none passes, the case has no quotation."},
 ]
 for _rule in RULES:
     _rule["description"] = _rule["description"].strip() + (

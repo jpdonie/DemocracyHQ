@@ -130,7 +130,7 @@ function BillBody({ bill, route, links }: { bill: LegislativeInstrument; route: 
         <h1 tabIndex={-1}><span className="bill-id">{billHeading(bill)}</span></h1>
         <p className="lede">{bill.subject ?? 'No subject recorded'}</p>
         <p className="quiet">{bill.measureType}, {bill.session}{bill.leadAuthors ? `. ${bill.leadAuthors}` : ''}</p>
-        <AboutBlock about={bill.about} terms={bill.selection?.matchedText ? [bill.selection.matchedText] : []} type="bill" />
+        <AboutBlock about={bill.about} type="bill" />
         <div className="btn-row">
           <WatchButton item={{ type: 'bill', id: bill.id, label: `${bill.stateAbbr} ${bill.identifier}: ${bill.subject ?? ''}` }} />
           <CopyLinkButton hash={buildHash(['laws', bill.id], route.query)} />

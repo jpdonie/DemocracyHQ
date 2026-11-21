@@ -16,15 +16,19 @@ What the rule does, in order:
    mark to the foot of the page) and every line set in smaller type than the body.
 2. The opinion begins after the line that names its author ("SMITH, Circuit Judge." or "PER CURIAM:") or, where there
    is none, after the line that names the panel ("Before A, B, and C, Circuit Judges.").
-3. Headings are passed over. Of the first paragraphs of prose, up to the first heading inside the opinion, the first
-   that speaks of the case is taken (it says who appeals, who sued, what is at issue), across a page break if it
-   continues there.
+3. Headings are passed over, and so are the words that every order begins with ("This appeal was considered on the
+   record ..."). The first paragraph of prose after them is taken, across a page break if it continues there. A
+   passage the court sets in from the margin (a statute, a clause of the Constitution) ends the paragraph and is not
+   quoted: it carries no quotation marks, so it would read as the court's words.
 4. Footnote marks are left out. A word that the page broke across two lines is joined again.
 5. The paragraph is quoted from its beginning, sentence by sentence, until the quotation is long enough to say what the
    case is about.
 6. The passage is checked against the plain text of the same file, which another program reads: its letters must stand
-   there in the same order. A passage that fails a check (too short, not a sentence, a remnant of a page head in it,
-   not found in the plain text) is not published at all: a case then simply has no quotation.
+   there one after the other, with none left out. Other matter may stand between them only where the passage crosses
+   a page, because the plain text runs the footnotes and the page head in there.
+7. A paragraph that fails a check (too short, not a sentence, a remnant of a page head in it, not found in the plain
+   text) is not quoted. The next paragraph is then tried, up to the first heading and the fourth paragraph, and the
+   quotation says which paragraph of the opinion it is. Where none passes, the case has no quotation.
 """
 from __future__ import annotations
 
@@ -291,13 +295,26 @@ def _long(lines: List[Line]) -> List[Line]:
     return [line for line in lines if len(line.text) >= 45]
 
 
+#: The share of a page's long lines that must begin at an edge for it to count as the margin, and the least number.
+_MARGIN_SHARE = 0.12
+_MARGIN_LINES = 3
+
+
 def _frame(lines: List[Line]) -> Optional[_Frame]:
+    """The edges of the body text among ``lines``.
+
+    The left edge is the leftmost one that several long lines begin at, not the one most lines begin at: on a page
+    that a set-in quotation fills, most lines begin further in, and the margin is still where the court's own lines
+    begin. Where no edge has enough lines, the most common one is taken.
+    """
     long_lines = _long(lines)
     if not long_lines:
         return None
     lefts = Counter(round(line.left / 3) * 3 for line in long_lines)
+    needed = max(_MARGIN_LINES, round(len(long_lines) * _MARGIN_SHARE))
+    populated = [left for left, count in lefts.items() if count >= needed]
     rights = sorted(line.right for line in long_lines)
-    return _Frame(left=lefts.most_common(1)[0][0], right=rights[int(len(rights) * 0.85)])
+    return _Frame(left=min(populated) if populated else lefts.most_common(1)[0][0], right=rights[int(len(rights) * 0.85)])
 
 
 #: A page needs this many long lines of body text for its own edges to be measured.
@@ -308,12 +325,21 @@ def frames_of(lines: List[Line]) -> Dict[int, _Frame]:
     """The edges of the body text on each page of ``lines`` (the opinion from where it begins).
 
     A page with enough text is measured by itself. A page with little text (the page the opinion begins on, below the
-    caption) takes the width of the well-filled pages and starts at its own leftmost long line.
+    caption) takes the width of the well-filled pages and starts at its own leftmost long line. Pages are measured
+    one by one because a file can set its odd and even pages at different margins.
     """
     by_page: Dict[int, List[Line]] = {}
     for line in lines:
         by_page.setdefault(line.page, []).append(line)
     measured = {page: _frame(items) for page, items in by_page.items() if len(_long(items)) >= _FRAME_LINES}
+    # A page on which too few lines begin at the margin to be counted (two lines of the court, then a long set-in
+    # quotation) takes the margin of the other pages, provided one of its own long lines begins there.
+    margins = sorted({frame.left for frame in measured.values() if frame})
+    for page, frame in measured.items():
+        begins = [margin for margin in margins if frame and margin < frame.left - 9
+                  and any(abs(line.left - margin) <= 4 for line in _long(by_page[page]))]
+        if begins:
+            frame.left = begins[0]
     widths = sorted(frame.right - frame.left for frame in measured.values() if frame)
     width = widths[len(widths) // 2] if widths else None
     frames: Dict[int, _Frame] = {}
@@ -419,8 +445,18 @@ def _body_start(flat: List[Line]) -> Tuple[Optional[int], Optional[str]]:
     return start, None
 
 
+#: Lines of one set-in passage begin at the same place, within this many units.
+_SET_IN_TOLERANCE = 6
+
+
 def opening_paragraphs(pages: List[List[Line]]) -> List[List[Line]]:
-    """The first paragraphs of the opinion, up to its first heading: each a list of lines."""
+    """The first paragraphs of the opinion's own prose, up to its first heading: each a list of lines.
+
+    A passage that is set in from the margin line after line is a quotation the court sets apart (a statute, a clause
+    of the Constitution). It has no quotation marks, so run into the court's sentence it would read as the court's
+    words. It ends the paragraph before it and is left out, and so is the rest of that paragraph where it goes on
+    below the quotation, because it begins in the middle of the court's thought.
+    """
     flat = [line for page in pages for line in page]
     start, rest_of_first = _body_start(flat)
     if start is None:
@@ -428,8 +464,25 @@ def opening_paragraphs(pages: List[List[Line]]) -> List[List[Line]]:
     frames = frames_of(flat[start:])
     pitches = pitches_of(flat[start:])
 
+    def set_in(lines: List[Line]) -> bool:
+        return all(frames[line.page].indented(line) for line in lines)
+
     paragraphs: List[List[Line]] = []
     current: List[Line] = []
+    after_set_in = False
+
+    def close() -> None:
+        """End the paragraph being read: it is kept when it is the court's own prose."""
+        nonlocal current, after_set_in
+        if len(current) >= 2 and set_in(current):
+            after_set_in = True
+        elif after_set_in and not frames[current[0].page].indented(current[0]):
+            after_set_in = False  # the paragraph before the set-in passage, going on below it: left out, once
+        else:
+            after_set_in = False
+            paragraphs.append(current)
+        current = []
+
     index = start
     if rest_of_first:
         first = flat[index]
@@ -451,25 +504,37 @@ def opening_paragraphs(pages: List[List[Line]]) -> List[List[Line]]:
             continue
         last = current[-1]
         ended = bool(_SENTENCE_STOP_RE.search(last.text))
-        if line.page != last.page:
+        line_in = frame.indented(line)
+        gap = line.top - last.top
+        pitch = pitches.get(line.page) or gap
+        if len(current) >= 2 and set_in(current):
+            # A set-in passage goes on while lines begin where its lines begin and follow at its own distance. A line at
+            # the margin, a line set in differently (the first line of the court's next paragraph) or a wider gap ends it.
+            stays = line_in and abs(line.left - min(item.left for item in current)) <= _SET_IN_TOLERANCE
+            if stays and line.page == last.page:
+                own = last.top - current[-2].top if current[-2].page == last.page else 0
+                stays = gap > 0 and not (own > 0 and gap > own * 1.45)
+            new = not stays
+        elif set_in(current) and line_in and not ended and (line.page != last.page or 0 < gap <= pitch * 1.45):
+            # A second line set in like the first, where the first did not end a sentence: a set-in passage begins. The
+            # second line of a paragraph of the court's own returns to the margin.
+            new = False
+        elif line.page != last.page:
             # Across a page a paragraph that was left unfinished continues, and it continues at the margin.
-            new = _is_heading(line, frame) or (ended and (frame.indented(line) or frames[last.page].short(last)))
+            new = _is_heading(line, frame) or (ended and (line_in or frames[last.page].short(last)))
         else:
-            gap = line.top - last.top
-            pitch = pitches.get(line.page) or gap
-            new = (frame.indented(line) or gap > pitch * 1.45 or gap <= 0 or (ended and frame.short(last))
+            new = (line_in or gap > pitch * 1.45 or gap <= 0 or (ended and frame.short(last))
                    or (ended and _is_heading(line, frame)))
         if not new:
             current.append(line)
             continue
-        paragraphs.append(current)
-        current = []
+        close()
         if len(paragraphs) >= OPENING_PARAGRAPHS:
             break
         index -= 1  # the line that ended the paragraph is looked at again: it begins the next one or is a heading
         read -= 1
     if current and len(paragraphs) < OPENING_PARAGRAPHS:
-        paragraphs.append(current)
+        close()
     return paragraphs
 
 
@@ -478,9 +543,32 @@ def opening_paragraphs(pages: List[List[Line]]) -> List[List[Line]]:
 _ARTIFACT_RES = [re.compile(r"Appellate Case|Date Filed|Document: ?\d|USCA\d|Page: ?\d"), re.compile(r"_{4,}")]
 
 
+#: Signs an opinion is set in besides the letters, digits and punctuation of the keyboard.
+_SIGNS = set("§¶°·½¼¾×©®™•…–—‐‑‒―‘’‚“”„′″†‡€£ ")
+
+
+def legible(text: str) -> bool:
+    """Whether every character of a passage is one an opinion is written in.
+
+    A PDF whose typeface is mapped wrongly gives other signs for the joined letters "ff" and "ffi", or for a whole run
+    of words, and both readings of the file then agree on them. Such signs lie outside the letters of Western European
+    languages, so a passage that holds a letter beyond them, or a sign that is not listed, is not quoted. A name
+    written with such a letter is refused with it: a passage is rather not quoted than quoted wrongly.
+    """
+    for character in text:
+        if character in _SIGNS or " " <= character <= "~":
+            continue
+        if unicodedata.category(character).startswith("L") and "\u00c0" <= character <= "\u00ff":
+            continue
+        return False
+    return True
+
+
 def passes(text: str) -> bool:
     """Whether a passage may be published as a quotation."""
     if not MIN_CHARS <= len(text) <= MAX_CHARS + 20:
+        return False
+    if not legible(text):
         return False
     if not re.match(r"^[\"“‘'\[(]?[A-Z0-9]", text):
         return False
@@ -490,53 +578,122 @@ def passes(text: str) -> bool:
     return letters / len(text) >= 0.8 and len(text.split()) >= 10
 
 
-#: Words by which a paragraph speaks of the case before the court, and not yet of the law or of history.
-_POSTURE_RE = re.compile(
-    r"\b(?:appeals?|appealed|challeng\w+|sued|sues|lawsuit|suit|petition\w*|alleg\w+|claims?|claimed|this case|this action|"
-    r"we (?:hold|consider|affirm|reverse|vacate|conclude|dismiss|must decide|agree|disagree)|the question|at issue|"
-    r"district court|plaintiffs?|appellants?|petitioners?)\b", re.I)
-
-
 #: Openings that every order of a court shares: they say how the case was heard, not what it is about.
 _FORMULA_RE = re.compile(
     r"^(?:This (?:appeal|case|cause|matter) (?:was|is|came|comes) (?:considered|submitted|before|on)\b|After examining the briefs\b|"
     r"(?:IT IS )?(?:HEREBY )?ORDERED\b|Upon (?:due )?consideration\b|The court has (?:reviewed|considered)\b|Unpublished opinions are not\b)", re.I)
 
 
-#: In how many pieces at most a passage may lie in the plain text of its document, and how long each but the last is.
-CONFIRM_PIECES = 4
-CONFIRM_PIECE_LETTERS = 12
+#: How many letters of other matter (the footnotes at the foot of a page, the head of the next) may stand in the plain
+#: text between two parts of a passage, where the passage crosses a page.
+PAGE_GAP_LETTERS = 6000
+#: Where the page breaks of a passage are not known, each of its two parts must be at least this long.
+CONFIRM_PART_LETTERS = 12
 
 
 def _letters(text: str) -> str:
     return "".join(c.lower() for c in unicodedata.normalize("NFKC", text) if c.isalpha())
 
 
-def confirmed(passage: str, document_text: str) -> bool:
-    """Whether the letters of ``passage`` stand in ``document_text`` in the same order.
+def _chained(text: str, parts: List[str], anchor: int, at: int) -> bool:
+    """Whether ``parts`` stand in ``text`` in order with ``parts[anchor]`` at ``at`` and no more than a page's other
+    matter between one part and the next."""
+    end = at + len(parts[anchor])
+    for part in parts[anchor + 1:]:
+        found = text.find(part, end, end + PAGE_GAP_LETTERS + len(part))
+        if found < 0:
+            return False
+        end = found + len(part)
+    start = at
+    for part in reversed(parts[:anchor]):
+        found = text.rfind(part, max(0, start - PAGE_GAP_LETTERS - len(part)), start)
+        if found < 0:
+            return False
+        start = found
+    return True
 
-    The passage is read from the layout of the PDF, the document text by another program from the same file. The plain
-    text runs footnotes and page heads into the body, so the passage may lie there in a few pieces with such matter
-    between them; within a piece every letter must follow the one before. Spacing, punctuation, digits and the case of
-    letters are not compared: footnote marks are digits, and line-end hyphens differ between the two readings.
+
+def _in_parts(text: str, parts: List[str]) -> bool:
+    anchor = max(range(len(parts)), key=lambda index: len(parts[index]))
+    at = text.find(parts[anchor])
+    while at >= 0:
+        if _chained(text, parts, anchor, at):
+            return True
+        at = text.find(parts[anchor], at + 1)
+    return False
+
+
+def _letters_at(text: str) -> Tuple[str, List[int]]:
+    """The letters of ``text`` in lower case, and where each of them stands in ``text``."""
+    letters, places = [], []
+    for place, character in enumerate(text):
+        if character.isalpha():
+            for letter in character.lower():
+                letters.append(letter)
+                places.append(place)
+    return "".join(letters), places
+
+
+def _across_a_page(passage_letters: str, document_text: str) -> bool:
+    """Whether the passage lies in the document in two parts with the head of a page between them."""
+    plain = unicodedata.normalize("NFKC", document_text)
+    text, places = _letters_at(plain)
+    low, high = 0, len(passage_letters)
+    while low < high:  # the longest beginning of the passage that the text holds
+        middle = (low + high + 1) // 2
+        if passage_letters[:middle] in text:
+            low = middle
+        else:
+            high = middle - 1
+    if low < CONFIRM_PART_LETTERS or len(passage_letters) - low < CONFIRM_PART_LETTERS:
+        return False
+    first, second = passage_letters[:low], passage_letters[low:]
+    at = text.find(first)
+    while at >= 0:
+        end = at + low
+        found = text.find(second, end, end + PAGE_GAP_LETTERS + len(second))
+        if found >= 0:
+            between = plain[places[end - 1] + 1:places[found]]
+            if any(_is_head(line.strip()) for line in between.splitlines() if line.strip()):
+                return True
+        at = text.find(first, at + 1)
+    return False
+
+
+def confirmed(passage: str, document_text: str, breaks: Optional[List[int]] = None) -> bool:
+    """Whether the letters of ``passage`` stand in ``document_text``, one after the other with none left out.
+
+    The passage is read from the layout of the PDF, the document text by another program from the same file. A word
+    the layout reading dropped or doubled is therefore not in the document text as the passage has it, and the passage
+    is not published. Only where the passage crosses a page may other matter stand between its letters, because the
+    plain text runs the footnotes and the page head in there: ``breaks`` gives those places, as counts of letters from
+    the beginning of the passage.
+
+    Without ``breaks`` the pages of the passage are not known (a passage published before, whose layout cannot be read
+    in this run). It must then stand in the document whole, or in two parts with a line between them that is the head
+    of a page (the stamp of the court's filing system, a page number). Words a court added to or took out of the
+    passage are not such a line, so an amended opinion does not keep the passage of the one it replaced.
+
+    Spacing, punctuation, digits and the case of letters are not compared: footnote marks are digits, and line-end
+    hyphens differ between the two readings.
     """
     wanted, text = _letters(passage), _letters(document_text)
-    position = 0
-    for _piece in range(CONFIRM_PIECES):
-        if not wanted:
-            return True
-        low, high = 0, len(wanted)
-        while low < high:  # the longest start of what is left that the text holds from here on
-            middle = (low + high + 1) // 2
-            if text.find(wanted[:middle], position) >= 0:
-                low = middle
-            else:
-                high = middle - 1
-        if low < min(CONFIRM_PIECE_LETTERS, len(wanted)):
-            return False
-        position = text.find(wanted[:low], position) + low
-        wanted = wanted[low:]
-    return not wanted
+    if not wanted:
+        return False
+    if breaks is not None:
+        cuts = sorted({at for at in breaks if 0 < at < len(wanted)})
+        return _in_parts(text, [wanted[a:b] for a, b in zip([0, *cuts], [*cuts, len(wanted)])])
+    return wanted in text or _across_a_page(wanted, document_text)
+
+
+def page_breaks(lines: List[Line]) -> List[int]:
+    """Where a paragraph crosses a page: the count of its letters above each break."""
+    breaks, count = [], 0
+    for above, below in zip(lines, lines[1:]):
+        count += len(_letters(above.text))
+        if below.page != above.page:
+            breaks.append(count)
+    return breaks
 
 
 @dataclass
@@ -545,30 +702,30 @@ class Opening:
     #: True when the quotation stops inside a sentence.
     cut: bool
     page: int
-    #: Which of the opening paragraphs is quoted, counted from 1.
+    #: Which paragraph of the opinion's prose is quoted, counted from 1. It is 1 unless an earlier paragraph could not
+    #: be quoted. The words that every order begins with are not counted as a paragraph.
     paragraph: int
 
 
 def opening_passage(layout: str, document_text: str = "") -> Optional[Opening]:
     """The opening passage of the opinion laid out in ``layout``, or ``None`` when the rule finds none it may publish.
 
-    Of the opinion's first paragraphs, up to its first heading, the first whose quotation speaks of the case is taken
-    (it holds one of the words of ``_POSTURE_RE``), and the very first paragraph where none does. ``document_text`` is
-    the plain text of the same document; it is used to tell a hyphen that belongs to a word from one the typesetter
-    put at the end of a line, and a passage whose letters are not found in it in order (:func:`confirmed`) is not taken.
+    The first paragraph of the opinion's prose is taken. Where it cannot be quoted (it fails a check of
+    :func:`passes`, or it is not found in the plain text), the next one is, up to the first heading and the fourth
+    paragraph, and the passage then says which paragraph it is. ``document_text`` is the plain text of the same
+    document; it is used to tell a hyphen that belongs to a word from one the typesetter put at the end of a line, and
+    a passage whose letters are not found in it (:func:`confirmed`) is not taken.
     """
     pages = body_pages(layout)
-    candidates: List[Opening] = []
-    for number, lines in enumerate(opening_paragraphs(pages), start=1):
+    number = 0
+    for lines in opening_paragraphs(pages):
         paragraph = join_lines([line.text for line in lines], document_text)
         text, cut = quotation(paragraph)
+        if _FORMULA_RE.match(text):
+            continue  # the words every order begins with: not a paragraph on the case
+        number += 1
         if not cut and not re.search(r"[.?!][\"”’)\]]*$", text):
             continue  # the paragraph could not be followed to the end of a sentence
-        if passes(text) and not _FORMULA_RE.match(text) and (not document_text or confirmed(text, document_text)):
-            candidates.append(Opening(text=text, cut=cut, page=lines[0].page, paragraph=number))
-    speaking = [candidate for candidate in candidates if _POSTURE_RE.search(candidate.text)]
-    for group in (speaking, candidates):
-        whole = [candidate for candidate in group if not candidate.cut]
-        if whole or group:
-            return (whole or group)[0]
+        if passes(text) and (not document_text or confirmed(text, document_text, page_breaks(lines))):
+            return Opening(text=text, cut=cut, page=lines[0].page, paragraph=number)
     return None

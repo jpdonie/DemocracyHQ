@@ -242,6 +242,15 @@ class TermCount(Model):
     count: int
 
 
+class LaterQuestion(Model):
+    """A question an order of the Supreme Court put to the parties after the question presented, in the Court's words."""
+
+    text: Annotated[str, StringConstraints(min_length=20, max_length=700)]
+    #: The date of the order, where the Court's document gives it.
+    date: Optional[IsoDate] = None
+    cut: bool = False
+
+
 class AboutText(Model):
     """What a record is about, in the words of an official text. It is a quotation taken by a published rule
     (:mod:`dhq.about`), never a summary written for this site."""
@@ -261,6 +270,11 @@ class AboutText(Model):
     of: Optional[int] = Field(default=None, ge=2)
     #: For a cited passage: which document of the docket it is from, and whose words it is.
     document: Optional[str] = None
+    #: For a Question Presented: the latest further question an order of the Court put to the parties, where there
+    #: is one. It is shown after the question presented and does not replace it.
+    later: Optional[LaterQuestion] = None
+    #: For the opening of an opinion: which paragraph of the opinion is quoted, where its first could not be.
+    paragraph: Optional[int] = Field(default=None, ge=2)
     ruleId: str
 
 
@@ -458,6 +472,17 @@ class Chapter(Model):
     citation: Optional[str] = None
 
 
+class BillSelection(Model):
+    """Why a measure is in the dataset: the selection rule and the words it matched. A measure of Congress also says
+    which test of the rule it met ("named", "general" or "other") and the title the words stand in."""
+
+    ruleId: str
+    matchedText: str
+    matchedField: str
+    test: Optional[str] = None
+    matchedTitle: Optional[str] = None
+
+
 class LegislativeInstrumentSummary(Model):
     id: str
     state: Annotated[str, StringConstraints(min_length=2, max_length=2)]
@@ -477,6 +502,8 @@ class LegislativeInstrumentSummary(Model):
     issueTags: List[IssueTag]
     #: What the measure would do, quoted from its official summary, digest or title.
     about: Optional[AboutText] = None
+    #: Why the measure is listed: the words of its title or subject line that the selection rule matched.
+    selection: Optional[BillSelection] = None
     officialUrl: HttpsUrl
     sourceId: str
     firstObservedAt: IsoDateTime

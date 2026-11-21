@@ -20,7 +20,11 @@ export function aboutLabel(about: AboutText): string {
     case 'question-presented': return about.of ? `Question presented (first of ${about.of})` : 'Question presented';
     case 'cited-passage': return `From ${about.document ?? 'a document of this docket'}`;
     case 'docket-entry': return 'Entry that opens the docket';
-    case 'opinion': return about.date ? `Opening of the opinion of ${formatDate(about.date)}` : 'Opening of the opinion';
+    case 'opinion': {
+      // The first paragraph is the opening. Where it could not be quoted, the line says which paragraph is.
+      const part = about.paragraph ? `Paragraph ${about.paragraph}` : 'Opening';
+      return about.date ? `${part} of the opinion of ${formatDate(about.date)}` : `${part} of the opinion`;
+    }
   }
 }
 
@@ -50,24 +54,66 @@ function escapeRegExp(text: string): string {
   return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-/** True when one of the terms stands in the text, compared without letter case. */
+const WORD_CHARACTER = /[\p{L}\p{N}]/u;
+
+function isWordCharacter(character: string | undefined): boolean {
+  return character !== undefined && WORD_CHARACTER.test(character);
+}
+
+/** The term among `terms` (lower case, longest first) that stands at `at` in the text as whole words, if one does. */
+function termAt(text: string, at: number, terms: readonly string[]): string | undefined {
+  if (isWordCharacter(text[at - 1])) return undefined;
+  return terms.find((term) => text.slice(at, at + term.length).toLowerCase() === term && !isWordCharacter(text[at + term.length]));
+}
+
+/** The terms as they are looked for: trimmed, in lower case, without duplicates, the longest first. */
+function wantedTerms(terms: readonly string[] | undefined, shortest: number): string[] {
+  return [...new Set((terms ?? []).map((term) => term.trim().toLowerCase()).filter((term) => term.length >= shortest))].sort((a, b) => b.length - a.length);
+}
+
+/**
+ * Where the terms stand in the text as whole words, the way the selection rules count them: "mail-in" does not stand
+ * in "mail-ins", nor "elect" in "election". Letter case is not compared. Longer terms are tried first, so "voter
+ * registration" is found whole and not only "voter".
+ */
+function termPlaces(text: string, wanted: readonly string[]): Array<{ at: number; length: number }> {
+  if (wanted.length === 0) return [];
+  const pattern = new RegExp(wanted.map(escapeRegExp).join('|'), 'gi');
+  const places: Array<{ at: number; length: number }> = [];
+  for (let match = pattern.exec(text); match; match = pattern.exec(text)) {
+    const term = termAt(text, match.index, wanted);
+    if (term) places.push({ at: match.index, length: term.length });
+    pattern.lastIndex = term ? match.index + term.length : match.index + 1;
+  }
+  return places;
+}
+
+/** True when one of the terms stands in the text as whole words, compared without letter case. */
 export function holdsTerm(text: string | null | undefined, terms: readonly string[]): boolean {
-  const lower = (text ?? '').toLowerCase();
-  return terms.some((term) => term.trim() !== '' && lower.includes(term.trim().toLowerCase()));
+  return termPlaces(text ?? '', wantedTerms(terms, 1)).length > 0;
 }
 
 /**
  * Text with the words a selection rule matched marked in it. The mark shows the reader why the record is listed; it
- * changes no word. Longer terms are tried first, so "voter registration" is marked whole and not only "voter".
+ * changes no word. A term is marked only where it stands as whole words (see termPlaces).
  */
 export function Highlight({ text, terms }: { text: string; terms?: readonly string[] }): ReactNode {
-  const wanted = [...new Set((terms ?? []).map((term) => term.trim()).filter((term) => term.length >= 3))].sort((a, b) => b.length - a.length);
-  if (wanted.length === 0) return text;
-  const pattern = new RegExp(`(${wanted.map(escapeRegExp).join('|')})`, 'gi');
-  const parts = text.split(pattern);
-  if (parts.length === 1) return text;
-  // split() with one capturing group puts the matches at the odd positions.
-  return <>{parts.map((part, index) => (index % 2 === 1 ? <mark key={index} className="hit">{part}</mark> : <Fragment key={index}>{part}</Fragment>))}</>;
+  const places = termPlaces(text, wantedTerms(terms, 3));
+  if (places.length === 0) return text;
+  const parts: ReactNode[] = [];
+  let from = 0;
+  for (const { at, length } of places) {
+    if (at > from) parts.push(<Fragment key={from}>{text.slice(from, at)}</Fragment>);
+    parts.push(<mark key={`hit-${at}`} className="hit">{text.slice(at, at + length)}</mark>);
+    from = at + length;
+  }
+  if (from < text.length) parts.push(<Fragment key={from}>{text.slice(from)}</Fragment>);
+  return <>{parts}</>;
+}
+
+/** The label of a further question the Court put to the parties, with the date of its order where the document gives it. */
+export function laterLabel(later: NonNullable<AboutText['later']>): string {
+  return later.date ? `Further question from the Court, order of ${formatDate(later.date)}` : 'Further question from the Court';
 }
 
 /** The quotation in a row of a list: the kind of text above it, then its words. */
@@ -75,11 +121,20 @@ export function AboutLine({ about, terms }: { about: AboutText | null | undefine
   if (!about) return null;
   const label = aboutLabel(about);
   return (
-    <p className="row-about">
-      {/* A long label names a document and whose words it holds: it is set as a sentence, not as a heading. */}
-      <span className={`row-about-src${label.length > 48 ? ' is-long' : ''}`}>{label}</span>
-      <q cite={about.url ?? undefined}><Highlight text={aboutQuote(about)} terms={terms} /></q>
-    </p>
+    <>
+      <p className="row-about">
+        {/* A long label names a document and whose words it holds: it is set as a sentence, not as a heading. */}
+        <span className={`row-about-src${label.length > 48 ? ' is-long' : ''}`}>{label}</span>
+        <q cite={about.url ?? undefined}><Highlight text={aboutQuote(about)} terms={terms} /></q>
+      </p>
+      {about.later ? (
+        <p className="row-about row-about-later">
+          <span className="row-about-src">{laterLabel(about.later)}</span>
+          {/* The Court sets the questions of its orders in capitals. They are quoted as set. */}
+          <q cite={about.url ?? undefined} className="as-set"><Highlight text={`${about.later.text}${about.later.cut ? ' …' : ''}`} terms={terms} /></q>
+        </p>
+      ) : null}
+    </>
   );
 }
 
@@ -90,6 +145,12 @@ export function AboutBlock({ about, terms, type }: { about: AboutText | null | u
     <figure className={`about-block about-${type}`}>
       <figcaption className={`about-src${aboutLabel(about).length > 48 ? ' is-long' : ''}`}>{aboutLabel(about)}</figcaption>
       <blockquote cite={about.url ?? undefined}><Highlight text={aboutQuote(about)} terms={terms} /></blockquote>
+      {about.later ? (
+        <>
+          <p className="about-src about-later-src">{laterLabel(about.later)}</p>
+          <blockquote cite={about.url ?? undefined} className="as-set"><Highlight text={`${about.later.text}${about.later.cut ? ' …' : ''}`} terms={terms} /></blockquote>
+        </>
+      ) : null}
       <p className="about-foot">
         Quoted, not summarised{about.url ? <>: read it at <Ext href={about.url}>{sourceName(about)}</Ext></> : null}.{' '}
         <A to={buildHash(['sources'], { section: 'rules' })}>Rule {about.ruleId}</A> says how the passage is chosen.

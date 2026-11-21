@@ -1976,7 +1976,6 @@ def stage_validate(ctx: Context) -> None:
                 errors.append(f"{folder}/index.json: bill id {summary.get('id')!r:.80} does not have the form {form}")
         for path in sorted((ctx.staging / folder / "bills").glob("*.json")) if (ctx.staging / folder).exists() else []:
             obj = dict(read_json(path))
-            obj.pop("selection", None)
             try:
                 bill = LegislativeInstrument(**obj)
             except Exception as exc:  # noqa: BLE001

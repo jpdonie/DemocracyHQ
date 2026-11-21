@@ -8,6 +8,10 @@ const POLELLE = { id: 'ca11-22-14031', docket: '22-14031' }; // decided by the E
 const SAVE_ACT = 'us-119-hr22';
 /** A measure whose official title says nothing about elections: a House amendment gave it the SAVE Act's text. */
 const RETITLED = { id: 'us-119-s1383', label: 'S. 1383' };
+/** Listed for a short title; its summary happens to use the words the rule matched in that title. */
+const SUMMARY_USES_WORDS = { id: 'us-119-hr8130', label: 'H.R. 8130' };
+/** The first paragraph of this opinion is a citation the rule does not quote, so the second is quoted and says so. */
+const SECOND_PARAGRAPH = { id: 'ca5-25-50246', docket: '25-50246' };
 
 const rows = (page: import('@playwright/test').Page) => page.locator('main ul.rows > li.row');
 
@@ -29,6 +33,20 @@ test.describe('What a record is about', () => {
     await expect(about.locator('q')).toHaveAttribute('cite', /^https:\/\/www\.congress\.gov\/bill\/119th-congress\/senate-bill\/1383/);
   });
 
+  test('a summary that uses the matched words does not stand in for the title the rule matched', async ({ page }) => {
+    // The selection rule reads titles. The summary of H.R. 8130 speaks of voter registration too, but the rule never
+    // read it: the row still names the title, and nothing is marked in the summary.
+    await open(page, '#/laws?jur=us&q=Filer+Voter+Act');
+    const row = rows(page).filter({ has: page.locator('.bill-id', { hasText: SUMMARY_USES_WORDS.label }) });
+    await expect(row).toHaveCount(1);
+    await expect(row.locator('.row-why')).toContainText('Also titled');
+    await expect(row.locator('.row-why q')).toHaveText('Tax Filer Voter Registration Act');
+    await expect(row.locator('.row-why mark.hit')).toHaveText('Voter Registration');
+    await expect(row.locator('.row-about-src')).toHaveText('Congressional Research Service summary');
+    await expect(row.locator('.row-about q')).toContainText('voter registration agencies');
+    await expect(row.locator('.row-about mark')).toHaveCount(0);
+  });
+
   test('a California bill is described in the words of the Legislative Counsel’s Digest', async ({ page }) => {
     await open(page, '#/laws?jur=ca&q=AB+604');
     const row = rows(page).filter({ has: page.locator(`a[href$="#/laws/${BILL.id}"]`) });
@@ -41,8 +59,11 @@ test.describe('What a record is about', () => {
     await open(page, `#/litigation?q=${POLELLE.docket}`);
     const row = rows(page);
     await expect(row).toHaveCount(1);
+    // The passage is the first paragraph of the opinion: it begins where the court begins.
     await expect(row.locator('.row-about-src')).toHaveText('Opening of the opinion of Mar 11, 2025');
-    await expect(row.locator('.row-about q')).toContainText('Polelle filed suit');
+    await expect(row.locator('.row-about q')).toHaveText(/^Michael J\. Polelle is a voter in Sarasota County, Florida, who has not registered with a political party\./);
+    // The phrases the selection rule counted in the opinion are marked where the passage has them.
+    await expect(row.locator('.row-about q mark.hit', { hasText: 'primary elections' })).toHaveCount(1);
     // Why the case is listed: the words of the rule, counted in the opinion.
     await expect(row.locator('.row-why')).toContainText(/In the opinion: “primary elections” \d+×/);
     // The quotation stands above the line with the latest ruling.
@@ -51,13 +72,28 @@ test.describe('What a record is about', () => {
     expect(order.indexOf('row-about')).toBeLessThan(order.indexOf('row-line'));
   });
 
+  test('where the first paragraph of an opinion cannot be quoted, the row says which paragraph it quotes', async ({ page }) => {
+    await open(page, `#/litigation?q=${SECOND_PARAGRAPH.docket}`);
+    const row = rows(page).filter({ has: page.locator(`a[href$="#/litigation/${SECOND_PARAGRAPH.id}"]`) });
+    await expect(row).toHaveCount(1);
+    await expect(row.locator('.row-about-src')).toHaveText(/^Paragraph 2 of the opinion of /);
+    await expect(row.locator('.row-about q')).toContainText('the Texas Legislature enacted the Election Protection and Integrity Act of 2021');
+  });
+
   test('a Supreme Court docket shows the question presented, and the words of a quotation can be searched', async ({ page }) => {
     await open(page, '#/litigation');
     await page.getByRole('searchbox', { name: 'Search case name, docket number or quoted passage' }).fill('race predominated in the Legislature');
     const row = rows(page).filter({ has: page.getByRole('link', { name: CASE.name }) });
     await expect(row).toHaveCount(1);
-    await expect(row.locator('.row-about-src')).toHaveText('Question presented (first of 4)');
-    await expect(row.locator('.row-about q')).toHaveText('Did the majority err in finding that race predominated in the Legislature\'s enactment of S.B. 8?');
+    await expect(row.locator('.row-about-src').first()).toHaveText('Question presented (first of 4)');
+    await expect(row.locator('.row-about q').first()).toHaveText('Did the majority err in finding that race predominated in the Legislature\'s enactment of S.B. 8?');
+    // The question the Court itself put to the parties when it set the case for reargument follows, as the Court set it.
+    const later = row.locator('.row-about-later');
+    await expect(later.locator('.row-about-src')).toHaveText('Further question from the Court, order of Aug 1, 2025');
+    await expect(later.locator('q')).toHaveText(/^WHETHER THE STATE’S INTENTIONAL CREATION OF A SECOND MAJORITY-MINORITY CONGRESSIONAL DISTRICT VIOLATES/);
+    // It can be searched like the question presented.
+    await page.getByRole('searchbox', { name: 'Search case name, docket number or quoted passage' }).fill('intentional creation of a second majority-minority');
+    await expect(rows(page).filter({ has: page.getByRole('link', { name: CASE.name }) })).toHaveCount(1);
 
     await open(page, '#/laws?jur=us');
     await page.getByRole('searchbox', { name: 'Search measure number, title or summary' }).fill('documentary proof of U.S. citizenship');
@@ -69,7 +105,9 @@ test.describe('What a record is about', () => {
     await expect(heading(page)).toHaveText(CASE.name);
     const block = page.locator('figure.about-block');
     await expect(block.locator('figcaption')).toHaveText('Question presented (first of 4)');
-    await expect(block.locator('blockquote')).toContainText('Did the majority err in finding that race predominated');
+    await expect(block.locator('blockquote').first()).toContainText('Did the majority err in finding that race predominated');
+    await expect(block.locator('.about-later-src')).toHaveText('Further question from the Court, order of Aug 1, 2025');
+    await expect(block.locator('blockquote').nth(1)).toContainText('FOURTEENTH OR FIFTEENTH AMENDMENTS');
     await expect(block.getByRole('link', { name: /the Court’s document/ })).toHaveAttribute('href', /^https:\/\/www\.supremecourt\.gov\/qp\//);
     await block.getByRole('link', { name: 'Rule about-question-1' }).click();
     await expect(page).toHaveURL(/#\/sources\?section=rules$/);

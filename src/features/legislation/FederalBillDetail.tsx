@@ -95,7 +95,7 @@ export function FederalBillBody({ bill, route, links }: { bill: LegislativeInstr
           {bill.cosponsorCount ? `, with ${plural(bill.cosponsorCount, 'cosponsor')}` : ''}
         </p>
         {/* The official title already stands above; only the summary of the Congressional Research Service adds to it. */}
-        {bill.about?.source === 'crs-summary' ? <AboutBlock about={bill.about} terms={bill.selection?.matchedText ? [bill.selection.matchedText] : []} type="bill" /> : null}
+        {bill.about?.source === 'crs-summary' ? <AboutBlock about={bill.about} type="bill" /> : null}
         <div className="btn-row">
           <WatchButton item={{ type: 'bill', id: bill.id, label: `${label}: ${bill.subject ?? bill.title ?? ''}` }} />
           <CopyLinkButton hash={buildHash(['laws', bill.id], route.query)} />

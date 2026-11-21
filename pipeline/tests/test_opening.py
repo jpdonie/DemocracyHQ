@@ -87,10 +87,22 @@ def test_a_paragraph_that_crosses_a_page_is_followed_past_the_running_head():
     assert opening.opening_passage(layout(first, second)).text == OPENING
 
 
-def test_of_the_first_paragraphs_the_one_that_speaks_of_the_case_is_quoted():
-    essay = ["Elections are the instrument by which a free people governs itself, and", "every generation has had to defend that instrument anew."]
-    page = [stamp(1), *CAPTION, PANEL, AUTHOR, *paragraph(360, essay),
-            *paragraph(420, ["This appeal asks whether a county may reject an absentee ballot that was", "mailed before election day and reached the clerk one day after it."]),
+ESSAY = ["Elections are the instrument by which a free people governs itself, and", "every generation has had to defend that instrument anew."]
+ASKS = ["This appeal asks whether a county may reject an absentee ballot that was", "mailed before election day and reached the clerk one day after it."]
+
+
+def test_the_first_paragraph_is_quoted_even_where_a_later_one_says_more_about_the_case():
+    # "Opening of the opinion" is the label a reader sees: the passage is the opinion's first paragraph, whatever it says.
+    page = [stamp(1), *CAPTION, PANEL, AUTHOR, *paragraph(360, ESSAY), *paragraph(420, ASKS),
+            piece(480, 300, "I. BACKGROUND"), *paragraph(510, BACKGROUND)]
+    found = opening.opening_passage(layout(page))
+    assert found.paragraph == 1 and found.text.startswith("Elections are the instrument") and found.text.endswith("anew.")
+
+
+def test_where_the_first_paragraph_cannot_be_quoted_the_next_one_is_and_says_which_it_is():
+    # A citation fills the first paragraph: too few of its characters are letters for it to pass as a sentence of prose.
+    cites = ["See 52 U.S.C. 10301; 52 U.S.C. 10302; 52 U.S.C. 10303(f)(4); 599 U.S. 1, 17-19", "(2023); 594 U.S. 647, 656-66 (2021); 478 U.S. 30, 44-51, 79 (1986)."]
+    page = [stamp(1), *CAPTION, PANEL, AUTHOR, *paragraph(360, cites), *paragraph(420, ASKS),
             piece(480, 300, "I. BACKGROUND"), *paragraph(510, BACKGROUND)]
     found = opening.opening_passage(layout(page))
     assert found.paragraph == 2
@@ -98,11 +110,54 @@ def test_of_the_first_paragraphs_the_one_that_speaks_of_the_case_is_quoted():
                           "reached the clerk one day after it.")
 
 
-def test_where_no_paragraph_speaks_of_the_case_the_first_one_is_quoted():
-    essay = ["Elections are the instrument by which a free people governs itself, and", "every generation has had to defend that instrument anew."]
-    page = [stamp(1), *CAPTION, PANEL, AUTHOR, *paragraph(360, essay), piece(420, 300, "I. BACKGROUND"), *paragraph(450, BACKGROUND)]
+def test_a_passage_with_the_signs_of_a_wrongly_mapped_typeface_is_not_quoted():
+    # Some files give other signs for the joined letters "ff" and "ffi". Both readings of the file agree on them, so
+    # only the signs themselves show that the passage is not what the court wrote.
+    broken = ["The county clerk o\u0134ered each voter a second ballot, and the o\u011ccial count", "of the election was certified two days later by the board."]
+    page = [stamp(1), *CAPTION, PANEL, AUTHOR, *paragraph(360, broken), *paragraph(420, ASKS)]
     found = opening.opening_passage(layout(page))
-    assert found.paragraph == 1 and found.text.startswith("Elections are the instrument") and found.text.endswith("anew.")
+    assert found.paragraph == 2 and found.text.startswith("This appeal asks")
+    assert opening.legible("Pe\u00f1a v. Mu\u00f1oz \u2014 \u00a7 2 of the \u201cAct\u201d") and not opening.legible("o\u0134ered")
+
+
+def test_a_passage_the_court_sets_in_from_the_margin_ends_the_paragraph_and_is_not_quoted():
+    # The set-in lines outnumber the lines at the margin, as on a page that a quoted clause fills.
+    inner = 150
+    page = [stamp(1), *CAPTION, PANEL, AUTHOR,
+            piece(360, INDENT, "Two clauses of the Constitution give the state legislatures power over", right=EDGE),
+            piece(382, MARGIN, "federal elections. The Elections Clause gives them the first word on the", right=EDGE),
+            piece(404, MARGIN, "rules for elections to Congress:"),
+            piece(440, inner, "The Times, Places and Manner of holding Elections for Senators and", right=560),
+            piece(458, inner, "Representatives, shall be prescribed in each State by the Legislature", right=560),
+            piece(476, inner, "thereof; but the Congress may at any time by Law make or alter such", right=560),
+            piece(494, inner, "Regulations, except as to the Places of chusing Senators, and no other", right=560),
+            piece(512, inner, "body of a State may prescribe them in the place of its Legislature."),
+            piece(548, MARGIN, "U.S. Const. art. I, sec. 4, cl. 1. The Electors Clause does the same for the", right=EDGE),
+            piece(570, MARGIN, "appointment of the electors of the President."),
+            *paragraph(606, ["Twenty-seven members of the legislature sued the Governor over an order", "that registers voters at state offices without an act of the legislature."])]
+    paragraphs = [" ".join(line.text for line in lines) for lines in opening.opening_paragraphs(opening.body_pages(layout(page)))]
+    assert [text[:22] for text in paragraphs] == ["Two clauses of the Con", "Twenty-seven members o"]
+    assert paragraphs[0].endswith("rules for elections to Congress:")
+    found = opening.opening_passage(layout(page))
+    # The paragraph is quoted as far as its whole sentences go; the clause and the rest of the paragraph are left out.
+    assert found == opening.Opening(text="Two clauses of the Constitution give the state legislatures power over federal elections.",
+                                    cut=False, page=1, paragraph=1)
+
+
+def test_a_page_with_two_lines_of_the_court_above_a_long_set_in_passage_takes_the_margin_of_the_next_page():
+    inner = 150
+    clause = [piece(430 + 18 * index, inner, f"Line {index + 1} of a long clause of the statute that the court sets out in full here", right=560)
+              for index in range(9)]
+    first = [stamp(1), *CAPTION, PANEL, AUTHOR,
+             piece(360, INDENT, "The League challenges the statute that governs the count of late ballots,", right=EDGE),
+             piece(382, MARGIN, "and the whole dispute turns on the words of its second section, which reads:"),
+             *clause]
+    second = [stamp(2), *paragraph(100, [f"The district court read line {index + 1} of the clause as the county had asked it to." for index in range(9)] + ["It then dismissed."])]
+    # One long line at the margin is too few to count on its own page: the margin is known from the next page.
+    paragraphs = [" ".join(line.text for line in lines) for lines in opening.opening_paragraphs(opening.body_pages(layout(first, second)))]
+    assert paragraphs[0].endswith("of its second section, which reads:")
+    assert paragraphs[1].startswith("The district court read line 1") and not any("of a long clause" in text for text in paragraphs)
+    assert opening.opening_passage(layout(first, second)).text.startswith("The district court read line 1")
 
 
 def test_an_order_without_an_author_begins_under_its_heading_and_its_formula_is_passed_over():
@@ -112,7 +167,7 @@ def test_an_order_without_an_author_begins_under_its_heading_and_its_formula_is_
             *paragraph(480, ["We affirm for the reasons the district court gave in its order of last May."])]
     found = opening.opening_passage(layout(page))
     assert found.text == "Synthetic Smith appeals the district court's order dismissing his complaint against the county board of elections for failure to state a claim."
-    assert found.paragraph == 2
+    assert found.paragraph == 1  # the words every order begins with are not counted as a paragraph of the opinion
 
 
 def test_a_document_that_names_neither_panel_nor_author_has_no_passage():
@@ -166,16 +221,41 @@ def test_a_word_broken_at_the_end_of_a_line_is_joined_as_the_opinion_writes_it_e
                           "campaign-finance rules, which the district court upheld.")
 
 
-def test_a_passage_is_published_only_if_its_letters_stand_in_the_plain_text_in_order():
+def test_a_passage_is_published_only_if_every_letter_of_it_stands_in_the_plain_text():
+    whole = "ALPHA, Circuit Judge:\n" + OPENING.replace("ballots. We", "ballots.1 We").replace("the judgment", "the judg-\nment")
+    assert opening.confirmed(OPENING, whole, [])                                 # a footnote mark and a line-end hyphen are not letters
+    assert not opening.confirmed(OPENING.replace("reverse", "affirm"), whole, [])  # a word the document does not have there
+    assert not opening.confirmed(OPENING, "", [])
+    # A word the layout reading dropped: every other letter is in the document in order, and the passage is still refused.
+    assert not opening.confirmed(OPENING.replace("has standing and ", ""), whole, [])
+    assert not opening.confirmed(OPENING.replace("has standing and ", ""), whole)
+
+
+def test_other_matter_may_stand_inside_a_passage_only_where_it_crosses_a_page():
     plain = ("ALPHA, Circuit Judge:\nThe Synthetic Voters League appeals the district court's dismissal of its challenge to the county's rule on "
-             "late absentee ballots.1 We hold that the\n1 The rule is printed in the county's election manual of 2024.\nCase: 25-1 Page: 2\n"
+             "late absentee ballots.1 We hold that the\n1 The rule is printed in the county's election manual of 2024.\nCase: 25-1 Document: 14 Page: 2 Date Filed: 01/02/2026\n"
              "League has standing and reverse the judg-\nment of the district court.")
-    assert opening.confirmed(OPENING, plain)                                    # a footnote and a page head lie between its pieces
-    assert not opening.confirmed(OPENING.replace("reverse", "affirm"), plain)   # a word the document does not have there
-    assert not opening.confirmed(OPENING, plain.replace("League has standing", "County has standing"))
-    assert not opening.confirmed(OPENING, "")
-    scattered = " x ".join(OPENING[i:i + 30] for i in range(0, len(OPENING), 30))  # in more pieces than a footnote and a page break make
-    assert not opening.confirmed(OPENING, scattered)
+    at = len(opening._letters(OPENING[:OPENING.index("League has standing")]))
+    assert opening.confirmed(OPENING, plain, [at])       # the footnote and the page head lie at the page break
+    assert not opening.confirmed(OPENING, plain, [])     # no page break: the passage would have to stand there whole
+    assert not opening.confirmed(OPENING, plain, [at - 9])  # a break elsewhere does not excuse the gap
+    assert opening.confirmed(OPENING, plain)             # pages not known (a passage published before): the head of a page lies between
+    scattered = " x ".join(OPENING[i:i + 30] for i in range(0, len(OPENING), 30))
+    assert not opening.confirmed(OPENING, scattered) and not opening.confirmed(OPENING, scattered, [at])
+    # The matter between two pages is a page's footnotes at most: a passage whose halves lie a document apart is refused.
+    apart = plain.replace("Date Filed: 01/02/2026", "Date Filed: 01/02/2026\n" + "x" * (opening.PAGE_GAP_LETTERS + 1))
+    assert not opening.confirmed(OPENING, apart, [at]) and not opening.confirmed(OPENING, apart)
+    # Pages not known: words a court added inside the passage are not the head of a page, and the passage is refused.
+    amended = ("ALPHA, Circuit Judge:\n" + OPENING).replace("the League has standing", "the League, on this record and for these claims, has standing")
+    assert not opening.confirmed(OPENING, amended)
+
+
+def test_the_page_breaks_of_a_paragraph_are_counted_in_letters():
+    def line(page: int, text: str) -> opening.Line:
+        return opening.Line(page=page, top=0, bottom=18, text=text)
+
+    assert opening.page_breaks([line(1, "The League ap-"), line(1, "peals. It"), line(2, "has standing.")]) == [len("TheLeagueappealsIt")]
+    assert opening.page_breaks([line(1, "One line.")]) == []
 
 
 def test_a_passage_the_plain_text_does_not_hold_is_not_published():
