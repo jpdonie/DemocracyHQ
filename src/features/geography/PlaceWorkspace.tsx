@@ -173,8 +173,12 @@ function CircuitOfState({ data }: { data: PlaceData }) {
             </p>
           );
         }
+        // The statute names a territory without its style ("Northern Mariana Islands", "Virgin Islands"). Only a provision
+        // that names the place is quoted.
+        const shortName = name.replace(/^(?:Commonwealth|Territory) of (?:the )?/, '').replace(/^United States /, '');
+        const names = (quote: string) => quote.includes(name) || quote.includes(shortName);
         const basis = court.basis;
-        const entry = basis?.also?.find((also) => also.quote.includes(name)) ?? basis;
+        const entry = basis && names(basis.quote) ? basis : basis?.also?.find((also) => names(also.quote)) ?? null;
         return (
           <p>
             {name} is in the <a href={courtHash(court.id)}>{courtShortName(court, court.id)}</a>: appeals from the federal district courts in {name} go to the {court.name}.
@@ -251,7 +255,7 @@ function FederalPointer() {
   const federal = dataOf(core.bills)?.bills.filter(isFederalBill).length;
   return (
     <p className="quiet">
-      The measures of Congress apply nationwide and are not repeated for each state.{' '}
+      The measures of Congress are listed once, for the United States, and are not repeated for each state.{' '}
       <A to={buildHash(['place', NATION_KEY])}>{federal ? `Federal level: ${plural(federal, 'election measure')} of Congress` : 'Federal level'}</A>
     </p>
   );

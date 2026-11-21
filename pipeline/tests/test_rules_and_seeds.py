@@ -383,9 +383,9 @@ def test_a_digest_names_the_federal_voting_rights_act_as_the_bills_subject_only_
 
 def test_the_published_rules_name_their_exclusions_and_new_ids():
     rules = {r["tag"]: r for r in classify.rules_document()["issueRules"]}
-    assert rules["direct-democracy"]["ruleId"] == "tag-direct-4" and rules["voting-rights-act"]["ruleId"] == "tag-vra-4"
+    assert rules["direct-democracy"]["ruleId"] == "tag-direct-4" and rules["voting-rights-act"]["ruleId"] == "tag-vra-5"
     assert rules["redistricting"]["ruleId"] == "tag-redist-2"
-    for tag in ("direct-democracy", "redistricting"):
+    for tag in ("direct-democracy", "redistricting", "voting-rights-act"):
         assert rules[tag]["exclusionPattern"] == classify.ISSUE_EXCLUSIONS[tag]
     assert "exclusionPattern" not in rules["registration"]
     note = classify.rules_document()["note"]

@@ -10,7 +10,7 @@ figures are those of that release; `public/data/manifest.json` and the site's
 
 | Part | What it holds | Source |
 | --- | --- | --- |
-| Measures of Congress | 272 of the 20,167 measures of the 119th Congress, selected by rule `us-select-1`, each with its actions, sponsors, committees, the Congressional Research Service summary, related measures and every published text version (mirrored and comparable) | GovInfo bulk data: Bill Status (`govinfo-billstatus`) and Bills (`govinfo-bills`), Government Publishing Office |
+| Measures of Congress | 273 of the 20,191 measures of the 119th Congress, selected by rule `us-select-1`, each with its actions, sponsors, committees, the Congressional Research Service summary, related measures and every published text version (mirrored and comparable) | GovInfo bulk data: Bill Status (`govinfo-billstatus`) and Bills (`govinfo-bills`), Government Publishing Office |
 | Court of appeals cases | 128 cases from 11 of the 13 courts, selected by rule `circuit-select-1` from the 27,813 cases (28,576 documents) that GovInfo lists with a document issued since 2025-01-01 | GovInfo, United States Courts Opinions collection (`govinfo-uscourts`) |
 | Judicial circuits | Which states and territories each regional circuit is made of, with the words of the statute | United States Code, 2024 Edition, 28 U.S.C. § 41 and 48 U.S.C. § 1821(a), on GovInfo (`govinfo-uscode`) |
 
@@ -70,15 +70,19 @@ appeals that began in a federal district court there.
 ## Issue tags and their correction
 
 Every tag of the 128 court of appeals cases and of the 272 measures of Congress
-(244 tags) was read against the text it was matched in. Twelve were wrong:
+then published (244 tags) was read against the text it was matched in. (The measure
+selected since, S. 5815, has no published text yet and carries no tag.) Twelve of the
+tags were wrong:
 
 - Rule `tag-redist-2` no longer counts a seat's name ("the Representative from the
   first congressional district"), which had tagged five election-contest resolutions.
 - Rule `tag-direct-4` no longer reads the name of a federal project ("Unlawful
   Voter Initiative") as a voter initiative, and in a long document a line that starts
   with a rule's word is not taken for a subject line.
-- Rule `tag-vra-4` no longer takes the "Youth Voting Rights Act" or the "Native
-  American Voting Rights Act" for the Voting Rights Act of 1965.
+- Rule `tag-vra-5` no longer takes the "Youth Voting Rights Act", the "Native
+  American Voting Rights Act" or a state's act named after the state ("Washington
+  Voting Rights Act", "Voting Rights Act of New York") for the Voting Rights Act of
+  1965.
 - Four tags that a rule assigns from doctrine an opinion only cites were removed by
   a maintainer (rule `tag-removal-1`, `pipeline/seeds/tag_removals.json`). Each
   removal carries a reason and a passage of the case's own document; the pipeline

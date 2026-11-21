@@ -101,10 +101,12 @@ export const PASSED_IN_EACH_SHORT = 'a vote in each chamber, not necessarily on 
 /** The same for a table or a menu of stages, where no single measure is meant. */
 export const PASSED_IN_EACH_LIST_NOTE = 'A stage that names both chambers means a vote of passage in each. The record does not show that both passed the same text: one chamber can pass the other’s bill with an amendment, which the first must then accept.';
 
-/** Where a stage stands in that order; a stage the list does not hold sorts after all the others. */
+/**
+ * Where a stage stands in that order, from 0 for "Introduced". A stage the list does not hold, or none, ranks -1: below
+ * every known stage, so that it is never taken for the furthest and sorts last in a list ordered by how far a measure got.
+ */
 export function stageRank(stage: string | null | undefined): number {
-  const index = FEDERAL_STAGES.indexOf(stage ?? '');
-  return index < 0 ? FEDERAL_STAGES.length : index;
+  return FEDERAL_STAGES.indexOf(stage ?? '');
 }
 
 /** The source of the texts of the measures of Congress (sources.json). Their status record names another source, the measure's own. */

@@ -15,10 +15,8 @@ from .schemas import IssueTag
 
 # (tag, label, ruleId, pattern)
 ISSUE_RULES: list[tuple[str, str, str, str]] = [
-    # The lookbehinds leave out other acts whose names end in the same words: a state's act, and two bills of Congress
-    # (the Youth Voting Rights Act, H.R. 4916 and S. 5481 of the 119th Congress, and the Native American Voting Rights Act).
-    ("voting-rights-act", "Voting Rights Act (federal)", "tag-vra-4",
-     r"(?<!California )(?<!State )(?<!Youth )(?<!Native American )Voting Rights Act|52 U\.\s?S\.\s?C\.\s?§\s?1030[1-9]"),
+    # Other acts whose names end in the same words are left out by the rule's exclusion pattern (ISSUE_EXCLUSIONS).
+    ("voting-rights-act", "Voting Rights Act (federal)", "tag-vra-5", r"Voting Rights Act|52 U\.\s?S\.\s?C\.\s?§\s?1030[1-9]"),
     ("state-voting-rights-act", "State voting rights acts", "tag-svra-1", r"California Voting Rights Act|\bstate voting rights act"),
     ("redistricting", "Redistricting", "tag-redist-2", r"redistrict\w*|districting (plan|map)|congressional (map|district)|gerrymander\w*|legislative districts?|reapportion\w*"),
     ("racial-gerrymandering", "Racial gerrymandering claims", "tag-racial-2", r"racial(ly)? gerrymander\w*|race predominated"),
@@ -60,9 +58,23 @@ TAG_LABELS = {tag: label for tag, label, _, _ in ISSUE_RULES}
 #: "Unlawful Voter Initiative" is the name of a project of the Department of Homeland Security (so the Ninth Circuit's
 #: order of October 30, 2026 in No. 26-7139: "DHS began its Unlawful Voter Initiative"). It is not a voter initiative.
 #:
+#: Other acts are named with the words "Voting Rights Act": a state's own act ("California Voting Rights Act",
+#: "Washington Voting Rights Act", "John R. Lewis Voting Rights Act of New York", "a State Voting Rights Act") and
+#: bills of Congress (the Youth Voting Rights Act, H.R. 4916 and S. 5481 of the 119th Congress, and the Native American
+#: Voting Rights Act). The words between may be broken across a line. "Coretta Scott King Voting Rights Act", the name
+#: of the federal act's reauthorization of 2006, is not a state's name and still counts.
+_STATE_NAMES = (r"Alabama|Alaska|Arizona|Arkansas|California|Colorado|Connecticut|Delaware|Florida|Georgia|Hawaii|Idaho|Illinois|"
+                r"Indiana|Iowa|Kansas|Kentucky|Louisiana|Maine|Maryland|Massachusetts|Michigan|Minnesota|Mississippi|Missouri|"
+                r"Montana|Nebraska|Nevada|New\s+Hampshire|New\s+Jersey|New\s+Mexico|New\s+York|North\s+Carolina|North\s+Dakota|"
+                r"Ohio|Oklahoma|Oregon|Pennsylvania|Rhode\s+Island|South\s+Carolina|South\s+Dakota|Tennessee|Texas|Utah|Vermont|"
+                r"Virginia|Washington|West\s+Virginia|Wisconsin|Wyoming")
+#:
 #: A seat in the House is named by its district ("the office of Representative from the Fourteenth Congressional
 #: District of Florida"). That names the seat; it says nothing about how districts are drawn.
 ISSUE_EXCLUSIONS: dict[str, str] = {
+    "voting-rights-act":
+        r"\b(?:" + _STATE_NAMES + r"|State|Youth|Native\s+American)\s+Voting\s+Rights\s+Act\b"
+        r"|\bVoting\s+Rights\s+Act\s+of\s+(?:" + _STATE_NAMES + r")\b",
     "redistricting":
         r"\b(?:Representative|Delegate|Member|Resident Commissioner)s?(?: (?:of|in|to) (?:Congress|the House(?: of Representatives)?))?"
         r" (?:from|for) the [\w-]+ congressional district\b",
@@ -242,8 +254,10 @@ def rules_document() -> dict:
                 "because they name elections officials in almost every election bill. "
                 f"For the {TAG_LABELS['voting-rights-act']} rule only the digest's sentences that contain the word 'would', which "
                 "say what the bill would do, are read, because a digest also names the federal act when it describes existing law. "
-                "The rule does not count the name of another act that ends in the same words: the California Voting Rights Act, a "
-                "'State Voting Rights Act', the Youth Voting Rights Act and the Native American Voting Rights Act. "
+                "The rule does not count the name of another act that ends in the same words: a state's act named after the state "
+                "(the California Voting Rights Act, the Voting Rights Act of New York), a 'State Voting Rights Act', the Youth "
+                "Voting Rights Act and the Native American Voting Rights Act; the phrases are those of this pattern: "
+                + ISSUE_EXCLUSIONS["voting-rights-act"] + " . "
                 f"For the {TAG_LABELS['direct-democracy']} rule a match does not count inside a campaign-finance phrase, where a "
                 "committee or a payment supports or opposes a candidate or a ballot measure, inside the words with which a digest says "
                 "that an act the bill amends was itself adopted by initiative, or inside the name 'Unlawful Voter Initiative', which is a "

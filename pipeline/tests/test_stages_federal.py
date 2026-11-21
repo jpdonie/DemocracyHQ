@@ -9,7 +9,7 @@ import pytest
 
 import dhq.run as pipeline
 from dhq.adapters import congress, uscourts
-from dhq.util import write_json
+from dhq.util import content_hash, write_json
 
 import synthetic_federal as fed
 from conftest import FakeResponse, tree
@@ -355,6 +355,9 @@ def test_a_tag_a_maintainer_removed_is_published_with_the_rule_that_assigned_it_
         "quoteUrl": f"https://www.govinfo.gov/content/pkg/{LEAGUE}/pdf/{LEAGUE}-0.pdf"}]
     summary = compared.read("circuits/index.json")["cases"][0]
     assert [t["tag"] for t in summary["issueTags"]] == ["mail-voting"] and "removedTags" not in summary
+    # The record's hash covers it as published, with the tag removed.
+    basis = {k: v for k, v in case.items() if k not in {"firstObservedAt", "lastCheckedAt", "verification", "contentHash"}}
+    assert case["contentHash"] == content_hash(basis)
     rule = next(r for r in compared.read("classification.json")["otherRules"] if r["ruleId"] == "tag-removal-1")
     assert "pipeline/seeds/tag_removals.json" in rule["description"] and "the tag stays" in rule["description"]
     # Without the entry the rules decide again.
@@ -388,6 +391,16 @@ def test_a_tag_stays_when_the_passage_quoted_for_its_removal_is_not_in_the_opini
         ("tag_removal_unused", "ca11-25-00003"), ("tag_removal_unused", "ca5-25-00002"), ("tag_removal_unused", "ca9-25-99999")]
     details = sorted(r["detail"] for r in ctx.review if r["kind"] == "tag_removal_not_applied")
     assert "was not found in the documents of the case" in details[1] and "do not assign the tag 'voter-id'" in details[0]
+
+
+def test_a_removal_for_a_case_held_for_review_is_reported_and_takes_effect_later(compared, monkeypatch):
+    compared.run(COURTS, now=T1)
+    write_json(compared.seeds_dir / "tag_removals.json", {"removals": [REMOVAL]})
+    published = compared.read("circuits/cases/ca5-25-30725.json")
+    monkeypatch.setattr(pipeline, "keep_previous_if_regressed", lambda ctx, rel, built, metric, entity: published if entity == "ca5-25-30725" else built)
+    code, ctx = compared.run(COURTS, now=T2)
+    assert ("tag_removal_held", "ca5-25-30725") in [(r["kind"], r["entity"]) for r in ctx.review]
+    assert [t["tag"] for t in compared.read("circuits/cases/ca5-25-30725.json")["issueTags"]] == ["redistricting", "mail-voting"]
 
 
 def test_the_removal_of_a_tag_is_kept_while_the_case_cannot_be_read(compared, session):

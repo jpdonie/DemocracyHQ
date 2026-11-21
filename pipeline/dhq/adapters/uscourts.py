@@ -62,7 +62,7 @@ from ..schemas import (
     VerificationStatus,
 )
 from ..util import STATES, content_hash, write_bytes_atomic
-from .scotus import PdfTextError, extract_pdf_text
+from .scotus import extract_pdf_text
 
 log = logging.getLogger("dhq.uscourts")
 
@@ -783,7 +783,7 @@ class Reader:
                 result.record, result.texts = record, texts
             else:
                 result.evaluation["counts"] = {}  # not needed for a case that is not selected
-        except (FetchError, RecordError, PdfTextError, OSError, EOFError) as exc:
+        except Exception as exc:  # noqa: BLE001 - a damaged cache file or an odd document fails its package, not the scan
             result.error = f"{type(exc).__name__}: {exc}"[:300]
             result.failure = exc
         return result

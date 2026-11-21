@@ -69,7 +69,7 @@ from .schemas import (
 )
 from .sources import SOURCES
 from .util import (
-    CACHE_DIR, PUBLIC_DATA, REPO_ROOT, SEEDS_DIR, STAGING_DIR, STATES, STATE_BY_NAME, load_dotenv, now_iso,
+    CACHE_DIR, PUBLIC_DATA, REPO_ROOT, SEEDS_DIR, STAGING_DIR, STATES, STATE_BY_NAME, content_hash, load_dotenv, now_iso,
     read_json, sha256_bytes, write_json,
 )
 
@@ -1233,6 +1233,9 @@ def remove_seeded_tags(case: dict, entries: List[dict], quoted_in: Callable[[str
         case.setdefault("removedTags", []).append(RemovedTag(
             tag=tag["tag"], ruleId=tag["ruleId"], matchedField=tag["matchedField"], matchedText=tag["matchedText"], matchCount=tag.get("matchCount"),
             removalRuleId=TAG_REMOVAL_RULE_ID, reason=entry["reason"].strip(), quote=entry["quote"].strip(), quoteUrl=url).model_dump(mode="json"))
+    if case.get("removedTags") and "contentHash" in case:
+        # The hash covers the record as published, so it is made again once the tags are changed (same basis as build_case).
+        case["contentHash"] = content_hash({k: v for k, v in case.items() if k not in {"firstObservedAt", "lastCheckedAt", "verification", "contentHash"}})
     return problems
 
 
@@ -1282,6 +1285,10 @@ def stage_circuits(ctx: Context) -> None:
         if obj is not built:
             held += 1
             carried.append(obj)
+            fresh = {t["tag"] for t in built.get("removedTags", [])} - {t["tag"] for t in obj.get("removedTags", [])}
+            if fresh:
+                ctx.flag("tag_removal_held", case_id, f"the removal of {', '.join(sorted(fresh))} takes effect once the record is no longer held "
+                                                      "for review; the published record still shows the tag")
             continue
         records.append(built)
         opinion_keys[case_id] = [(f"{case_id}-d{doc['sequence']}", doc["date"], key) for doc in read.record["documents"]

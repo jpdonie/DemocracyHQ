@@ -66,11 +66,21 @@ export function usePlaceData(key: string): PlaceState {
     () => (unit ? mapLoadable(allOf(core.cases, core.relationships), ([all, links]) => casesForPlace(unit.key, links, all)) : { status: 'loading' as const }),
     [unit, core.cases, core.relationships],
   );
+  // A case that is already linked to the place is listed there once and is not repeated among the appeals. The appeals
+  // do not depend on the links file: when it failed, nothing is linked and every appeal is listed.
+  const linkedOrNone = useMemo<Loadable<LinkedRecord<LegalCaseSummary>[]>>(
+    () => (cases.status === 'error' ? { status: 'ready', data: [] } : cases),
+    [cases],
+  );
   const appealsFrom = useMemo<Loadable<LegalCaseSummary[]>>(
-    () => (unit ? mapLoadable(core.cases, (all) => (unit.layer === 'state'
-      ? all.filter((c) => c.courtId !== SCOTUS_ID && c.origin?.stateFips === unit.stateFips).sort((a, b) => (b.sourceLastActivity ?? '').localeCompare(a.sourceLastActivity ?? '') || a.id.localeCompare(b.id))
-      : [])) : { status: 'loading' }),
-    [unit, core.cases],
+    () => (unit ? mapLoadable(allOf(core.cases, linkedOrNone), ([all, linked]) => {
+      if (unit.layer !== 'state') return [];
+      const listed = new Set(linked.map((item) => item.record.id));
+      return all
+        .filter((c) => c.courtId !== SCOTUS_ID && c.origin?.stateFips === unit.stateFips && !listed.has(c.id))
+        .sort((a, b) => (b.sourceLastActivity ?? '').localeCompare(a.sourceLastActivity ?? '') || a.id.localeCompare(b.id));
+    }) : { status: 'loading' }),
+    [unit, core.cases, linkedOrNone],
   );
   const appealsCourt = useMemo<Loadable<Court | null>>(
     () => (unit ? mapLoadable(core.courts, (courts) => (unit.stateFips ? courts.forState(unit.stateFips) ?? null : null)) : { status: 'loading' }),
@@ -130,7 +140,7 @@ export function billCoverageNote(data: PlaceData): string | null {
   const legislation = dataOf(data.legislation);
   if (!legislation || legislation.covered) return null;
   if (!data.unit.stateFips) return 'No legislation is listed for this unit.';
-  return `Legislation for ${data.geo.stateName(data.unit.stateFips)} is not covered by DemocracyHQ; no bills are listed. The measures of Congress apply nationwide and are listed for the United States.`;
+  return `Legislation for ${data.geo.stateName(data.unit.stateFips)} is not covered by DemocracyHQ; no bills are listed. The measures of Congress are listed for the United States.`;
 }
 
 /** Said in the pack of the United States, which lists the measures of Congress and the dated events but no court cases. */

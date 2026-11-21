@@ -147,6 +147,15 @@ def test_a_request_can_be_made_once_and_its_failure_tells_what_the_server_asked_
     assert info.value.status is None and info.value.may_pass
 
 
+def test_retry_after_is_read_as_seconds_or_as_a_date():
+    from dhq.http import retry_after_seconds
+    now = 1_800_000_000.0  # 2027-01-15T08:00:00Z
+    assert retry_after_seconds("120", now) == 120.0
+    assert retry_after_seconds("Fri, 15 Jan 2027 08:01:30 GMT", now) == 90.0
+    assert retry_after_seconds("Fri, 15 Jan 2027 07:00:00 GMT", now) == 0.0  # a date already past: no wait
+    assert [retry_after_seconds(v, now) for v in ("", None, "soon", "-5")] == [None, None, None, None]
+
+
 def test_head_is_retried_under_the_same_policy_and_never_leaks_a_raw_network_error(fetcher, session, sleeps):
     session.on("HEAD " + URL, FakeResponse(503), requests.ConnectionError("down"), FakeResponse(200, b"", {"Last-Modified": "x"}))
     assert fetcher.head(URL)["Last-Modified"] == "x"

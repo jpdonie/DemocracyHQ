@@ -48,7 +48,7 @@ function RelatedMeasures({ related }: { related: readonly RelatedMeasure[] }) {
   return (
     <Section
       title={`Related measures (${related.length})`}
-      note="As the official record names them, with who identified the relation. A measure links to its page here when it is in this dataset; the others are not election measures by the selection rule, or belong to another Congress."
+      note="As the official record names them, with who identified the relation. A measure links to its page here when it is in this dataset; the others were not selected by the rule, or belong to another Congress."
     >
       <ul className="rows">
         {related.map((measure, index) => (

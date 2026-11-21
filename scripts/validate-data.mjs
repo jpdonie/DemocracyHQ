@@ -451,7 +451,7 @@ if (federalIndex) {
   }
   if (selection.totalMeasuresRead < federalBills.length) fail(`congress/index.json: ${federalBills.length} measures are published, but only ${selection.totalMeasuresRead} are said to have been read`);
   // The site lists stages in the order of its own list (src/lib/bills.ts), which must be the order the rule publishes.
-  const published = classification?.otherRules.find((rule) => rule.order)?.order;
+  const published = classification?.otherRules.find((rule) => rule.ruleId === 'us-status-1')?.order;
   if (!published) fail('classification.json: no rule publishes the order of the stages of a measure of Congress');
   else if (JSON.stringify(published) !== JSON.stringify(billsLib.FEDERAL_STAGES)) fail(`classification.json: the stages of a measure of Congress are published as [${published.join('; ')}], the site lists them as [${billsLib.FEDERAL_STAGES.join('; ')}] (src/lib/bills.ts)`);
   for (const record of federalBills) {

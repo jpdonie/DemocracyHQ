@@ -471,6 +471,19 @@ class StatusArchives:
         return max(dates) if dates else None
 
 
+_FIRST_ELEMENT_RE = re.compile(rb"<(?![?!])([A-Za-z_][\w:.-]*)")
+
+
+def looks_like_bill_xml(data: bytes) -> bool:
+    """Whether a document served for a text version is XML and not a web page: a server can answer 200 with an error
+    page, which must not be kept as the text (its date would then be sent with every later request)."""
+    head = data[:4096].lstrip()
+    if not head.startswith(b"<") or head[:14].lower() == b"<!doctype html":
+        return False
+    first = _FIRST_ELEMENT_RE.search(head)
+    return bool(first) and first.group(1).split(b":")[-1].lower() not in (b"html", b"head", b"body")
+
+
 class TextStore:
     """The XML of bill text versions, each kept until the server says that it has changed.
 
@@ -529,8 +542,8 @@ class TextStore:
         else:
             result = self.fetcher.get(url, ok_statuses=(200,), max_bytes=bill_text.MAX_XML_BYTES, attempts=attempts)
         data = result.content
-        if not data.lstrip().startswith(b"<"):
-            raise FetchError(url, 200, "the document served is not XML")
+        if not looks_like_bill_xml(data):
+            raise FetchError(url, 200, "the document served is not the XML of a text version")
         stamp = http_date_to_iso(result.headers.get("Last-Modified")) or ""
         write_bytes_atomic(dest, data, root=self.cache)
         write_bytes_atomic(sidecar, stamp.encode("utf-8"), root=self.cache)

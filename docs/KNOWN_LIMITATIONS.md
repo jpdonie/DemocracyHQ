@@ -16,7 +16,7 @@ Status as of the data release of 2026-11-21. The limits of the federal level
   courts that are missing. The Eighth Circuit's cases are more likely to be
   missing than those of other courts, because GovInfo holds its cover letters in
   place of its opinions.
-- **Two legislatures.** Congress (272 of the 20,167 measures of the 119th
+- **Two legislatures.** Congress (273 of the 20,191 measures of the 119th
   Congress, selected by their titles and policy area) and California's 2025-2026
   Regular Session (132 of its 5,041 measures). No other state, no extraordinary
   sessions, no earlier sessions or Congresses, no ballot measures as such, no

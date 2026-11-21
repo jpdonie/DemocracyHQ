@@ -39,10 +39,12 @@ export interface LayerControlProps {
   onExtent?: (bottom: number) => void;
 }
 
-function circuitOptions(courts: readonly Court[]) {
+/** The menu names the court that is open even before the list of courts has loaded: its name is fixed by its id. */
+function circuitOptions(courts: readonly Court[], open: string) {
   return (
     <>
       <option value="">All circuits</option>
+      {open && !courts.some((court) => court.id === open) ? <option value={open}>{courtShortName(undefined, open)}</option> : null}
       {courts.map((court) => (
         <option key={court.id} value={court.id}>
           {courtShortName(court, court.id)}{court.id === FEDERAL_CIRCUIT_ID ? ' (no area on the map)' : ''}
@@ -87,7 +89,7 @@ export function LayerControl({ choice, plan, circuit, courts, compact, onChoice,
         {choice === 'circuit' ? (
           <>
             <label className="sr-only" htmlFor={circuitId}>Circuit</label>
-            <select id={circuitId} value={circuit} onChange={(event) => onCircuit(event.target.value)}>{circuitOptions(courts)}</select>
+            <select id={circuitId} value={circuit} onChange={(event) => onCircuit(event.target.value)}>{circuitOptions(courts, circuit)}</select>
           </>
         ) : null}
       </div>
@@ -130,7 +132,7 @@ export function LayerControl({ choice, plan, circuit, courts, compact, onChoice,
       {choice === 'circuit' ? (
         <div className="layer-sub">
           <label htmlFor={circuitId}>Circuit</label>
-          <select id={circuitId} value={circuit} onChange={(event) => onCircuit(event.target.value)}>{circuitOptions(courts)}</select>
+          <select id={circuitId} value={circuit} onChange={(event) => onCircuit(event.target.value)}>{circuitOptions(courts, circuit)}</select>
         </div>
       ) : null}
     </div>

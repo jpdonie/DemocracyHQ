@@ -1,28 +1,29 @@
 {
- "contentHash": "993d2e95a7608d7b435c541e2e945f30cfb0d04a690f6728c7705716720d9512",
+ "contentHash": "3744148c52dcd051867162e694779f5d50538eaf1b691d9294c5daf8d49525b1",
  "counts": {
   "appealsCourtCases": 128,
-  "bills": 404,
+  "bills": 405,
   "cases": 153,
-  "events": 1475,
-  "federalBills": 272,
+  "events": 1476,
+  "federalBills": 273,
   "geographicUnits": 4186,
   "relationships": 38,
   "stateBills": 132,
   "supremeCourtCases": 25
  },
- "generatedAt": "2026-11-21T12:01:28Z",
+ "generatedAt": "2026-11-21T12:46:07Z",
  "reviewQueue": {
   "byKind": {
+   "new_selection": 1,
    "text_version_note": 1
   },
-  "items": 1
+  "items": 2
  },
  "schemaVersion": 1,
  "sources": {
   "ca-leginfo-bulk": {
-   "lastAttempt": "2026-11-21T09:01:56Z",
-   "lastSuccessfulCheck": "2026-11-21T09:01:56Z",
+   "lastAttempt": "2026-11-21T12:46:07Z",
+   "lastSuccessfulCheck": "2026-11-21T12:46:07Z",
    "processingStatus": "ok"
   },
   "census-cb-2025": {
@@ -56,13 +57,13 @@
    "processingStatus": "credential_missing"
   },
   "govinfo-bills": {
-   "lastAttempt": "2026-11-21T09:01:56Z",
-   "lastSuccessfulCheck": "2026-11-21T09:01:56Z",
+   "lastAttempt": "2026-11-21T12:46:07Z",
+   "lastSuccessfulCheck": "2026-11-21T12:46:07Z",
    "processingStatus": "ok"
   },
   "govinfo-billstatus": {
-   "lastAttempt": "2026-11-21T09:01:56Z",
-   "lastSuccessfulCheck": "2026-11-21T09:01:56Z",
+   "lastAttempt": "2026-11-21T12:46:07Z",
+   "lastSuccessfulCheck": "2026-11-21T12:46:07Z",
    "processingStatus": "ok"
   },
   "govinfo-uscode": {
@@ -71,8 +72,8 @@
    "processingStatus": "ok"
   },
   "govinfo-uscourts": {
-   "lastAttempt": "2026-11-21T09:01:56Z",
-   "lastSuccessfulCheck": "2026-11-21T09:01:56Z",
+   "lastAttempt": "2026-11-21T12:46:07Z",
+   "lastSuccessfulCheck": "2026-11-21T12:46:07Z",
    "processingStatus": "ok"
   },
   "openstates-api": {
@@ -81,8 +82,8 @@
    "processingStatus": "credential_missing"
   },
   "scotus-docket": {
-   "lastAttempt": "2026-11-21T09:01:56Z",
-   "lastSuccessfulCheck": "2026-11-21T09:01:56Z",
+   "lastAttempt": "2026-11-21T12:46:07Z",
+   "lastSuccessfulCheck": "2026-11-21T12:46:07Z",
    "processingStatus": "ok"
   }
  }

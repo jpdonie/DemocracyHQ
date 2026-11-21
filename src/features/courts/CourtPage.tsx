@@ -5,7 +5,7 @@
 import type { CircuitExclusion, Court, LegalCaseSummary } from '../../types/schemas';
 import { useCore, type AppealsCoverage } from '../../lib/core';
 import { FEDERAL_CIRCUIT_ID, SCOTUS_ID, courtFullName, courtHash, courtShortName, type CourtDirectory } from '../../lib/courts';
-import { caseNameClass, formatDate, formatDateTime } from '../../lib/format';
+import { caseNameClass, formatDate, formatDateTime, plural } from '../../lib/format';
 import { sourceFreshness } from '../../lib/freshness';
 import type { GeoIndex } from '../../lib/geo';
 import { useTagLabels } from '../../lib/labels';
@@ -158,7 +158,9 @@ function WhatWasRead({ court, appeals }: { court: Court; appeals: AppealsCoverag
       ) : null}
       <GapNotice>
         {read.selected === 0
-          ? `No case of the ${name} was selected. That is a statement about this rule and these documents, not about the court’s docket.`
+          ? `No case of the ${name} is in this dataset: ${read.excluded > 0
+            ? `the rule picked ${plural(read.excluded, 'case')}, and a maintainer removed ${read.excluded === 1 ? 'it' : 'them'} (listed below)`
+            : 'the rule picked none'}. That is a statement about this rule and these documents, not about the court’s docket.`
           : 'The rule counts words. It can miss an election case, and it can include a case that only discusses elections.'}
       </GapNotice>
     </Section>
@@ -201,7 +203,7 @@ function AppealsCourt({ court, courts, geo, cases, appeals }: {
       <Section
         title={`Cases in this dataset (${mine.length})`}
         note={mine.length > 0
-          ? `Election cases with a document issued since ${appeals ? formatDate(appeals.selection.since) : 'the start of 2025'}, newest first${opinions < mine.length ? `. Appeals decided in one opinion share a row, so the ${mine.length} cases take ${opinions} rows` : ''}. Each is known here from the documents GovInfo holds for it, which is not the court’s full docket.`
+          ? `Election cases with a document issued since ${appeals ? formatDate(appeals.selection.since) : 'the date the selection rule starts from'}, newest first${opinions < mine.length ? `. Appeals decided in one opinion share a row, so the ${mine.length} cases take ${opinions} rows` : ''}. Each is known here from the documents GovInfo holds for it, which is not the court’s full docket.`
           : undefined}
       >
         <CaseList
@@ -209,7 +211,9 @@ function AppealsCourt({ court, courts, geo, cases, appeals }: {
           cases={mine}
           empty={(
             <Empty title={`No case of the ${name} is in this dataset.`}>
-              <p>The selection rule found no election case among the cases read for this court. See what was read, below.</p>
+              <p>{(appeals?.coverage[court.id]?.excluded ?? 0) > 0
+                ? 'The selection rule picked cases of this court, and a maintainer removed them. What was read, and why each was removed, is below.'
+                : 'The selection rule picked none of the cases read for this court. See what was read, below.'}</p>
             </Empty>
           )}
         />
@@ -228,7 +232,7 @@ function AppealsCourt({ court, courts, geo, cases, appeals }: {
         <CourtSources ids={['govinfo-uscourts', courts.statute.sourceId]} />
         {court.website ? (
           <p className="quiet">
-            The court&rsquo;s own site is <Ext href={court.website}>{new URL(court.website).hostname}</Ext>. DemocracyHQ does not read it, and the link is not machine-checked.
+            The court&rsquo;s own site is <Ext href={court.website}>{hostnameOf(court.website)}</Ext>. DemocracyHQ does not read it, and the link is not machine-checked.
           </p>
         ) : null}
         <p><A to={buildHash(['sources'], { section: 'coverage' })}>How the cases are selected and what the rule can miss</A></p>
@@ -280,4 +284,13 @@ export function CourtPage({ id }: { id: string }) {
       )}
     </article>
   );
+}
+
+/** The host of a court's site, for its link text; the address itself where it cannot be read. */
+function hostnameOf(url: string): string {
+  try {
+    return new URL(url).hostname || url;
+  } catch {
+    return url;
+  }
 }

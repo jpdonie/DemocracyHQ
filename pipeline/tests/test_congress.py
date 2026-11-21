@@ -304,6 +304,27 @@ def test_a_server_that_answers_no_request_at_all_is_not_asked_again(fetcher, ses
     assert sleeps == [] and len(session.calls) == len(packages)
 
 
+def test_an_error_page_served_for_a_text_version_is_not_kept_as_its_text(fetcher, session, sleeps, tmp_path):
+    store = congress.TextStore(fetcher, tmp_path)
+    package = "BILLS-119hr1ih"
+    session.on(_text_url(package), FakeResponse(200, "<!DOCTYPE html><html><body>Service unavailable</body></html>", {"Last-Modified": "Mon, 01 Jun 2026 08:00:00 GMT"}))
+    assert package in store.check([package])
+    assert not (tmp_path / f"{package}.xml").exists() and not (tmp_path / f"{package}.modified").exists()
+    assert congress.looks_like_bill_xml(b'<?xml version="1.0"?>\n<!DOCTYPE bill PUBLIC "-//US Congress//DTDs/bill.dtd//EN" "bill.dtd">\n<bill>')
+    assert congress.looks_like_bill_xml(b'<bill xmlns="http://schemas.gpo.gov/xml/uslm">')
+    assert not congress.looks_like_bill_xml(b"<HTML><HEAD><TITLE>Error</TITLE>")
+    assert not congress.looks_like_bill_xml(b"error code: 502")
+
+
+def test_a_server_that_asks_for_a_long_wait_is_not_asked_sooner(fetcher, session, sleeps, tmp_path):
+    store = congress.TextStore(fetcher, tmp_path)
+    package = "BILLS-119hr1ih"
+    session.on(_text_url(package), FakeResponse(503, b"busy", {"Retry-After": "3600"}), _served(package))
+    failed = store.check([package])
+    assert failed[package].retry_after == 3600.0 and sleeps == []  # an hour is longer than a run waits: not asked again
+    assert session.urls().count(_text_url(package)) == 1
+
+
 def test_the_text_versions_of_the_selected_measures_are_listed_for_the_check():
     listed = fed.status_record("hr", 22, title="Synthetic Voter Eligibility Act", official=OFFICIAL,
                                versions=[("Engrossed in House", "2025-04-10", "eh"), ("Introduced in House", "2025-01-03", "ih")])

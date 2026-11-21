@@ -108,7 +108,8 @@ function Congress({ bills, catalog, labels, tabHash }: {
     <>
       <p>
         <a href={tabHash('legislation')}>{plural(bills.length, 'election measure')}</a> of the {congress}, selected by a published rule from the {catalog.federal.totalMeasuresRead.toLocaleString('en-US')} measures in the official bill status data
-        (<A to={buildHash(['sources'], { section: 'coverage' })}>rule {catalog.federal.ruleId}</A>). They apply nationwide, so they are listed here and under no single state.
+        (<A to={buildHash(['sources'], { section: 'coverage' })}>rule {catalog.federal.ruleId}</A>). Congress legislates for the whole country, so its measures are listed here and under no single state.
+        {' '}{bills.filter((b) => currentStatus(b) === 'Introduced').length.toLocaleString('en-US')} of them have reached no step beyond their introduction.
       </p>
       <Stages bills={bills} />
       <p className="quiet">
@@ -196,7 +197,7 @@ export function FederalWorkspace({ route }: { route: Route }) {
       <header className="view-head">
         <TypeMark type="place" label="Federal level" />
         <h1 tabIndex={-1}>{unit.name}</h1>
-        <p className="lede">Congress and the federal courts. What is listed here applies to the whole country and belongs to no single state.</p>
+        <p className="lede">Congress and the federal courts: the records that concern the whole country and belong to no single state.</p>
         <div className="btn-row">
           <WatchButton item={{ type: 'place', id: unit.key, label: `${unit.name} (federal level)` }} />
           <CopyLinkButton hash={buildHash(['place', unit.key], route.query)} />

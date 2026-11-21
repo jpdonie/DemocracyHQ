@@ -76,11 +76,11 @@ describe('measures of Congress', () => {
     expect(isAdoptedMeasure({ state: '06', measureType: 'Assembly Constitutional Amendment' })).toBe(true);
   });
 
-  it('stages are ranked from the first to the furthest, and an unknown stage sorts last', () => {
+  it('stages are ranked from the first to the furthest, and an unknown stage ranks below them all', () => {
     expect(stageRank('Introduced')).toBe(0);
     expect(stageRank('Became law')).toBe(FEDERAL_STAGES.length - 1);
     expect(stageRank('Passed the House')).toBeLessThan(stageRank('Sent to the President'));
-    expect([stageRank('Something new'), stageRank(null)]).toEqual([FEDERAL_STAGES.length, FEDERAL_STAGES.length]);
+    expect([stageRank('Something new'), stageRank(null)]).toEqual([-1, -1]);
     for (const stage of PASSED_IN_EACH_STAGES) expect(FEDERAL_STAGES).toContain(stage);
     expect(FEDERAL_STAGES.some((stage) => /both chambers/i.test(stage))).toBe(false);
   });

@@ -159,8 +159,10 @@ function emptyCourtNote(courtId: string, appeals: AppealsCoverage | null): strin
   const read = appeals.coverage[courtId];
   if (!read || read.selected > 0) return null;
   const name = courtShortName(undefined, courtId);
-  const removed = read.excluded > 0 ? ` The rule picked ${plural(read.excluded, 'case')}, which a maintainer removed because the opinion shows that no public election is at issue.` : '';
-  return `For the ${name}, ${plural(read.cases, 'case')} with a document issued since ${formatDate(appeals.selection.since)} were read, and the selection rule found no election case among them.${removed}`;
+  const read_ = `For the ${name}, ${plural(read.cases, 'case')} with a document issued since ${formatDate(appeals.selection.since)} were read.`;
+  if (read.excluded === 0) return `${read_} The selection rule picked none of them.`;
+  const them = read.excluded === 1 ? 'it' : 'them';
+  return `${read_} The selection rule picked ${plural(read.excluded, 'case')}, and a maintainer removed ${them}: the court's page gives the reason and the passage of the opinion.`;
 }
 
 function Directory({ cases, filters: requested, set, labels, appeals, courts, geoName, isState }: {

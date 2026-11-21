@@ -35,7 +35,9 @@ def test_a_seat_named_by_its_district_is_not_redistricting():
 
 def test_another_act_whose_name_ends_in_voting_rights_act_is_not_the_federal_act():
     """The Youth Voting Rights Act (H.R. 4916 and S. 5481 of the 119th Congress) is a bill of its own, not the act of 1965."""
-    for name in ("Youth Voting Rights Act", "Native American Voting Rights Act of 2021", "California Voting Rights Act of 2001"):
+    for name in ("Youth Voting Rights Act", "Native American Voting Rights Act of 2021", "California Voting Rights Act of 2001",
+                 "Washington Voting Rights Act", "John R. Lewis Voting Rights Act of New York", "the New\nYork Voting Rights Act",
+                 "a State  Voting Rights Act", "Youth\nVoting Rights Act"):
         assert "voting-rights-act" not in tags_of([("display title", name)]), name
     for title in ("To amend the Voting Rights Act of 1965 to revise the criteria for determining which States are subject to section 4.",
                   "Fannie Lou Hamer, Rosa Parks, and Coretta Scott King Voting Rights Act Reauthorization and Amendments Act of 2006",
