@@ -292,29 +292,28 @@ tools.
 
 None is required. The base dataset builds without any key or setting. Add them
 under **Settings > Secrets and variables > Actions**: the two keys on the
-**Secrets** tab, the two settings on the **Variables** tab.
+**Secrets** tab, the setting on the **Variables** tab.
 
 | Name | Kind | Purpose |
 | --- | --- | --- |
 | `COURTLISTENER_API_TOKEN` | Secret | Optional. Lets the CourtListener adapter run. |
-| `OPENSTATES_API_KEY` | Secret | Optional. Lets the Open States adapter run. |
+| `OPENSTATES_API_KEY` | Secret | Optional. Lets the Open States adapter list the sessions of the state legislatures. |
 | `DHQ_USER_AGENT` | Variable | Optional. The client name the pipeline sends (see Operator identity). |
-| `OPENSTATES_JURISDICTIONS` | Variable | Optional. Comma-separated Open States jurisdictions; blank means `tx,fl,nc,oh`. |
 
-The workflow reads `DHQ_USER_AGENT` and `OPENSTATES_JURISDICTIONS` only as
-repository variables: a secret with either name is ignored. The keys and settings
+The workflow reads `DHQ_USER_AGENT` only as a repository variable: a secret with
+that name is ignored. The keys and settings
 are given only to the pipeline step and are never written to a file or built into
 the site; see above for what another step of the same job could still read. For
 local use, copy `.env.example` to `.env`, which is git-ignored. The workflow does
 not pass `DHQ_NOW`, and the pipeline ignores it outside its tests unless
 `DHQ_ALLOW_NOW=1` is also set.
 
-Both optional adapters have been exercised only with synthetic test responses.
-They have never run against the live services. What they import is published as
-a separate file (`public/data/litigation_secondary.json` or
-`legislation_secondary.json`), committed and deployed with the rest of the data;
-the site does not display it. Turning them on is the start of that work, not the
-end of it.
+Both optional adapters have run against the live services since November 2026.
+CourtListener's decisions are published in `public/data/decisions/`, the measures
+of the state legislatures from Open States in `public/data/state-legislation/`,
+and the site shows both, labelled as imported from a secondary source. Without
+its key an adapter records `credential_missing` and publishes nothing new.
+`OPENSTATES_JURISDICTIONS` is no longer read: every state legislature is read.
 
 Do not put any key in a variable whose name starts with `VITE_`: Vite builds those
 into the public site.

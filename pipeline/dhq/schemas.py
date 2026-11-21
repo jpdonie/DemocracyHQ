@@ -259,7 +259,7 @@ class AboutText(Model):
     #: The official text quoted: the Congressional Research Service's summary, the measure's official title, the
     #: Legislative Counsel's Digest, the Question Presented, a passage cited from a document of the docket, an entry
     #: of the docket, or the opening of the opinion.
-    source: Literal["crs-summary", "official-title", "digest", "question-presented", "cited-passage", "docket-entry", "opinion"]
+    source: Literal["crs-summary", "official-title", "digest", "question-presented", "cited-passage", "docket-entry", "opinion", "abstract"]
     #: Where the quoted text is published.
     url: Optional[HttpsUrl] = None
     #: The date of the quoted text, where it has one of its own (a summary, a docket entry, an opinion).
@@ -546,6 +546,56 @@ class RelatedMeasure(Model):
     #: The measure's id here, when it is in the dataset.
     id: Optional[str] = None
     officialUrl: Optional[HttpsUrl] = None
+
+
+#: A measure of a state legislature read from Open States (``os-la-2025-hb281``): the state, the session and the
+#: measure's number, in lower-case letters and digits. It is unique within the published set. Mirrors
+#: ``os_bulk.MEASURE_ID_PATTERN`` and the zod schema's state measure id.
+STATE_MEASURE_ID_PATTERN = r"os-[a-z]{2}-[a-z0-9]{1,40}-[a-z0-9]{1,40}"
+StateMeasureId = Annotated[str, StringConstraints(pattern=rf"^{STATE_MEASURE_ID_PATTERN}$")]
+
+
+class StateAction(Model):
+    date: IsoDate
+    text: NonEmpty
+    #: Open States' classification of the action ("introduction", "passage", "executive-signature", ...).
+    classification: List[str]
+
+
+class StateVersionLink(Model):
+    url: HttpsUrl
+    mediaType: Optional[str] = None
+
+
+class StateVersion(Model):
+    note: str
+    date: Optional[IsoDate] = None
+    links: List[StateVersionLink] = Field(min_length=1)
+
+
+class StateSponsor(Model):
+    name: NonEmpty
+    primary: bool
+    classification: Optional[str] = None
+
+
+class StateMeasureSummary(LegislativeInstrumentSummary):
+    id: StateMeasureId
+    selection: BillSelection
+
+
+class StateMeasure(StateMeasureSummary):
+    """A measure of a state legislature as Open States records it, with its actions, sponsors and text versions."""
+
+    #: The subjects the legislature files the measure under, as Open States records them.
+    subjects: List[str]
+    actions: List[StateAction]
+    versions: List[StateVersion]
+    sponsors: List[StateSponsor]
+    #: Every address of the legislature's pages Open States names for the measure that can be shown (rule secure-link-1).
+    sources: List[HttpsUrl] = Field(min_length=1)
+    #: Open States' own id of the measure.
+    openStatesId: NonEmpty
 
 
 class LegislativeInstrument(LegislativeInstrumentSummary):

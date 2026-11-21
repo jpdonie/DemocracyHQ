@@ -252,18 +252,28 @@ SOURCES: dict[str, dict] = {
         ],
     ),
     "openstates-api": dict(
-        name="Open States / Plural Open API v3",
+        name="Open States (Plural Policy): bulk data of the state legislatures",
         url="https://v3.openstates.org/",
-        sourceType="secondary_api", authority="Plural Policy (non-official aggregator)",
+        sourceType="secondary_api", authority="Plural Policy (non-official aggregator of the legislatures' sites)",
         license="Open States data is offered under a public-domain dedication unless otherwise noted; attribution appreciated.",
         attribution="Open States / Plural Policy",
-        geographicCoverage="All states (bill metadata only in DemocracyHQ)", temporalCoverage="Current sessions",
-        updateCadence="Daily when a key is configured", staleAfterDays=7, credentialEnv="OPENSTATES_API_KEY",
+        geographicCoverage="The legislatures of 49 states and the District of Columbia (California is read from its own data; Puerto Rico is left out)",
+        temporalCoverage="Every session that began or ended on or after 1 January 2025",
+        updateCadence="Read daily; a session's archive is read again only when Open States publishes a new one", staleAfterDays=14,
+        credentialEnv="OPENSTATES_API_KEY",
         knownLimitations=[
-            "Requires an API key.",
-            "Secondary source: records are labelled 'Imported from secondary source' and carry links to the official bill page.",
-            "The adapter has read the live API since November 2026; the records it writes have not been checked against the official bill pages.",
-            "Records it imports are written to a separate file for maintainer review and are not shown on the site yet.",
+            "Requires an API key, for the list of sessions; the archives themselves need none.",
+            "Secondary source: Open States collects the measures from the legislatures' sites, and its records can lag behind them or "
+            "differ from them. Every record is labelled 'Imported from secondary source' and links to the legislature's own page.",
+            "Measures are selected by their titles and by the subjects the legislature files them under (rule state-select-1), never "
+            "by their text. A measure whose title does not name an election matter, in a legislature that files no subjects, is missed; "
+            "a title that uses an election word in another sense can be selected.",
+            "The stage a measure reached is worked out from the kinds Open States gives its actions (rule state-status-1). It is not "
+            "the legislature's own status, and an action Open States did not classify does not count.",
+            "A measure is listed only where Open States gives an address of the legislature's page that can be opened securely (rule "
+            "secure-link-1). Where a legislature's pages are given over http only, its measures are listed once its site is found to "
+            "serve the same pages over https; the list of state legislation names the states this leaves out.",
+            "The adapter has read the bulk data since November 2026; the records it writes have not been checked against the official bill pages.",
         ],
     ),
 }

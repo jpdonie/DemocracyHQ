@@ -183,23 +183,50 @@ for (const [index, folder, federal] of [[billIndex, 'legislation', false], [fede
 // The file the first import from CourtListener wrote, of dockets the site never showed. The cases read from
 // CourtListener are now records of their own under decisions/, so the old file must not be published beside them.
 if (existsSync(join(dataDir, 'litigation_secondary.json'))) fail('litigation_secondary.json: this file is retired (the cases read from CourtListener are under decisions/) and must not be published');
-// An optional file written only when an API credential is configured. The site does not display
-// it yet; it is still held to the same schema so a bad import can never be published.
-for (const [rel, key, schema] of [
-  ['legislation_secondary.json', 'bills', S.LegislativeInstrumentSummarySchema],
-]) {
-  if (!existsSync(join(dataDir, rel))) continue;
-  const file = read(rel);
-  const rows = Array.isArray(file?.[key]) ? file[key] : null;
-  if (!rows) {
-    fail(`${rel}: expected a "${key}" list`);
-    continue;
+// The file the first import from Open States wrote, of measures of four states the site never showed. The measures
+// read from Open States are now published under state-legislation/, so the old file must not be published beside them.
+if (existsSync(join(dataDir, 'legislation_secondary.json'))) fail('legislation_secondary.json: this file is retired (the measures read from Open States are under state-legislation/) and must not be published');
+// The measures of the other state legislatures: an index, and one file per state with their full records.
+const stateMeasures = new Map();
+const stateIndex = existsSync(join(dataDir, 'state-legislation/index.json'))
+  ? parse(S.StateLegislationIndexSchema, 'state-legislation/index.json', read('state-legislation/index.json'))
+  : null;
+if (stateIndex) {
+  const before = errors.length;
+  const abbrs = [...new Set(stateIndex.bills.map((bill) => bill.stateAbbr))].sort();
+  for (const abbr of abbrs) {
+    const rel = `state-legislation/${abbr.toLowerCase()}.json`;
+    const file = parse(S.StateMeasureFileSchema, rel, read(rel));
+    for (const record of file?.bills ?? []) {
+      if (stateMeasures.has(record.id)) fail(`${rel}: ${record.id} is published twice`);
+      if (record.stateAbbr !== abbr) fail(`${rel}: ${record.id} belongs to ${record.stateAbbr}, not ${abbr}`);
+      if (record.verification.status !== 'imported_secondary') fail(`${rel}: ${record.id} is imported from Open States and must be labelled imported_secondary, not ${record.verification.status}`);
+      if (!(sources?.sources ?? []).some((source) => source.id === record.sourceId)) fail(`${rel}: ${record.id} cites unknown source ${record.sourceId}`);
+      if (record.officialUrl !== record.sources[0]) fail(`${rel}: ${record.id} links to ${record.officialUrl}, which is not the first of its sources`);
+      if (record.versionCount !== record.versions.length) fail(`${rel}: ${record.id} counts ${record.versionCount} text versions and lists ${record.versions.length}`);
+      stateMeasures.set(record.id, record);
+    }
   }
-  rows.forEach((row, i) => {
-    const record = parse(schema, `${rel} [${i}]`, row);
-    if (record && record.verification.status !== 'imported_secondary') fail(`${rel} [${i}]: a secondary import must be labelled imported_secondary, not ${record.verification.status}`);
-  });
-  warn(`${rel}: ${rows.length} record(s) imported from a secondary source are present; the site does not display them yet`);
+  const SUMMARY = ['state', 'stateAbbr', 'session', 'identifier', 'measureType', 'title', 'lastActionDate', 'lastActionText', 'introducedDate', 'versionCount', 'officialUrl', 'selection', 'about'];
+  const seen = new Set();
+  for (const summary of stateIndex.bills) {
+    if (seen.has(summary.id)) fail(`state-legislation/index.json: ${summary.id} is listed twice`);
+    seen.add(summary.id);
+    const record = stateMeasures.get(summary.id);
+    if (!record) {
+      fail(`state-legislation/index.json: ${summary.id} has no record in state-legislation/${summary.stateAbbr.toLowerCase()}.json`);
+      continue;
+    }
+    for (const field of SUMMARY) if (JSON.stringify(summary[field] ?? null) !== JSON.stringify(record[field] ?? null)) fail(`state measure ${summary.id}: the index says ${field} is ${JSON.stringify(summary[field] ?? null)}, the state file says ${JSON.stringify(record[field] ?? null)}`);
+    if ((summary.legislativeStatus.currentStatus ?? null) !== (record.legislativeStatus.currentStatus ?? null)) fail(`state measure ${summary.id}: the index and the state file disagree about the stage it reached`);
+    if (!stateIndex.selection.stages.includes(summary.legislativeStatus.currentStatus ?? '')) fail(`state measure ${summary.id}: stage "${summary.legislativeStatus.currentStatus}" is not one of rule ${stateIndex.selection.statusRuleId}`);
+    if (JSON.stringify(summary.issueTags.map((t) => t.tag)) !== JSON.stringify(record.issueTags.map((t) => t.tag))) fail(`state measure ${summary.id}: the index and the state file carry different subject tags`);
+  }
+  for (const id of stateMeasures.keys()) if (!seen.has(id)) fail(`state-legislation: ${id} has a record but the index does not list it`);
+  const listedBySessions = stateIndex.sessions.reduce((sum, s) => sum + s.listed, 0);
+  if (listedBySessions !== stateIndex.selection.listed) fail('state-legislation/index.json: the sessions and the selection disagree about how many measures are listed');
+  if (stateIndex.selection.listed + stateIndex.selection.withoutSecureLink !== stateIndex.selection.selected) fail('state-legislation/index.json: the measures listed and those without a secure page do not add up to those selected');
+  if (errors.length === before) pass('State legislation', `${stateIndex.bills.length} measures of ${abbrs.length} state legislatures, each in its state's file and saying the same in the index; ${stateIndex.selection.withoutSecureLink} selected measures are not listed for want of a secure page`);
 }
 const appealsCases = [...cases.values()].filter((record) => S.CIRCUIT_CASE_ID_PATTERN.test(record.id));
 const decisionCases = [...cases.values()].filter((record) => S.DECISION_CASE_ID_PATTERN.test(record.id));
@@ -758,7 +785,7 @@ if (manifest) {
   // The parts of the two totals, which the overview shows.
   const decisionCases = [...cases.values()].filter((record) => S.DECISION_CASE_ID_PATTERN.test(record.id)).length;
   const parts = { supremeCourtCases: cases.size - appealsCases.length - decisionCases, appealsCourtCases: appealsCases.length, districtAndStateCourtCases: decisionCases,
-    stateBills: bills.size - federalBills.length, federalBills: federalBills.length };
+    stateBills: bills.size - federalBills.length, federalBills: federalBills.length, ...(stateIndex ? { stateLegislationBills: stateIndex.bills.length } : {}) };
   for (const [key, value] of Object.entries(parts)) if (manifest.counts[key] !== value) fail(`manifest.json: counts.${key} is ${manifest.counts[key]}, the data holds ${value}`);
   for (const id of Object.keys(manifest.sources)) if (!sourceIds.has(id)) fail(`manifest.json: status for unknown source ${id}`);
   for (const id of sourceIds) if (!manifest.sources[id]) fail(`manifest.json: no status for source ${id}`);

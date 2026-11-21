@@ -30,6 +30,7 @@ QUESTION_RULE_ID = "about-question-1"
 CITED_RULE_ID = "about-cited-1"
 DOCKET_RULE_ID = "about-docket-1"
 OPINION_RULE_ID = "about-opinion-1"
+ABSTRACT_RULE_ID = "about-abstract-1"
 
 #: A quotation is not extended by another sentence once it has this many characters ...
 ENOUGH_CHARS = 220
@@ -421,6 +422,26 @@ def of_bill(record: dict) -> Optional[dict]:
     return _worth(counsel_digest(record.get("digest"), url=url))
 
 
+#: An abstract that is the measure's title again ("An Act to amend ... relating to ..."), which is shown already.
+_TITLE_NOTE_RE = re.compile(r"^\s*title\s*$", re.I)
+
+
+def state_abstract(abstracts: List[dict]) -> Optional[dict]:
+    """``about`` for a measure of a state legislature read from Open States: its latest abstract that is not its title
+    again, in whole sentences. Open States records the abstract from the legislature's site; it gives no address for
+    the text itself, so none is given here."""
+    for entry in reversed(abstracts):
+        if _TITLE_NOTE_RE.match(entry.get("note") or ""):
+            continue
+        flat = _flat(entry.get("text") or "")
+        if flat:
+            text, cut = quotation(flat)
+            found = _worth(_about(text, "abstract", ABSTRACT_RULE_ID, cut=cut))
+            if found:
+                return found
+    return None
+
+
 def of_docket(record: dict, links: Optional[List[dict]] = None) -> Optional[dict]:
     """``about`` for a Supreme Court docket. ``links`` are its published links to places, in the order of the seed."""
     questions = record.get("questionsPresented") or {}
@@ -444,6 +465,12 @@ RULES = [
      "description": "Quoted from the Legislative Counsel's Digest, starting at its first sentence that says what the bill would do "
                     "(the pattern " + _WOULD_RE.pattern + " at the start of a sentence). A digest first describes existing law; that "
                     "part is passed over. A digest without such a sentence is quoted from its beginning."},
+    {"ruleId": ABSTRACT_RULE_ID, "appliesTo": "What a measure of a state legislature (other than California) is about",
+     "description": "Quoted from the abstract Open States records for the measure, which it takes from the legislature's site (a "
+                    "summary, a description or a digest): the latest one, unless it only repeats the title, in whole sentences. "
+                    "Open States gives no address for the abstract itself, so the quotation links to none; the measure's record "
+                    "links to the legislature's page. A measure without an abstract has no further line: its title is what the "
+                    "legislature says it is about."},
     {"ruleId": QUESTION_RULE_ID, "appliesTo": "What a Supreme Court case is about",
      "description": "Quoted from the Questions Presented document the Court publishes for the case. The question is looked for in "
                     "this order: what follows the words 'the question presented is:' (the latest such passage, since an order of the "

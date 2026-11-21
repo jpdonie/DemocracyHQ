@@ -5,7 +5,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
-  BillIndexSchema, CaliforniaBillSummarySchema, LegislativeInstrumentSchema, LegislativeInstrumentSummarySchema, VerificationSchema,
+  BillIndexSchema, CaliforniaBillSummarySchema, LegislativeInstrumentSchema, LegislativeInstrumentSummarySchema, VerificationSchema, StateMeasureSummarySchema,
   type LegislativeInstrument,
 } from '../../src/types/schemas';
 import { differentSubject, earlierSubject, earlierSubjectNote, sameSubject, versionInForce } from '../../src/lib/billHistory';
@@ -49,8 +49,13 @@ describe('zod: the contracts other groups rely on', () => {
       expect(BillIndexSchema.safeParse({ bills: [makeBill({ id: bad })], selection: { ruleId: 'r', pattern: 'p', appliedTo: 'a', totalBillsInSession: 1 } }).success, bad).toBe(false);
     }
     expect(LegislativeInstrumentSchema.safeParse(makeFullBill({ id: 'ca-20252026-aca8' })).success).toBe(true);
-    // Secondary imports (legislation_secondary.json) have ids of another form and keep the open summary schema.
-    expect(LegislativeInstrumentSummarySchema.safeParse(makeBill({ id: 'os-abc123', verification: { status: 'imported_secondary', method: 'automated_secondary_import', checkedAt: NOW } })).success).toBe(true);
+    // The measures of the other state legislatures have ids of another form and keep the open summary schema.
+    const stateMeasure = makeBill({ id: 'os-la-2026-hb281', selection: { ruleId: 'state-select-1', matchedText: 'early voting', matchedField: 'Title', test: 'named' }, verification: { status: 'imported_secondary', method: 'automated_secondary_import', checkedAt: NOW } });
+    expect(LegislativeInstrumentSummarySchema.safeParse(stateMeasure).success).toBe(true);
+    expect(StateMeasureSummarySchema.safeParse(stateMeasure).success).toBe(true);
+    for (const bad of ['os-la-2026-hb281/../x', 'os-LA-2026-hb281', 'os-la-2026', 'os-abc123']) {
+      expect(StateMeasureSummarySchema.safeParse({ ...stateMeasure, id: bad }).success, bad).toBe(false);
+    }
   });
 
   it('the current data release still validates', () => {

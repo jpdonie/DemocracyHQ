@@ -1,5 +1,5 @@
 {
- "contentHash": "644bccd274cd2fc77d6c676d0d07e3300a6b3e151b16ed929102490f600b7f52",
+ "contentHash": "5cce25077c803f213493cccad5822900d0ba3e36cb42e3ffb6e9de5f07ee426d",
  "counts": {
   "appealsCourtCases": 128,
   "bills": 405,
@@ -10,9 +10,10 @@
   "geographicUnits": 4186,
   "relationships": 38,
   "stateBills": 132,
+  "stateLegislationBills": 7957,
   "supremeCourtCases": 25
  },
- "generatedAt": "2026-11-21T22:32:14Z",
+ "generatedAt": "2026-11-21T23:08:16Z",
  "reviewQueue": {
   "byKind": {
    "text_version_note": 1
@@ -87,8 +88,8 @@
    "processingStatus": "ok"
   },
   "openstates-api": {
-   "lastAttempt": "2026-11-21T22:26:44Z",
-   "lastSuccessfulCheck": "2026-11-21T22:26:44Z",
+   "lastAttempt": "2026-11-21T23:08:16Z",
+   "lastSuccessfulCheck": "2026-11-21T23:08:16Z",
    "processingStatus": "ok"
   },
   "openstates-people": {

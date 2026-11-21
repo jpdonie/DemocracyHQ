@@ -176,10 +176,9 @@ jobs:
         env:
           COURTLISTENER_API_TOKEN: ${{ secrets.COURTLISTENER_API_TOKEN }}
           OPENSTATES_API_KEY: ${{ secrets.OPENSTATES_API_KEY }}
-          # Repository variables (Settings > Secrets and variables > Actions > Variables), not secrets. Blank or
-          # missing means the pipeline's default: a generic client name, and the Open States list tx,fl,nc,oh.
+          # A repository variable (Settings > Secrets and variables > Actions > Variables), not a secret. Blank or
+          # missing means the pipeline's default, a generic client name.
           DHQ_USER_AGENT: ${{ vars.DHQ_USER_AGENT }}
-          OPENSTATES_JURISDICTIONS: ${{ vars.OPENSTATES_JURISDICTIONS }}
           STAGES: ${{ steps.stages.outputs.list }}
         run: |
           set +e

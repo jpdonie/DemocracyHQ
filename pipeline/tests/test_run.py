@@ -4,15 +4,17 @@ Everything is written under pytest's temporary directory. The real ``public/data
 real seed lists are never read or written by these tests.
 """
 
+import io
 import json
 import re
 import shutil
+import zipfile
 
 import pytest
 import requests
 
 import dhq.run as pipeline
-from dhq.adapters import openstates, scotus
+from dhq.adapters import os_bulk, scotus
 from dhq.http import Fetcher
 from dhq.util import read_json, write_json
 
@@ -20,6 +22,7 @@ import synthetic_ca as syn
 from conftest import SC, FakeResponse, docket_url, make_zip, qp_url, render_docket_page, synthetic_docket, tree
 
 T1, T2, T3 = "2026-06-01T10:00:00Z", "2026-06-02T10:00:00Z", "2026-06-03T10:00:00Z"
+ARCHIVE_URL = "https://data.openstates.org/csv/latest/LA_2026_csv_synthetic.zip"
 #: The env fixture replaces the PDF reader; tests of what happens when it fails put the real one back.
 REAL_EXTRACT_PDF_TEXT = scotus.extract_pdf_text
 
@@ -94,7 +97,7 @@ def test_first_run_publishes_validated_records(env):
     assert [t["tag"] for t in case["issueTags"]] == ["redistricting"]
     assert case["issueTags"][0]["matchedField"] == "questions presented"
     assert env.read("manifest.json")["counts"] == {
-        "cases": 2, "bills": 0, "supremeCourtCases": 2, "appealsCourtCases": 0, "districtAndStateCourtCases": 0, "stateBills": 0, "federalBills": 0,
+        "cases": 2, "bills": 0, "supremeCourtCases": 2, "appealsCourtCases": 0, "districtAndStateCourtCases": 0, "stateBills": 0, "federalBills": 0, "stateLegislationBills": 0,
         "relationships": 1, "events": 4, "geographicUnits": 2}
 
 
@@ -1088,6 +1091,7 @@ def test_missing_credentials_are_reported_and_break_nothing(env, session):
         assert record["lastSuccessfulCheck"] is None
     assert not (env.public / "decisions").exists()
     assert not (env.public / "legislation_secondary.json").exists()
+    assert not (env.public / "state-legislation").exists()
     assert len(env.read("litigation/index.json")["cases"]) == 2
     assert not any("courtlistener.com" in u or "openstates.org" in u for u in session.urls())
 
@@ -1095,12 +1099,16 @@ def test_missing_credentials_are_reported_and_break_nothing(env, session):
 def test_a_configured_key_is_used_but_never_written_anywhere(env, session, monkeypatch, tmp_path, caplog):
     """Open States. The same is tested for CourtListener's token with its stage, in test_cl_opinions.py."""
     monkeypatch.setenv("OPENSTATES_API_KEY", "synthetic-secret-key-456")
-    session.on(openstates.BILLS_URL, FakeResponse(200, {"results": [], "pagination": {"max_page": 1}}))
+    monkeypatch.setenv("DHQ_LINK_CHECKS", "0")
+    serve_open_states(session)
     with caplog.at_level("DEBUG"):
         code, ctx = env.run(["openstates", *COURT])
     assert code == 0
     assert env.source("openstates-api")["processingStatus"] == "ok"
-    assert any(call["url"] == openstates.BILLS_URL for call in session.calls)
+    asked = [call for call in session.calls if call["url"] == os_bulk.JURISDICTIONS_URL]
+    assert asked and all(call["headers"]["X-API-KEY"] == "synthetic-secret-key-456" for call in asked)
+    # The archives need no key, and get none.
+    assert all("X-API-KEY" not in call["headers"] for call in session.calls if call["url"] != os_bulk.JURISDICTIONS_URL)
     written = b"".join(tree(tmp_path).values()).decode("utf-8", errors="replace") + caplog.text
     assert "synthetic-secret-key-456" not in written
 
@@ -1205,28 +1213,89 @@ def test_the_closing_log_line_the_workflow_looks_for_is_written_only_when_the_ru
     assert code == 3 and needle not in text  # nothing was published
 
 
-@pytest.mark.parametrize("setting, expected", [
-    (None, ["tx", "fl", "nc", "oh"]),
-    ("", ["tx", "fl", "nc", "oh"]),  # what the workflow passes when the repository variable does not exist
-    (" , ", ["tx", "fl", "nc", "oh"]),
-    ("ca, ny,,", ["ca", "ny"]),
-])
-def test_a_blank_jurisdiction_setting_means_the_default_list(monkeypatch, setting, expected):
-    if setting is None:
-        monkeypatch.delenv("OPENSTATES_JURISDICTIONS", raising=False)
-    else:
-        monkeypatch.setenv("OPENSTATES_JURISDICTIONS", setting)
-    assert pipeline.openstates_jurisdictions() == expected
+# --- the measures of the state legislatures (Open States) ----------------------------------------------------
+
+def open_states_archive(**changes):
+    """A session archive built from the synthetic tables of test_os_bulk.py, with ``changes`` to its tables."""
+    from test_os_bulk import tables
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
+        for name, data in {**tables(), **changes}.items():
+            archive.writestr(f"LA/2026/LA_2026_{name}.csv", data)
+    return buffer.getvalue()
 
 
-def test_the_openstates_stage_never_queries_an_empty_jurisdiction(env, session, monkeypatch):
+def serve_open_states(session, url=ARCHIVE_URL, data=None):
+    sessions = [{"identifier": "2026", "name": "2026 Regular Session", "classification": "primary", "start_date": "2026-03-09",
+                 "end_date": "2026-06-01", "downloads": [{"data_type": "csv", "url": url}]}]
+    session.on(os_bulk.JURISDICTIONS_URL, FakeResponse(200, {
+        "results": [{"id": "ocd-jurisdiction/country:us/state:la/government", "name": "Louisiana", "legislative_sessions": sessions}],
+        "pagination": {"max_page": 1}}))
+    session.serve_bytes(url, data if data is not None else open_states_archive())
+
+
+def test_the_measures_of_the_state_legislatures_are_published_by_state(env, session, monkeypatch):
     monkeypatch.setenv("OPENSTATES_API_KEY", "synthetic-key")
-    monkeypatch.setenv("OPENSTATES_JURISDICTIONS", "")
-    session.on(openstates.BILLS_URL, FakeResponse(200, {"results": [], "pagination": {"max_page": 1}}))
+    monkeypatch.setenv("DHQ_LINK_CHECKS", "0")
+    serve_open_states(session)
     code, _ = env.run(["openstates", *COURT])
     assert code == 0
-    asked = [c["params"]["jurisdiction"] for c in session.calls if c["url"] == openstates.BILLS_URL]
-    assert asked == ["tx", "fl", "nc", "oh"]
+    index = env.read("state-legislation/index.json")
+    assert [bill["id"] for bill in index["bills"]] == ["os-la-2026-hb1"]
+    assert env.read("state-legislation/la.json")["bills"][0]["actions"][-1]["text"] == "Passed the House"
+    # The measure given at an http address only is counted, not listed.
+    assert index["selection"]["withoutSecureLink"] == 1 and index["sessions"][0]["withoutSecureLink"] == 1
+    assert index["selection"]["ruleId"] == "state-select-1" and index["selection"]["totalMeasuresRead"] == 7
+    assert "note" not in index["bills"][0]["verification"]  # the index stays small; the state file has the note
+    assert env.source("openstates-api")["processingStatus"] == "ok"
+    assert "plain.example.test" not in " ".join(call["url"] for call in session.calls)  # DHQ_LINK_CHECKS=0 asks no host
+
+
+def test_an_unchanged_archive_is_not_read_again_and_a_broken_one_keeps_the_last_read(env, session, monkeypatch):
+    monkeypatch.setenv("OPENSTATES_API_KEY", "synthetic-key")
+    monkeypatch.setenv("DHQ_LINK_CHECKS", "0")
+    serve_open_states(session)
+    env.run(["openstates", *COURT])
+    session.calls.clear()
+    code, _ = env.run(["openstates", *COURT], now=T2)
+    assert code == 0
+    assert not any(call["url"] == ARCHIVE_URL for call in session.calls)
+    first = env.read("state-legislation/index.json")["bills"][0]
+    assert first["firstObservedAt"] == T1 and first["lastCheckedAt"] == T2
+    # A new archive that cannot be read leaves the last read of the session in place, and says so.
+    serve_open_states(session, url=ARCHIVE_URL.replace(".zip", "-2.zip"), data=b"not a zip archive")
+    code, _ = env.run(["openstates", *COURT], now=T3)
+    assert code == 1
+    assert [bill["id"] for bill in env.read("state-legislation/index.json")["bills"]] == ["os-la-2026-hb1"]
+    assert "could not be read" in env.source("openstates-api")["statusDetail"]
+
+
+def test_a_host_that_serves_https_is_asked_once_and_its_measures_are_listed(env, session, monkeypatch):
+    monkeypatch.setenv("OPENSTATES_API_KEY", "synthetic-key")
+    serve_open_states(session)
+    session.on("https://plain.example.test/HB4", FakeResponse(200, b"<html>HB 4</html>"))
+    code, _ = env.run(["openstates", *COURT])
+    assert code == 0
+    ids = [bill["id"] for bill in env.read("state-legislation/index.json")["bills"]]
+    assert sorted(ids) == ["os-la-2026-hb1", "os-la-2026-hb4"]
+    session.calls.clear()
+    env.run(["openstates", *COURT], now=T2)
+    assert not any("plain.example.test" in call["url"] for call in session.calls)  # asked again only after a week
+
+
+def test_a_state_whose_list_would_shrink_by_more_than_a_quarter_keeps_its_published_list(env, session, monkeypatch):
+    monkeypatch.setenv("OPENSTATES_API_KEY", "synthetic-key")
+    monkeypatch.setenv("DHQ_LINK_CHECKS", "0")
+    serve_open_states(session)
+    env.run(["openstates", *COURT])
+    # The next archive's measure no longer names an election matter.
+    from test_os_bulk import BILL_COLUMNS, bill, table
+    renamed = open_states_archive(bills=table([bill(1, "Provides relative to synthetic fisheries")], BILL_COLUMNS))
+    serve_open_states(session, url=ARCHIVE_URL.replace(".zip", "-3.zip"), data=renamed)
+    code, ctx = env.run(["openstates", *COURT], now=T2)
+    assert code == 0
+    assert [bill["id"] for bill in env.read("state-legislation/index.json")["bills"]] == ["os-la-2026-hb1"]
+    assert any(item["kind"] == "state_measures_left" and item["entity"] == "LA" for item in ctx.review)
 
 
 def test_the_census_page_must_state_both_which_states_were_redrawn_and_that_the_others_were_not():

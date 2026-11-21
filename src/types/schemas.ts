@@ -196,7 +196,7 @@ export type CaseOrigin = z.infer<typeof CaseOriginSchema>;
 export const DecidedWithSchema = z.object({ caseId: z.string(), caseName: z.string(), docket: z.string() });
 
 /** The official texts a record's "about" line may be quoted from. */
-export const ABOUT_SOURCES = ['crs-summary', 'official-title', 'digest', 'question-presented', 'cited-passage', 'docket-entry', 'opinion'] as const;
+export const ABOUT_SOURCES = ['crs-summary', 'official-title', 'digest', 'question-presented', 'cited-passage', 'docket-entry', 'opinion', 'abstract'] as const;
 /**
  * What a record is about, in the words of an official text. It is a quotation taken by a published rule (about-*),
  * never a summary written for this site: `source` says which text is quoted and `url` where it is published.
@@ -457,7 +457,7 @@ export type LegislativeInstrumentSummary = z.infer<typeof LegislativeInstrumentS
 
 /**
  * A California bill in the bill index. Its id names the bill's file, so it must match CA_BILL_ID_PATTERN. The generic
- * summary above stays open because it also describes secondary imports (legislation_secondary.json), whose ids have
+ * summary above stays open because the measures of the other state legislatures (state-legislation/) have ids of
  * another form.
  */
 export const CaliforniaBillSummarySchema = LegislativeInstrumentSummarySchema.extend({ id: CaBillIdSchema });
@@ -710,6 +710,8 @@ export const ManifestSchema = z.object({
     districtAndStateCourtCases: z.number().int().optional(),
     stateBills: z.number().int().optional(),
     federalBills: z.number().int().optional(),
+    /** Measures of the other state legislatures, read from Open States (state-legislation/). Not among `bills`. */
+    stateLegislationBills: z.number().int().optional(),
   }),
   reviewQueue: z.object({ items: z.number().int(), byKind: z.record(z.string(), z.number().int()) }),
   sources: z.record(
@@ -791,6 +793,81 @@ export const FederalBillIndexSchema = z.object({
   }),
 });
 export type FederalBillIndex = z.infer<typeof FederalBillIndexSchema>;
+
+/**
+ * A measure of a state legislature read from Open States (os-<state>-<session>-<number>, all lower-case letters and
+ * digits). Mirrors STATE_MEASURE_ID_PATTERN in the pipeline's schemas.
+ */
+export const STATE_MEASURE_ID_PATTERN = /^os-[a-z]{2}-[a-z0-9]{1,40}-[a-z0-9]{1,40}$/;
+export const StateMeasureIdSchema = z.string().regex(STATE_MEASURE_ID_PATTERN, 'expected the id of a measure of a state legislature (os-<state>-<session>-<number>)');
+export const StateMeasureSummarySchema = LegislativeInstrumentSummarySchema.extend({ id: StateMeasureIdSchema, selection: BillSelectionSchema });
+export type StateMeasureSummary = z.infer<typeof StateMeasureSummarySchema>;
+export const StateActionSchema = z.object({ date: isoDate, text: z.string().min(1), classification: z.array(z.string()) });
+export const StateVersionSchema = z.object({
+  note: z.string(),
+  date: isoDate.nullable().optional(),
+  links: z.array(z.object({ url: httpsUrl, mediaType: z.string().nullable().optional() })).min(1),
+});
+/** A measure of a state legislature with what Open States records of it: its actions, sponsors and text versions. */
+export const StateMeasureSchema = StateMeasureSummarySchema.extend({
+  /** The subjects the legislature files the measure under, as Open States records them. */
+  subjects: z.array(z.string()),
+  actions: z.array(StateActionSchema),
+  versions: z.array(StateVersionSchema),
+  sponsors: z.array(z.object({ name: z.string().min(1), primary: z.boolean(), classification: z.string().nullable().optional() })),
+  /** Every address of the legislature's pages Open States names for the measure that can be shown (rule secure-link-1). */
+  sources: z.array(httpsUrl).min(1),
+  openStatesId: z.string().min(1),
+});
+export type StateMeasure = z.infer<typeof StateMeasureSchema>;
+export const StateMeasureFileSchema = z.object({ bills: z.array(StateMeasureSchema) });
+/** One session of a state legislature that was read, and what came of it. */
+export const StateSessionSchema = z.object({
+  state: z.string().length(2),
+  stateAbbr: z.string().length(2),
+  identifier: z.string(),
+  name: z.string(),
+  classification: z.string(),
+  start: isoDate.nullable().optional(),
+  end: isoDate.nullable().optional(),
+  measuresRead: z.number().int().nonnegative(),
+  selected: z.number().int().nonnegative(),
+  listed: z.number().int().nonnegative(),
+  /** Measures the rule selected that are not listed, because Open States gives no secure page of the legislature for them. */
+  withoutSecureLink: z.number().int().nonnegative(),
+});
+export type StateSession = z.infer<typeof StateSessionSchema>;
+export const StateLegislationIndexSchema = z.object({
+  bills: z.array(StateMeasureSummarySchema),
+  scannedAt: isoDateTime,
+  sessions: z.array(StateSessionSchema),
+  selection: z.object({
+    ruleId: z.string(),
+    statusRuleId: z.string(),
+    linkRuleId: z.string(),
+    appliedTo: z.string(),
+    since: isoDate,
+    tests: z.record(z.string(), z.string()),
+    subjectPattern: z.string(),
+    subjectExclusions: z.string(),
+    maxSubjects: z.number().int(),
+    namedPattern: z.string(),
+    generalPattern: z.string(),
+    exclusionPattern: z.string(),
+    notLegislation: z.array(z.string()),
+    ceremonialPattern: z.string(),
+    resolutionCeremonialPattern: z.string(),
+    stages: z.array(z.string()),
+    totalMeasuresRead: z.number().int(),
+    selected: z.number().int(),
+    listed: z.number().int(),
+    withoutSecureLink: z.number().int(),
+    selectedByTest: z.record(z.string(), z.number().int()),
+    notLegislationLeftOut: z.number().int(),
+    leftOut: z.array(z.object({ state: z.string().length(2), stateAbbr: z.string().length(2), reason: z.string() })),
+  }),
+});
+export type StateLegislationIndex = z.infer<typeof StateLegislationIndexSchema>;
 
 /** What was read for one court of appeals, and what came of it. */
 export const CircuitCoverageSchema = z.object({

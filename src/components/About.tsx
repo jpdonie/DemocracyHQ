@@ -20,6 +20,7 @@ export function aboutLabel(about: AboutText): string {
     case 'question-presented': return about.of ? `Question presented (first of ${about.of})` : 'Question presented';
     case 'cited-passage': return `From ${about.document ?? 'a document of this docket'}`;
     case 'docket-entry': return 'Entry that opens the docket';
+    case 'abstract': return 'Summary recorded by Open States';
     case 'opinion': {
       // The first paragraph is the opening. Where it could not be quoted, the line says which paragraph is.
       const part = about.paragraph ? `Paragraph ${about.paragraph}` : 'Opening';
@@ -49,6 +50,7 @@ export function sourceName(about: AboutText): string {
     case 'cited-passage': return 'the document';
     case 'docket-entry': return 'the docket';
     case 'opinion': return on('courtlistener.com') ? 'the decision on CourtListener' : 'the opinion on GovInfo';
+    case 'abstract': return 'the legislature’s page';
   }
 }
 

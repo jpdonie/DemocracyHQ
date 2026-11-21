@@ -273,19 +273,18 @@ determined" (see [Known limitations](KNOWN_LIMITATIONS.md#coverage)). The rules
 that turn these figures into a colour (`party-group-1`, `party-seats-1`,
 `party-trifecta-1`) are described in [ARCHITECTURE.md](ARCHITECTURE.md#who-holds-office).
 
-## Optional sources, off by default
+## Sources that need a key
 
-Both need a key, both are secondary sources, and **neither has ever been run
-against the live service**. Their adapters were exercised only with synthetic test
-responses shaped like the documented APIs. What they import is published as a
-separate file (`public/data/litigation_secondary.json` or
-`public/data/legislation_secondary.json`), committed and deployed with the rest of
-the data. The site does not display it; it is meant for maintainer review.
+Both are secondary sources, and both have run against the live services since
+November 2026. CourtListener's decisions are published in `public/data/decisions/`,
+and the measures of the state legislatures that Open States collects in
+`public/data/state-legislation/`. The site shows both, labelled as imported from a
+secondary source.
 
 | Source | Publisher | Key | Notes |
 | --- | --- | --- | --- |
 | CourtListener / RECAP Archive API v4 | Free Law Project | `COURTLISTENER_API_TOKEN` | Anonymous requests were refused (HTTP 401) on 2026-11-20. The RECAP Archive is not a complete mirror of PACER. Check Free Law Project's current terms before production use. Checked daily when a token is configured. |
-| Open States API v3 | Plural Policy | `OPENSTATES_API_KEY` | Data offered under a public-domain dedication unless noted; attribution appreciated. Checked daily when a key is configured. |
+| Open States bulk data (CSV archives of every session), with the API v3 for the list of sessions | Plural Policy | `OPENSTATES_API_KEY` | Data offered under a public-domain dedication unless noted; attribution appreciated. The key is sent only to the API, in a header; the archives need none. Checked daily; an archive is read again only when Open States publishes a new one. |
 
 ## Verification states
 

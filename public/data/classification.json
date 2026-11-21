@@ -752,6 +752,11 @@
    "ruleId": "about-digest-1"
   },
   {
+   "appliesTo": "What a measure of a state legislature (other than California) is about",
+   "description": "Quoted from the abstract Open States records for the measure, which it takes from the legislature's site (a summary, a description or a digest): the latest one, unless it only repeats the title, in whole sentences. Open States gives no address for the abstract itself, so the quotation links to none; the measure's record links to the legislature's page. A measure without an abstract has no further line: its title is what the legislature says it is about. The quotation runs whole sentences until it has 220 characters; a first sentence longer than 560 characters is cut at a word and marked as cut.",
+   "ruleId": "about-abstract-1"
+  },
+  {
    "appliesTo": "What a Supreme Court case is about",
    "description": "Quoted from the Questions Presented document the Court publishes for the case. The question is looked for in this order: what follows the words 'the question presented is:' (the latest such passage, since an order of the Court can amend the question); the sentence 'the question presented is whether ...'; the first of several numbered questions, with their number; the first paragraph that begins with 'Whether' or ends with a question mark; otherwise the beginning of the text. Lines the Court adds below the question (the grant, the argument calendar) are left out. Where an order of the Court below the question puts a further question to the parties ('... are directed to file supplemental briefs addressing the following question: ...'), the latest such question is shown after the question presented, as the Court set it (in capitals), with the date of the order. The quotation runs whole sentences until it has 220 characters; a first sentence longer than 560 characters is cut at a word and marked as cut.",
    "ruleId": "about-question-1"

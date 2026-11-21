@@ -297,8 +297,19 @@ great deal of litigation.
   with the same number are shown as one case (rule `cl-same-docket`); an order
   filed under a docket number that differs by a letter (California's "H053842M"
   for an order modifying the opinion of "H053842") is a second case.
-- **Open States has run live but is not displayed.** Its records are written to
-  `legislation_secondary.json` for review; the site does not show them.
+- **The measures of the other state legislatures come from a secondary source.**
+  Open States collects them from the legislatures' sites; its records can lag
+  behind them. They are selected by title and by the subjects the legislature
+  files them under (rule `state-select-1`), never by their text, so a measure
+  whose title does not name an election matter is missed, and a title that uses an
+  election word in another sense can be listed. The stage a measure reached is
+  worked out from how Open States classifies its actions (rule `state-status-1`);
+  it is not the legislature's own status.
+- **Maryland and Vermont are not listed yet.** Open States gives their pages over
+  http only, and the site links only to secure pages (rule `secure-link-1`). The
+  daily update asks each such site once a week whether it serves the same page
+  over https; their measures are listed once it does. California is read from its
+  own data, and Puerto Rico, whose titles are in Spanish, is left out.
 - **One machine, one browser engine.** Browser tests ran in headless Chromium
   only, at a desktop size and with a phone profile. Firefox, Safari, real phones
   and real assistive technology were not tested.
