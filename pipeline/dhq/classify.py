@@ -15,10 +15,12 @@ from .schemas import IssueTag
 
 # (tag, label, ruleId, pattern)
 ISSUE_RULES: list[tuple[str, str, str, str]] = [
-    ("voting-rights-act", "Voting Rights Act (federal)", "tag-vra-3",
-     r"(?<!California )(?<!State )Voting Rights Act|52 U\.\s?S\.\s?C\.\s?§\s?1030[1-9]"),
+    # The lookbehinds leave out other acts whose names end in the same words: a state's act, and two bills of Congress
+    # (the Youth Voting Rights Act, H.R. 4916 and S. 5481 of the 119th Congress, and the Native American Voting Rights Act).
+    ("voting-rights-act", "Voting Rights Act (federal)", "tag-vra-4",
+     r"(?<!California )(?<!State )(?<!Youth )(?<!Native American )Voting Rights Act|52 U\.\s?S\.\s?C\.\s?§\s?1030[1-9]"),
     ("state-voting-rights-act", "State voting rights acts", "tag-svra-1", r"California Voting Rights Act|\bstate voting rights act"),
-    ("redistricting", "Redistricting", "tag-redist-1", r"redistrict\w*|districting (plan|map)|congressional (map|district)|gerrymander\w*|legislative districts?|reapportion\w*"),
+    ("redistricting", "Redistricting", "tag-redist-2", r"redistrict\w*|districting (plan|map)|congressional (map|district)|gerrymander\w*|legislative districts?|reapportion\w*"),
     ("racial-gerrymandering", "Racial gerrymandering claims", "tag-racial-2", r"racial(ly)? gerrymander\w*|race predominated"),
     ("partisan-gerrymandering", "Partisan gerrymandering claims", "tag-partisan-1", r"partisan(-| )gerrymander\w*"),
     ("mail-voting", "Mail and absentee voting", "tag-mail-2",
@@ -35,7 +37,7 @@ ISSUE_RULES: list[tuple[str, str, str, str]] = [
      r"certif(y|ication|ied) .{0,30}(election|results|vote)|official canvass|results of (the|an|any) election|statement of (the )?vote|tie votes?"),
     ("voting-technology", "Voting technology", "tag-tech-1", r"voting (system|machine|technology)s?|ballot marking device|remote accessible vote by mail system"),
     ("elections-clause", "Elections Clause and federal election timing", "tag-clause-1", r"Elections? (and Electors )?Clauses?|Manner of holding Elections|election-day statutes|federal Election Day"),
-    ("direct-democracy", "Initiatives, referenda and recalls", "tag-direct-3",
+    ("direct-democracy", "Initiatives, referenda and recalls", "tag-direct-4",
      r"\brecall (elections?|petitions?)|\brecalls? of .{0,40}?offic(ers?|ials?)\b"
      r"|\b(statewide|local|voter|ballot|citizens?) initiatives?\b|(?<!for or against any )\binitiatives? (and|or) referend(um|a)\b"
      r"|(?<!1974, an )\binitiative (measures?|petitions?|statutes?|constitutional amendments?)\b|(^|: )initiatives?\b"
@@ -43,6 +45,9 @@ ISSUE_RULES: list[tuple[str, str, str, str]] = [
     ("campaign-finance", "Campaign finance and political advertising", "tag-cf-1", r"Political Reform Act|campaign (finance|financing|contributions?|mass mailing)|contributions? in|deceptive (media|audio)|advertisements?"),
 ]
 _COMPILED = [(tag, label, rid, re.compile(pattern, re.I | re.M)) for tag, label, rid, pattern in ISSUE_RULES]
+#: The same rules for a whole filing or opinion. There "^" is the beginning of the document only: a PDF breaks its lines
+#: anywhere, so a line that happens to begin with "Initiative" is not a subject line that begins with the word.
+_COMPILED_LONG = {tag: re.compile(pattern, re.I) for tag, _label, _rid, pattern in ISSUE_RULES}
 TAG_LABELS = {tag: label for tag, label, _, _ in ISSUE_RULES}
 
 #: A match inside a phrase of a rule's exclusion pattern does not count for that rule. Campaign-finance law names
@@ -51,19 +56,31 @@ TAG_LABELS = {tag: label for tag, label, _, _ in ISSUE_RULES}
 #: initiatives, referenda or recalls. Nor does the sentence with which a digest says that an act the bill amends was
 #: itself adopted by initiative ("The Voters FIRST Act, an initiative measure approved by the electors as Proposition 11",
 #: "The act is an initiative measure that authorizes the Legislature to amend its provisions").
+#:
+#: "Unlawful Voter Initiative" is the name of a project of the Department of Homeland Security (so the Ninth Circuit's
+#: order of October 30, 2026 in No. 26-7139: "DHS began its Unlawful Voter Initiative"). It is not a voter initiative.
+#:
+#: A seat in the House is named by its district ("the office of Representative from the Fourteenth Congressional
+#: District of Florida"). That names the seat; it says nothing about how districts are drawn.
 ISSUE_EXCLUSIONS: dict[str, str] = {
+    "redistricting":
+        r"\b(?:Representative|Delegate|Member|Resident Commissioner)s?(?: (?:of|in|to) (?:Congress|the House(?: of Representatives)?))?"
+        r" (?:from|for) the [\w-]+ congressional district\b",
     "direct-democracy":
         r"\bballot measure committees?\b"
         r"|\bcommittees? for or against (a|an|any|the) (initiative or referendum|state or local ballot|ballot) measures?\b"
         r"|\b(support(s|ed|ing)?|oppos(e|es|ed|ing)|support of|opposition to)\b[^.;:]{0,60}?\b(candidates?|offices?)\b[^.;:]{0,40}?\bballot measures?\b"
         r"|\b(support(s|ed|ing)?|oppos(e|es|ed|ing)|support of|opposition to)\b[^.;:]{0,60}?\bballot measures?\b[^.;:]{0,60}?\b(candidates?|offices?)\b"
-        r"|\ban initiative measure (that authorizes the Legislature to amend|approved by the (electors|voters))\b",
+        r"|\ban initiative measure (that authorizes the Legislature to amend|approved by the (electors|voters))\b"
+        r"|\bUnlawful\s+Voter\s+Initiative\b",
 }
 _EXCLUDED = {tag: re.compile(pattern, re.I | re.M) for tag, pattern in ISSUE_EXCLUSIONS.items()}
 #: Field mode for a California digest. For the tags listed here, only the digest's sentences that say what the bill
 #: would do are read: a state bill's digest names the federal Voting Rights Act when it describes existing law, which
 #: does not make the federal act the bill's subject.
 DIGEST = "digest"
+#: Field mode for a whole filing or opinion.
+LONG = "long"
 PROPOSAL_ONLY_IN_DIGEST = {"voting-rights-act"}
 _WOULD_RE = re.compile(r"\bwould\b", re.I)
 
@@ -138,7 +155,7 @@ def _sentence_spans(text: str) -> List[tuple[int, int]]:
 def _counted(tag: str, pattern: re.Pattern, text: str, mode: str | None) -> List[re.Match]:
     """The matches of one rule in one field that count: not inside an excluded phrase and, in a digest, in a sentence
     the rule reads."""
-    found = list(pattern.finditer(text))
+    found = list((_COMPILED_LONG[tag] if mode == LONG else pattern).finditer(text))
     excluded = _EXCLUDED.get(tag)
     if excluded and found:
         spans = [(m.start(), m.end()) for m in excluded.finditer(text)]
@@ -164,6 +181,8 @@ def classify(fields: Iterable[tuple]) -> List[IssueTag]:
       count of the rule that matches most often. The text shown with the tag is
       the first match in running text, not one in a table of authorities.
 
+      There "^" in a pattern is the beginning of the document, not of each line.
+
     In every mode a match inside a phrase of the rule's exclusion pattern (``ISSUE_EXCLUSIONS``) does not count.
     """
     tags: List[IssueTag] = []
@@ -171,13 +190,13 @@ def classify(fields: Iterable[tuple]) -> List[IssueTag]:
     materialised = [(entry[0], entry[1], entry[2] if len(entry) > 2 else None) for entry in fields if entry[1]]
     counts: dict[int, dict[str, list]] = {}
     for position, (_name, text, mode) in enumerate(materialised):
-        if mode == "long":
+        if mode == LONG:
             counts[position] = {tag: _counted(tag, pattern, text, mode) for tag, _l, _r, pattern in _COMPILED}
     for tag, _label, rule_id, pattern in _COMPILED:
         for position, (name, text, mode) in enumerate(materialised):
             if tag in seen:
                 break
-            if mode == "long":
+            if mode == LONG:
                 matches = counts[position][tag]
                 top = max(len(found) for found in counts[position].values())
                 if len(matches) < LONG_TEXT_MIN_MATCHES or len(matches) < LONG_TEXT_SHARE * top:
@@ -186,7 +205,7 @@ def classify(fields: Iterable[tuple]) -> List[IssueTag]:
                 matches = _counted(tag, pattern, text, mode)[:1]
             if not matches:
                 continue
-            match = next((m for m in matches if _running_text(text, m)), matches[0]) if mode == "long" else matches[0]
+            match = next((m for m in matches if _running_text(text, m)), matches[0]) if mode == LONG else matches[0]
             start, end = max(0, match.start() - 40), min(len(text), match.end() + 40)
             # Widen to whole words (by at most 30 characters) so that an excerpt never starts or ends mid-word.
             for _ in range(30):
@@ -199,7 +218,7 @@ def classify(fields: Iterable[tuple]) -> List[IssueTag]:
                 end += 1
             snippet = re.sub(r"\s+", " ", text[start:end]).strip()
             tags.append(IssueTag(tag=tag, ruleId=rule_id, matchedField=name, matchedText=snippet,
-                                 matchCount=len(matches) if mode == "long" else None))
+                                 matchCount=len(matches) if mode == LONG else None))
             seen.add(tag)
     return tags
 
@@ -223,10 +242,16 @@ def rules_document() -> dict:
                 "because they name elections officials in almost every election bill. "
                 f"For the {TAG_LABELS['voting-rights-act']} rule only the digest's sentences that contain the word 'would', which "
                 "say what the bill would do, are read, because a digest also names the federal act when it describes existing law. "
+                "The rule does not count the name of another act that ends in the same words: the California Voting Rights Act, a "
+                "'State Voting Rights Act', the Youth Voting Rights Act and the Native American Voting Rights Act. "
                 f"For the {TAG_LABELS['direct-democracy']} rule a match does not count inside a campaign-finance phrase, where a "
-                "committee or a payment supports or opposes a candidate or a ballot measure, or inside the words with which a digest says "
-                "that an act the bill amends was itself adopted by initiative; the phrases are those of this pattern: "
+                "committee or a payment supports or opposes a candidate or a ballot measure, inside the words with which a digest says "
+                "that an act the bill amends was itself adopted by initiative, or inside the name 'Unlawful Voter Initiative', which is a "
+                "project of the Department of Homeland Security and not a voter initiative; the phrases are those of this pattern: "
                 + ISSUE_EXCLUSIONS["direct-democracy"] + " . "
+                f"For the {TAG_LABELS['redistricting']} rule a match does not count inside words that name a seat by its district "
+                "('the office of Representative from the Fourteenth Congressional District of Florida'), which say nothing about how "
+                "districts are drawn; the phrases are those of this pattern: " + ISSUE_EXCLUSIONS["redistricting"] + " . "
                 "In text taken from a PDF (questions presented, filings and opinions), a word that the document breaks across two "
                 "lines with a hyphen is joined again before the rules are applied; the hyphen is kept where the document also writes "
                 "the word with one, or the first part is one of these words, which begin compounds: "
@@ -234,6 +259,8 @@ def rules_document() -> dict:
                 "Where a docket has no questions presented, the full text of its initiating filing or opinion is read instead, "
                 f"and a rule must be prominent there: at least {LONG_TEXT_MIN_MATCHES} matches, and at least "
                 f"{round(LONG_TEXT_SHARE * 100)}% as many as the rule that matches most often in that document. "
+                "In such a text '^' in a pattern stands for the beginning of the document and not of each line, because a PDF breaks "
+                "its lines anywhere: a line that happens to begin with 'Initiative' is not a subject line that begins with the word. "
                 f"A tag with rule id {CURATED_RULE_ID} was added by a maintainer where the rules miss the central subject of a case; "
                 "it is shown with the passage it rests on, which is checked against the cited document on every run. "
                 "Tags indicate subject matter only. They are not legal conclusions and can be wrong or incomplete.",

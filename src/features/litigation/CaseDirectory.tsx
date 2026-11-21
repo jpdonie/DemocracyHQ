@@ -3,7 +3,7 @@ import type { LegalCaseSummary } from '../../types/schemas';
 import { useCore, type AppealsCoverage } from '../../lib/core';
 import { ALL_APPEALS, FEDERAL_CIRCUIT_ID, SCOTUS_ID, casesByCourt, courtHash, courtShortName, fixedFullName, groupDecidedTogether, isAppealsCourtId, type CourtDirectory } from '../../lib/courts';
 import { caseStates, countBy, filterCases, knownCaseFilters, type CaseFilters } from '../../lib/filters';
-import { formatDate, plural } from '../../lib/format';
+import { caseNameClass, formatDate, plural } from '../../lib/format';
 import { eventLabel, useTagLabels } from '../../lib/labels';
 import { COMPACT_QUERY, useMediaQuery } from '../../lib/media';
 import { buildHash, patchQuery, type Route } from '../../lib/router';
@@ -62,7 +62,7 @@ export function CaseRow({ record, labels, note }: { record: LegalCaseSummary; la
   const appeal = record.courtId !== SCOTUS_ID;
   return (
     <li className="row">
-      <a className="row-title case-name" href={buildHash(['litigation', record.id])}>{record.caseName}</a>
+      <a className={`row-title ${caseNameClass(record.caseName)}`} href={buildHash(['litigation', record.id])}>{record.caseName}</a>
       <p className="row-meta">
         No. {record.docketNumber}, {rowCourtName(record.courtId)}
         {record.publication ? <>, <span className="row-kind">{record.publication.toLowerCase()} decision</span></> : null}

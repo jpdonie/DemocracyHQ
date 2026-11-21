@@ -7,8 +7,8 @@
  * this file is imported by the application or copied into `public/data`.
  */
 import type {
-  EntityRelationship, GeoIndexFile, LegalCase, LegalCaseSummary, LegislativeInstrument, LegislativeInstrumentSummary,
-  Manifest, PopulationFile, RedistrictingFile, SourceRecord, TimelineEvent, VersionText,
+  CircuitIndex, CircuitsFile, Court, EntityRelationship, FederalBillIndex, GeoIndexFile, LegalCase, LegalCaseSummary, LegislativeInstrument,
+  LegislativeInstrumentSummary, Manifest, PopulationFile, RedistrictingFile, SourceRecord, TimelineEvent, VersionText,
 } from '../../src/types/schemas';
 
 export const NOW = '2026-06-15T12:00:00Z';
@@ -49,7 +49,7 @@ export function makeCase(overrides: Partial<LegalCaseSummary> = {}): LegalCaseSu
     petitionerTitle: 'Synthetic Alpha, Petitioner',
     respondentTitle: 'Synthetic Beta',
     docketNumber: '99-0001',
-    courtId: 'synthetic-court',
+    courtId: 'scotus', // a Supreme Court docket; makeAppealsCase gives a case of a court of appeals
     jurisdiction: 'federal',
     docketType: null,
     dateDocketed: '2026-01-10',
@@ -61,6 +61,7 @@ export function makeCase(overrides: Partial<LegalCaseSummary> = {}): LegalCaseSu
     lowerCourt: { name: 'Synthetic District Court', caseNumbers: ['1:25-cv-00001'], decisionDate: null, rehearingDeniedDate: null },
     latestDispositiveEntry: { date: '2026-03-01', text: 'Petition DENIED.', eventType: 'cert_denied', ruleId: 'entry-synthetic-1' },
     stateFips: ['06'],
+    decidedWith: [],
     sourceUrl: `${SYNTHETIC_HOST}/court/99-0001`,
     sourceId: 'synthetic-court',
     sourcePublishedAt: null,
@@ -98,11 +99,160 @@ export function makeFullCase(overrides: Partial<LegalCase> = {}): LegalCase {
     documents: [
       {
         id: 'synthetic-case-1:d1', caseId: 'synthetic-case-1', entryIndex: 0, title: 'Petition', filingDate: '2026-01-05',
-        documentType: 'petition', url: `${SYNTHETIC_HOST}/court/99-0001/petition.pdf`, availability: 'public_link', accessNote: null,
+        documentType: 'petition', url: `${SYNTHETIC_HOST}/court/99-0001/petition.pdf`, availability: 'public_link', accessNote: null, sameTextAs: [],
       },
     ],
+    parties: [],
+    removedTags: [],
     contentHash: 'synthetic',
     ...overrides,
+  };
+}
+
+const APPEAL_OPINION = `${SYNTHETIC_HOST}/appeals/99-00001/opinion.pdf`;
+
+/**
+ * A case of a court of appeals as circuits/index.json lists it: decided by the Ninth Circuit on an appeal from a
+ * district court in California. Its record holds one document, the opinion, and no docket.
+ */
+export function makeAppealsCase(overrides: Partial<LegalCaseSummary> = {}): LegalCaseSummary {
+  return makeCase({
+    id: 'ca9-99-00001',
+    externalIds: { govinfoPackage: 'USCOURTS-ca9-99-00001' },
+    caseName: 'Synthetic Voters League v. Synthetic Registrar',
+    petitionerTitle: '',
+    respondentTitle: '',
+    docketNumber: '99-00001',
+    courtId: 'ca9',
+    jurisdiction: 'Federal',
+    dateDocketed: null,
+    dateFirstEntry: '2026-02-03',
+    sourceLastActivity: '2026-02-03',
+    entryCount: 1,
+    documentCount: 1,
+    issueTags: [{ tag: 'voter-id', ruleId: 'tag-synthetic-3', matchedField: 'full text of the opinion', matchedText: 'voter identification', matchCount: 7 }],
+    lowerCourt: { name: null, caseNumbers: [], decisionDate: null, rehearingDeniedDate: null },
+    latestDispositiveEntry: { date: '2026-02-03', text: 'Opinion issued by court. Decision: Affirmed. Opinion type: Published.', eventType: 'opinion', ruleId: 'ca-doc-opinion' },
+    stateFips: [],
+    origin: {
+      court: 'United States District Court for the Synthetic District of California', stateFips: '06',
+      quote: 'Appeal from the United States District Court for the Synthetic District of California', documentUrl: APPEAL_OPINION, ruleId: 'origin-synthetic-1',
+    },
+    publication: 'Published',
+    natureOfSuit: 'Civil Rights Voting',
+    sourceUrl: `${SYNTHETIC_HOST}/appeals/99-00001`,
+    sourceId: 'synthetic-appeals',
+    ...overrides,
+  });
+}
+
+/** The record of that case: its parties, why the selection rule picked it, and the opinion. */
+export function makeFullAppealsCase(overrides: Partial<LegalCase> = {}): LegalCase {
+  return {
+    ...makeAppealsCase(),
+    parties: [{ name: 'Synthetic Voters League', role: 'Appellant' }, { name: 'Synthetic Registrar', role: 'Appellee' }],
+    selection: {
+      ruleId: 'circuit-select-synthetic', tests: ['nature of suit'], natureOfSuitCode: '441', natureOfSuit: 'Civil Rights Voting',
+      documentId: 'ca9-99-00001-d0', documentUrl: APPEAL_OPINION, wordCount: 4000, wordMatches: 80, phraseMatches: 12, density: 20,
+      phrases: [{ term: 'voter identification', count: 7 }], party: null,
+    },
+    relatedDockets: [],
+    linkedNote: null,
+    sameLowerCourt: [],
+    questionsPresented: null,
+    events: [
+      {
+        id: 'ca9-99-00001:e0', eventType: 'opinion', date: '2026-02-03', entityType: 'case', entityId: 'ca9-99-00001',
+        description: 'Opinion issued by court. Decision: Affirmed. Opinion type: Published.', significance: 'major', classificationRule: 'ca-doc-opinion',
+        evidence: { url: APPEAL_OPINION, quote: null, sourceId: 'synthetic-appeals' }, documentIds: ['ca9-99-00001-d0'],
+      },
+    ],
+    documents: [
+      {
+        id: 'ca9-99-00001-d0', caseId: 'ca9-99-00001', entryIndex: 0, title: 'Opinion of 2026-02-03', filingDate: '2026-02-03',
+        documentType: 'Opinion', url: APPEAL_OPINION, availability: 'public_link', accessNote: 'Hosted by example.test; linked, not mirrored.', sameTextAs: [],
+      },
+    ],
+    removedTags: [],
+    contentHash: 'synthetic',
+    ...overrides,
+  };
+}
+
+const COURT = (id: string, shortName: string, geoKey: string | null, states: string[]): Court => ({
+  id, name: `United States Court of Appeals for the ${shortName}`, courtType: 'federal_appellate', jurisdiction: 'Federal',
+  website: `${SYNTHETIC_HOST}/${id}`, shortName, geoKey, states,
+  basis: geoKey ? { citation: '28 U.S.C. § 41 (synthetic)', url: `${SYNTHETIC_HOST}/statute/sec41`, quote: `Synthetic composition of the ${shortName}.`, also: null } : null,
+});
+
+/** The courts of appeals of the tiny map: California in the Ninth Circuit, Texas in the Fifth, the Virgin Islands in the Third. */
+export function makeCircuitsFile(): CircuitsFile {
+  return {
+    courts: [
+      COURT('ca3', 'Third Circuit', 'circuit:03', ['78']),
+      COURT('ca5', 'Fifth Circuit', 'circuit:05', ['48']),
+      COURT('ca9', 'Ninth Circuit', 'circuit:09', ['06']),
+      COURT('cafc', 'Federal Circuit', null, []),
+    ],
+    statute: {
+      ruleId: 'circuit-composition-synthetic', sourceId: 'synthetic-code', edition: 'Synthetic Code, 2024 Edition', currentThrough: '2025-01-06',
+      checkedAt: '2026-06-14T10:00:00Z', sections: [{ citation: '28 U.S.C. § 41 (synthetic)', url: `${SYNTHETIC_HOST}/statute/sec41` }],
+    },
+    circuitOfState: { '06': 'ca9', '48': 'ca5', '78': 'ca3' },
+    withoutCircuit: [],
+    notOnTheMap: [],
+  };
+}
+
+/** circuits/index.json with the cases given; what was read is invented and the Federal Circuit has no selected case. */
+export function makeCircuitIndexFile(cases: LegalCaseSummary[] = [makeAppealsCase()]): CircuitIndex {
+  const read = (id: string) => ({ cases: 40, documents: 42, coverLetters: 1, unreadableDocuments: 0, selected: cases.filter((c) => c.courtId === id).length, excluded: 0 });
+  return {
+    cases,
+    coverage: { ca3: read('ca3'), ca5: read('ca5'), ca9: read('ca9'), cafc: read('cafc') },
+    exclusions: [],
+    scannedAt: '2026-06-14T10:00:00Z',
+    selection: {
+      ruleId: 'circuit-select-synthetic', exclusionRuleId: 'circuit-exclusion-synthetic', coverLetterRuleId: 'cover-letter-synthetic',
+      appliedTo: 'every synthetic case', since: '2025-01-01', totalCasesRead: 160, totalDocumentsRead: 168, votingNatureOfSuit: '441',
+      otherFieldCodes: {}, wordPattern: 'x', phrasePattern: 'x', authorityPattern: 'x', laborPattern: 'x', laborMinMatches: 10, laborRatio: 4,
+      coverLetterPattern: 'x', textTests: {},
+    },
+  };
+}
+
+/** A measure of Congress as congress/index.json lists it. */
+export function makeFederalBill(overrides: Partial<LegislativeInstrumentSummary> = {}): LegislativeInstrumentSummary {
+  return makeBill({
+    id: 'us-119-hr9001',
+    state: 'US',
+    stateAbbr: 'US',
+    session: '119th Congress (2025–2026)',
+    identifier: 'H.R. 9001',
+    measureType: 'House Bill',
+    title: 'To require synthetic proof of eligibility to register to vote, and for other purposes.',
+    subject: 'Synthetic Voter Eligibility Act',
+    leadAuthors: 'Rep. Synthetic, Member [R-TX-1]',
+    legislativeStatus: { measureState: 'Engrossed in House', currentStatus: 'Passed the House', currentHouse: null, currentLocation: null },
+    chapter: null,
+    introducedDate: '2025-01-03',
+    lastActionDate: '2025-04-10',
+    lastActionText: 'Received in the Senate.',
+    issueTags: [{ tag: 'voter-registration', ruleId: 'tag-synthetic-4', matchedField: 'official title', matchedText: 'register to vote' }],
+    officialUrl: `${SYNTHETIC_HOST}/congress/hr9001`,
+    sourceId: 'synthetic-congress',
+    ...overrides,
+  });
+}
+
+export function makeFederalBillIndexFile(bills: LegislativeInstrumentSummary[] = [makeFederalBill()]): FederalBillIndex {
+  return {
+    bills: bills as FederalBillIndex['bills'],
+    selection: {
+      ruleId: 'us-select-synthetic', congress: 119, appliedTo: 'titles and policy area', pattern: 'x', generalPattern: 'x', generalAreas: [],
+      otherPattern: 'x', otherAreas: [], exclusionPattern: 'x', excludedAreas: [], tests: { named: 'Synthetic.' }, selectedByTest: { named: bills.length },
+      totalMeasuresRead: 900,
+    },
   };
 }
 
@@ -138,8 +288,8 @@ export function makeFullBill(overrides: Partial<LegislativeInstrument> = {}): Le
     ...makeBill(),
     digest: null,
     actions: [
-      { date: '2026-01-06', sequence: 1, historyId: '101', text: 'Read first time.', location: 'Assembly Desk', eventType: 'introduced', significance: 'major', classificationRule: 'ca-synthetic-1' },
-      { date: '2026-05-01', sequence: 2, historyId: '102', text: 'Chaptered by Secretary of State.', location: null, eventType: 'chaptered', significance: 'major', classificationRule: 'ca-synthetic-2' },
+      { date: '2026-01-06', sequence: 1, historyId: '101', text: 'Read first time.', location: 'Assembly Desk', eventType: 'introduced', significance: 'major', classificationRule: 'ca-synthetic-1', votes: [] },
+      { date: '2026-05-01', sequence: 2, historyId: '102', text: 'Chaptered by Secretary of State.', location: null, eventType: 'chaptered', significance: 'major', classificationRule: 'ca-synthetic-2', votes: [] },
     ],
     approvedDate: '2026-04-30',
     chapteredDate: '2026-05-01',
@@ -164,6 +314,11 @@ export function makeFullBill(overrides: Partial<LegislativeInstrument> = {}): Le
     affectedStatutes: [],
     judicialNote: 'DemocracyHQ has no linked litigation for this measure. That is not evidence that none exists.',
     sourcePublishedAt: null,
+    sponsors: [],
+    legislativeSubjects: [],
+    committees: [],
+    shortTitles: [],
+    relatedMeasures: [],
     contentHash: 'synthetic',
     ...overrides,
   };
@@ -247,7 +402,7 @@ export function makeRedistricting(overrides: Partial<RedistrictingFile> = {}): R
   };
 }
 
-const LAYER_INFO = (label: string, geoType: 'state' | 'county' | 'congressional_district') => ({
+const LAYER_INFO = (label: string, geoType: 'nation' | 'judicial_circuit' | 'state' | 'county' | 'congressional_district') => ({
   file: 'geo/synthetic.topo.json', object: 'x', featureCount: 1, sourceId: 'synthetic-census', vintage: 'Synthetic vintage', label, geoType, sourcePublishedAt: null,
 });
 
@@ -260,6 +415,9 @@ export function makeGeoIndexFile(): GeoIndexFile {
       county: LAYER_INFO('Counties', 'county'),
       cd119: LAYER_INFO('Districts 119', 'congressional_district'),
       cd120: LAYER_INFO('Districts 120', 'congressional_district'),
+      // The two layers the site draws from the state boundaries. They add no row to the index.
+      circuit: LAYER_INFO('Judicial circuits', 'judicial_circuit'),
+      nation: LAYER_INFO('United States', 'nation'),
     },
     rows: [
       ['state:06', 'California', '06', -124, 32, -114, 42],

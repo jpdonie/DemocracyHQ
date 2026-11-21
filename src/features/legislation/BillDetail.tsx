@@ -1,5 +1,5 @@
 import type { EntityRelationship, LegislativeInstrument } from '../../types/schemas';
-import { isFederalBill } from '../../lib/bills';
+import { billHeading, isFederalBill } from '../../lib/bills';
 import { useCore } from '../../lib/core';
 import { loadBill } from '../../lib/data';
 import { EARLIER_SUBJECT_EXPLAINER, earlierSubject, earlierSubjectNote } from '../../lib/billHistory';
@@ -126,7 +126,7 @@ function BillBody({ bill, route, links }: { bill: LegislativeInstrument; route: 
     <>
       <header className="view-head">
         <TypeMark type="bill" />
-        <h1 tabIndex={-1}><span className="bill-id">California {bill.identifier}</span></h1>
+        <h1 tabIndex={-1}><span className="bill-id">{billHeading(bill)}</span></h1>
         <p className="lede">{bill.subject ?? 'No subject recorded'}</p>
         <p className="quiet">{bill.measureType}, {bill.session}{bill.leadAuthors ? `. ${bill.leadAuthors}` : ''}</p>
         <div className="btn-row">

@@ -1,6 +1,6 @@
 import { useId, useMemo, useRef } from 'react';
 import type { LegislativeInstrumentSummary } from '../../types/schemas';
-import { billJurisdiction, billLabel, isFederalBill, shortSession, statusNoun } from '../../lib/bills';
+import { PASSED_IN_EACH_LIST_NOTE, PASSED_IN_EACH_SHORT, PASSED_IN_EACH_STAGES, billJurisdiction, billLabel, isFederalBill, shortSession, statusNoun } from '../../lib/bills';
 import { passageDeadlineNote, pendingAfterDeadline } from '../../lib/caSession';
 import { useCore, type BillCatalog } from '../../lib/core';
 import { countBy, filterBills, knownBillFilters, type BillFilters } from '../../lib/filters';
@@ -43,6 +43,7 @@ export function BillRow({ bill, labels }: { bill: LegislativeInstrumentSummary; 
       <p className="row-meta">{bill.measureType}, {isFederalBill(bill) ? shortSession(bill.session) : `California, ${bill.session}`}</p>
       <p className="row-line">
         {statusNoun(bill)}: {statusLine(bill)}
+        {isFederalBill(bill) && PASSED_IN_EACH_STAGES.has(currentStatus(bill)) ? <span className="quiet"> ({PASSED_IN_EACH_SHORT})</span> : null}
         {latestTextLine(bill) ? <span className="quiet">. Latest text version: {latestTextLine(bill)}</span> : null}
       </p>
       <p className="row-foot">
@@ -60,7 +61,7 @@ export function BillDirectory({ route }: { route: Route }) {
       <header className="view-head">
         <TypeMark type="bill" label="Legislation" />
         <h1 tabIndex={-1}>Election legislation</h1>
-        <p className="lede">Election measures of Congress and of the California Legislature, each with its official history and every published text version, so you can see exactly what changed between versions.</p>
+        <p className="lede">Election measures of Congress and the California Legislature, each with its official history and every published text version, so you can see what changed between versions.</p>
       </header>
       <Async of={core.bills} what="legislation">
         {(catalog) => <Directory catalog={catalog} route={route} />}
@@ -170,6 +171,7 @@ function Directory({ catalog, route }: { catalog: BillCatalog; route: Route }) {
           {filters.jur === 'us' ? (
             <p className="hint">
               The stage is how far a measure got among its recorded actions, worked out by a published rule ({rule('us-status-1')}). It is not an official status, and it does not say what is happening to the measure now.
+              {statusOptions.some((o) => PASSED_IN_EACH_STAGES.has(o.value)) ? ` ${PASSED_IN_EACH_LIST_NOTE}` : ''}
             </p>
           ) : null}
           {/* Counted over the whole legislature, like the counts in the status menu, so it does not change with the filters. */}

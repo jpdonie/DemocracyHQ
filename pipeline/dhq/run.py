@@ -62,6 +62,7 @@ from .schemas import (
     LegalCase,
     LegislativeInstrument,
     RelationshipScope,
+    RemovedTag,
     SourceRecord,
     Verification,
     VerificationStatus,
@@ -747,7 +748,7 @@ def stage_scotus(ctx: Context) -> None:
             if qp_text:
                 fields.append((QP_FIELD, classify.join_line_hyphens(qp_text)))
             elif ev_text:
-                fields.append((LONG_EVIDENCE_FIELD, classify.join_line_hyphens(ev_text), "long"))
+                fields.append((LONG_EVIDENCE_FIELD, classify.join_line_hyphens(ev_text), classify.LONG))
             case.issueTags = classify.classify(fields)
             if not qp_text:
                 # The rules would have read a document that could not be retrieved: keep what they found in it last time.
@@ -1070,6 +1071,9 @@ def stage_congress(ctx: Context) -> None:
     out = ctx.staging / "congress"
     earlier_ids = {b["id"] for b in (read_json(ctx.public / "congress/index.json") or {}).get("bills", [])}
     in_dataset = set(selected)
+    # Every text version is checked before the first measure is built, so that a server that fails some requests
+    # is waited for once and not once for each file. A version that could not be had fails its measure below.
+    texts.check(congress.text_packages(selected))
     summaries: List[dict] = []
     failures = text_failures = held = link_only = mirrored = 0
     for bill_id in sorted(selected):
@@ -1159,7 +1163,8 @@ def stage_congress(ctx: Context) -> None:
 EXCLUSION_RULE_ID = "circuit-exclusion-1"
 #: The fields of a court of appeals case that only its own file carries.
 CIRCUIT_DETAIL_FIELDS = ("events", "documents", "questionsPresented", "relatedDockets", "linkedNote", "sameLowerCourt", "contentHash",
-                         "parties", "selection")
+                         "parties", "selection", "removedTags")
+TAG_REMOVAL_RULE_ID = "tag-removal-1"
 
 
 def _exclusion_seeds(ctx: Context) -> Dict[str, dict]:
@@ -1185,6 +1190,52 @@ def _exclusion_seeds(ctx: Context) -> Dict[str, dict]:
     return seeds
 
 
+def _tag_removal_seeds(ctx: Context) -> Dict[str, List[dict]]:
+    """The published list of tags a maintainer removed, by case. An entry that is not usable is reported and has no effect."""
+    seeds: Dict[str, List[dict]] = {}
+    for entry in (read_json(SEEDS_DIR / "tag_removals.json") or {}).get("removals", []):
+        entity, tag = str(entry.get("entity") or ""), str(entry.get("tag") or "")
+        problem = None
+        if not re.fullmatch(CIRCUIT_CASE_ID_PATTERN, entity):
+            problem = "it does not name a case of a court of appeals"
+        elif tag not in classify.TAG_LABELS:
+            problem = f"it names a tag that no rule assigns ({tag[:40]!r})"
+        elif any(other["tag"] == tag for other in seeds.get(entity, [])):
+            problem = "the tag is listed more than once for the case; the later entry was ignored"
+        elif not (isinstance(entry.get("reason"), str) and entry["reason"].strip()):
+            problem = "it gives no reason"
+        elif not (isinstance(entry.get("quote"), str) and entry["quote"].strip()):
+            problem = "it quotes no passage"
+        if problem:
+            ctx.flag("tag_removal_unusable", entity[:80] or "(no case)", f"entry of seeds/tag_removals.json ignored: {problem}")
+            continue
+        seeds.setdefault(entity, []).append(entry)
+    return seeds
+
+
+def remove_seeded_tags(case: dict, entries: List[dict], quoted_in: Callable[[str], Optional[str]]) -> List[str]:
+    """Take the tags a maintainer listed off a case and record each removal on it (rule ``tag-removal-1``).
+
+    ``quoted_in`` gives the address of the case's document in which a passage is found. A tag is removed only when the
+    passage quoted for it is found there; otherwise the tag stays. Returns what could not be applied, for the review queue.
+    """
+    problems: List[str] = []
+    for entry in entries:
+        tag = next((t for t in case["issueTags"] if t["tag"] == entry["tag"]), None)
+        if tag is None:
+            problems.append(f"the rules do not assign the tag {entry['tag']!r} to this case (any more); the entry of seeds/tag_removals.json has no effect")
+            continue
+        url = quoted_in(entry["quote"])
+        if not url:
+            problems.append(f"the tag {entry['tag']!r} stays: the passage quoted for its removal was not found in the documents of the case")
+            continue
+        case["issueTags"] = [t for t in case["issueTags"] if t is not tag]
+        case.setdefault("removedTags", []).append(RemovedTag(
+            tag=tag["tag"], ruleId=tag["ruleId"], matchedField=tag["matchedField"], matchedText=tag["matchedText"], matchCount=tag.get("matchCount"),
+            removalRuleId=TAG_REMOVAL_RULE_ID, reason=entry["reason"].strip(), quote=entry["quote"].strip(), quoteUrl=url).model_dump(mode="json"))
+    return problems
+
+
 def _quoted_in(result: uscourts.PackageResult, quote: str) -> Optional[str]:
     """The address of the first document of a case in which a quoted passage is found."""
     for doc in result.record["documents"]:
@@ -1196,6 +1247,7 @@ def _quoted_in(result: uscourts.PackageResult, quote: str) -> Optional[str]:
 
 def stage_circuits(ctx: Context) -> None:
     seeds = _exclusion_seeds(ctx)
+    tag_removals = _tag_removal_seeds(ctx)
     fetcher = ctx.fetcher_factory(timeout=120, min_interval=0.03)
     previous_state = read_json(ctx.public / "circuits/scan.json")
     previous_index = read_json(ctx.public / "circuits/index.json") or {}
@@ -1224,6 +1276,8 @@ def stage_circuits(ctx: Context) -> None:
         case = uscourts.build_case(read.record, read.texts, read.evaluation, checked_at=ctx.now, changed_at=read.changed_at,
                                    first_observed=(previous or {}).get("firstObservedAt"))
         built = case.model_dump(mode="json")
+        for problem in remove_seeded_tags(built, tag_removals.pop(case_id, []), lambda quote, read=read: _quoted_in(read, quote)):
+            ctx.flag("tag_removal_not_applied", case_id, problem[:300])
         obj = keep_previous_if_regressed(ctx, rel_path, built, _docket_size, case_id)
         if obj is not built:
             held += 1
@@ -1232,6 +1286,11 @@ def stage_circuits(ctx: Context) -> None:
         records.append(built)
         opinion_keys[case_id] = [(f"{case_id}-d{doc['sequence']}", doc["date"], key) for doc in read.record["documents"]
                                  if (key := uscourts.same_opinion_key(read.texts.get(doc["granule"])))]
+    # What is left names a case that was not built in this run. One that could not be read keeps its published record.
+    not_read = {uscourts.case_id(package) for package in result.kept}
+    for case_id in sorted(set(tag_removals) - not_read):
+        ctx.flag("tag_removal_unused", case_id, "entry of seeds/tag_removals.json has no effect: GovInfo does not list the case, rule "
+                                                f"{uscourts.SELECTION_RULE_ID} does not select it, or it is on the list of exclusions")
     state_packages = uscourts.packages_of(result.state)
     never_published = 0
     for package in result.kept:
@@ -1778,7 +1837,9 @@ OTHER_RULES = [
                     f"record's own latest action is shown beside it. The stage '{congress.PASSED_IN_EACH}' (for a concurrent "
                     f"resolution, '{congress.AGREED_IN_EACH}') means only that the record has a vote of passage in each chamber. The "
                     "two votes can be on different texts, as when one chamber passes the other's bill with an amendment, so the stage "
-                    "does not say that Congress has passed the measure."},
+                    "does not say that Congress has passed the measure.",
+     # The stages from the first to the furthest. The site lists stages in this order; the data check compares the two.
+     "order": list(congress.STATUS_ORDER)},
     {"ruleId": uscourts.SELECTION_RULE_ID, "appliesTo": "Which court of appeals cases are included",
      "description": "Every case of the thirteen courts of appeals that GovInfo lists with an opinion or order issued since "
                     f"{uscourts.SINCE} is read. A case is included when the court's own record gives it the nature of suit "
@@ -1794,6 +1855,16 @@ OTHER_RULES = [
                     "the document they rest on and the phrases counted in it. The patterns, thresholds and nature of suit codes are "
                     "published in circuits/index.json, with the number of cases and documents read for each court. The rule counts "
                     "words: it can miss an election case, and it can include a case that only discusses elections."},
+    {"ruleId": TAG_REMOVAL_RULE_ID, "appliesTo": "An issue tag of a court of appeals case that a maintainer removed",
+     "description": "The issue rules count words. In a long opinion a rule can reach its count although the case is about "
+                    "something else, for example where a court compares the standing of its plaintiffs with that in the "
+                    "gerrymandering decisions. A maintainer may then list the case and the tag in pipeline/seeds/tag_removals.json, "
+                    "with the reason and a passage of the opinion that shows what the case is about. On every run the pipeline "
+                    "looks for the passage in the documents of the case, "
+                    f"{evidence.IGNORED_IN_WORDS}. Only if it is found is the tag taken off, and the removal is then published "
+                    "with the case and shown on its page under Issue tags, with the rule that had assigned the tag and the words it "
+                    "had matched. If the passage is not found, the tag stays and the entry is listed in the review queue. A tag is "
+                    "never removed because of who the parties are or how the case was decided."},
     {"ruleId": EXCLUSION_RULE_ID, "appliesTo": "Court of appeals cases the selection rule picks that a maintainer removed",
      "description": "A maintainer may list a case in pipeline/seeds/circuit_exclusions.json when the opinion itself shows that no public "
                     "election is at issue: an election of another kind (a student council, a union, a company board), a record that "

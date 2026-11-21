@@ -210,9 +210,18 @@ h1:focus { outline: none; }
 .sheet-bar { display: none; }
 .tabbar { display: none; }
 
-.view { padding: var(--s-5) var(--s-5) var(--s-7); }
+/* The band of the title block is painted behind the head and runs up past the top of the view, where it is clipped:
+   a link back, above the head, stands on the band too. */
+.view { --view-pad: var(--s-5); position: relative; isolation: isolate; overflow: hidden; overflow: clip; padding: var(--s-5) var(--view-pad) var(--s-7); }
 .view > * + * { margin-top: var(--s-4); }
-.view-head { display: grid; gap: var(--s-2); }
+/* The title block: the head of a page stands on the sheet colour, as the title block does in the margin of a survey
+   sheet, and ends in a rule. Tabs that follow the head stand on the same band. */
+.view-head { position: relative; display: grid; gap: var(--s-2); padding-bottom: var(--s-4); }
+.view-head::before { content: ''; position: absolute; z-index: -1; inset: -200rem calc(var(--view-pad) * -1) 0; background: var(--sheet); border-bottom: 1px solid var(--rule-strong); pointer-events: none; }
+.view-head:has(+ .tabs) { padding-bottom: var(--s-1); }
+.view-head:has(+ .tabs)::before { border-bottom: 0; }
+.view-head + .tabs { margin: 0 calc(var(--view-pad) * -1); padding: var(--s-2) var(--view-pad) 0; background: var(--sheet); }
+.view > .view-head + .section { border-top: 0; margin-top: var(--s-2); }
 .view-head h1 { font-size: var(--text-2xl); line-height: var(--leading-tight); font-weight: 650; font-stretch: 90%; letter-spacing: -0.01em; text-wrap: balance; }
 .view-head h1.case-name { font-family: var(--font-text); font-style: italic; font-weight: 500; font-stretch: normal; letter-spacing: 0; font-size: var(--text-2xl); }
 /* The home headline: display type is the sans, widened, at a size on the scale. */
@@ -231,15 +240,22 @@ h1:focus { outline: none; }
 .back-link:hover { color: var(--ink); text-decoration: underline; }
 
 /* One column as wide as the panel: a wide child (a table) cannot widen the heading and notes with it. */
-.section { padding-top: var(--s-4); border-top: var(--border); display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--s-3); align-content: start; }
+.section { position: relative; padding-top: var(--s-4); border-top: var(--border); display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--s-3); align-content: start; }
 .view > .section { margin-top: var(--s-5); }
-.section > h2 { font-size: var(--text-base); font-weight: 650; }
+/* A section begins at a tick on its rule, as a value does on the neatline of the map. */
+.section::before { content: ''; position: absolute; left: 0; top: -1px; width: var(--s-5); height: 2px; background: var(--ink); }
+.view-head + .section::before, .tabpanel > .section:first-child::before { content: none; }
+.section > h2 { font-size: var(--text-lg); font-weight: 650; line-height: 1.25; letter-spacing: -0.005em; }
 .section h3 { font-size: var(--text-md); font-weight: 650; margin-top: var(--s-2); }
 .section h4 { font-size: var(--text-sm); font-weight: 650; }
 .section-note { color: var(--ink-2); font-size: var(--text-sm); margin-top: calc(var(--s-2) * -1); max-width: var(--measure); }
 .section p { max-width: var(--measure); }
 
 .case-name { font-family: var(--font-text); font-style: italic; font-size: 1.0625em; }
+/* A name the court's record writes in capitals: the same letters, a size smaller. */
+.case-name.case-name-caps { font-size: 0.92em; letter-spacing: 0.01em; }
+.row-title.case-name.case-name-caps { font-size: 0.9375rem; line-height: 1.35; }
+.view-head h1.case-name.case-name-caps { font-size: var(--text-xl); }
 .bill-id { font-weight: 700; font-stretch: 90%; font-variant-numeric: tabular-nums; white-space: nowrap; }
 
 .facts { display: grid; gap: var(--s-2); }
@@ -263,12 +279,15 @@ a.row-title:hover { text-decoration-color: currentColor; }
 .row-line q { font-family: var(--font-text); font-size: 1.04em; color: var(--ink); }
 .row-date { font-variant-numeric: tabular-nums; font-weight: 550; color: var(--ink); }
 .row-split { grid-template-columns: 1fr auto; align-items: start; gap: var(--s-3); }
+/* Tags a maintainer took off a case, under the table of the tags it has. */
+.removed-tags { display: grid; gap: var(--s-3); }
+.removed-tags .section-note { margin-top: calc(var(--s-2) * -1); }
 
 .tags { display: flex; flex-wrap: wrap; gap: var(--s-1); margin-top: 2px; }
 .tag { display: inline-block; padding: 0.05rem 0.4rem; border: 1px solid var(--rule-strong); border-radius: var(--radius-1); font-size: var(--text-xs); font-weight: 500; font-stretch: 90%; color: var(--ink-2); text-decoration: none; background: var(--surface); }
 a.tag:hover { border-color: var(--ink); color: var(--ink); }
 
-.coverage-note { padding: var(--s-3); background: var(--sunk); font-size: var(--text-sm); color: var(--ink-2); border-radius: var(--radius-1); }
+.coverage-note { font-size: var(--text-sm); color: var(--ink-2); max-width: var(--measure); }
 .gap-notice { position: relative; padding: var(--s-1) 0 var(--s-1) calc(var(--s-3) + 8px); font-size: var(--text-sm); color: var(--ink-2); }
 .gap-notice::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 8px; border: 1px solid var(--rule-strong); }
 .gap-notice strong { color: var(--ink); font-weight: 600; }
@@ -324,6 +343,9 @@ a.tag:hover { border-color: var(--ink); color: var(--ink); }
 @media (hover: hover) {
   .btn-primary:hover:not(:disabled), .btn[aria-pressed='true']:hover { background: #24365c; border-color: #24365c; }
 }
+/* A button that sits in running text and reads as a link: it opens something in place and leads nowhere. */
+.link-btn { display: inline; padding: 0; border: 0; background: none; font-size: var(--text-sm); font-weight: 500; color: var(--ink-2); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 0.18em; text-decoration-color: var(--rule-strong); cursor: pointer; white-space: nowrap; }
+.link-btn:hover { color: var(--ink); text-decoration-color: currentColor; }
 .btn-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2); margin-top: var(--s-1); }
 .btn-status { font-size: var(--text-sm); color: var(--ink-2); overflow-wrap: anywhere; }
 .btn-status:empty { display: none; }
@@ -468,7 +490,7 @@ a.tag:hover { border-color: var(--ink); color: var(--ink); }
 
 .app.is-wide .mapstage { position: absolute; inset: 0 auto 0 0; width: calc(100% - var(--panel-w)); visibility: hidden; }
 .app.is-wide .panel { grid-column: 1 / -1; border-left: 0; background: var(--sheet); }
-.view-wide { width: 100%; max-width: 64rem; margin: 0 auto; background: var(--surface); border-inline: var(--border); padding-inline: clamp(var(--s-4), 4vw, var(--s-7)); }
+.view-wide { --view-pad: clamp(var(--s-4), 4vw, var(--s-7)); width: 100%; max-width: 64rem; margin: 0 auto; background: var(--surface); border-inline: var(--border); padding-inline: var(--view-pad); }
 /* On a document view the footer continues the page's column. */
 .app.is-wide .site-foot { width: 100%; max-width: 64rem; margin-inline: auto; border-inline: var(--border); padding-inline: clamp(var(--s-4), 4vw, var(--s-7)); }
 .view-wrap > .view-wide { margin: 0 auto; }
@@ -595,7 +617,7 @@ ul.pack-items { list-style: disc; }
   .tabbar a[aria-current='page'] { color: #fff; border-top-color: #fff; }
   .tabbar :focus-visible { outline-color: #fff; outline-offset: -4px; }
 
-  .view { padding: var(--s-4) var(--s-4) var(--s-6); }
+  .view { --view-pad: var(--s-4); padding: var(--s-4) var(--view-pad) var(--s-6); }
   .view-head h1 { font-size: var(--text-xl); }
   .view-head h1.case-name, .view-head h1.display { font-size: var(--text-xl); }
   .view-wide, .app.is-wide .site-foot { border-inline: 0; }
@@ -736,7 +758,8 @@ ul.pack-items { list-style: disc; }
   html { overflow-y: visible; }
   .topnav, .tabbar, .mapstage, .no-print, .sheet-bar, .skip-link { display: none !important; }
   .app, .workspace, .panel { display: block; height: auto; overflow: visible; position: static; background: #fff; border: 0; box-shadow: none; }
-  .view, .view-wide { max-width: none; padding: 0; border: 0; }
+  .view, .view-wide { --view-pad: 0px; max-width: none; padding: 0; border: 0; overflow: visible; }
+  .view-head::before { content: none; }
   body { background: #fff; font-size: 10.5pt; }
   a { text-decoration: none; }
   .section { break-inside: auto; }

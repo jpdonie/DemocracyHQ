@@ -22,9 +22,9 @@ import zipfile
 from concurrent.futures import ThreadPoolExecutor
 from html.parser import HTMLParser
 from pathlib import Path
-from typing import Dict, Iterator, List, Optional
+from typing import Dict, Iterable, Iterator, List, Optional
 
-from ..http import FetchError, Fetcher
+from ..http import FetchError, Fetcher, in_rounds
 from ..schemas import (
     Chapter,
     EffectiveInfo,
@@ -38,7 +38,7 @@ from ..schemas import (
     Verification,
     VerificationStatus,
 )
-from ..util import content_hash, http_date_to_iso, sha256_bytes, sha256_text, write_bytes_atomic
+from ..util import content_hash, http_date_to_iso, iso_to_http_date, sha256_bytes, sha256_text, write_bytes_atomic
 from . import bill_text
 from .ca_leginfo import diff_meta, long_date
 
@@ -472,28 +472,69 @@ class StatusArchives:
 
 
 class TextStore:
-    """The XML of bill text versions, each kept until the server reports another Last-Modified date for it."""
+    """The XML of bill text versions, each kept until the server says that it has changed.
+
+    A copy already held is asked for again with its own date (``If-Modified-Since``): the server answers 304 when the
+    file has not changed since, and the copy is kept. That is one request for a file, and it is answered where GovInfo
+    fails a request for the file itself or for its headers alone.
+
+    The versions a run needs are checked together before its measures are built (:meth:`check`). Each is asked for
+    once, and the ones the server failed are asked for again after one pause for all of them (:func:`in_rounds`).
+    """
 
     def __init__(self, fetcher: Fetcher, cache: Path):
         self.fetcher = fetcher
         self.cache = cache
+        self._current: set[str] = set()  # versions whose copy was confirmed or fetched by check()
+        self._failed: Dict[str, Exception] = {}  # versions check() could not retrieve
+
+    def check(self, packages: Iterable[str], workers: int = 4) -> Dict[str, Exception]:
+        """Bring the copies of these versions up to date. Returns what could not be retrieved, by version.
+
+        A version that cannot be had by asking again (the server says it does not exist, or serves something that is
+        not XML) is asked for once. :meth:`get` then answers from the copies, without another request.
+        """
+        def one(package: str) -> Optional[Exception]:
+            try:
+                self._retrieve(package, attempts=1)
+            except Exception as exc:  # noqa: BLE001 - one version must not end the check of the others
+                return exc
+            self._current.add(package)
+            return None
+
+        failed = in_rounds(self.fetcher, sorted(set(packages) - self._current - set(self._failed)), one, what="bill text versions", workers=workers)
+        self._failed.update(failed)
+        return failed
 
     def get(self, package: str) -> bytes:
+        if package in self._current:
+            return (self.cache / f"{package}.xml").read_bytes()
+        if package in self._failed:
+            raise self._failed[package]
+        return self._retrieve(package)
+
+    def _retrieve(self, package: str, attempts: Optional[int] = None) -> bytes:
         if not _PACKAGE_RE.match(package):
             raise ValueError(f"{package!r} is not the id of a bill text version")
         url = TEXT_URL.format(package=package)
         dest = self.cache / f"{package}.xml"
         sidecar = dest.with_suffix(".modified")
-        stamp = http_date_to_iso(self.fetcher.head(url).get("Last-Modified")) or ""
-        kept = sidecar.read_text(encoding="utf-8") if sidecar.exists() else None
-        if not stamp or kept != stamp or not dest.exists():
-            data = self.fetcher.get(url, max_bytes=bill_text.MAX_XML_BYTES).content
-            if not data.lstrip().startswith(b"<"):
-                raise FetchError(url, 200, "the document served is not XML")
-            write_bytes_atomic(dest, data, root=self.cache)
-            write_bytes_atomic(sidecar, stamp.encode("utf-8"), root=self.cache)
-            return data
-        return dest.read_bytes()
+        # A copy without a date (the server gave none) is fetched again in full.
+        since = iso_to_http_date(sidecar.read_text(encoding="utf-8").strip()) if sidecar.exists() and dest.exists() else None
+        if since:
+            result = self.fetcher.get(url, headers={"If-Modified-Since": since}, ok_statuses=(200, 304), max_bytes=bill_text.MAX_XML_BYTES,
+                                      attempts=attempts)
+            if result.status == 304:
+                return dest.read_bytes()
+        else:
+            result = self.fetcher.get(url, ok_statuses=(200,), max_bytes=bill_text.MAX_XML_BYTES, attempts=attempts)
+        data = result.content
+        if not data.lstrip().startswith(b"<"):
+            raise FetchError(url, 200, "the document served is not XML")
+        stamp = http_date_to_iso(result.headers.get("Last-Modified")) or ""
+        write_bytes_atomic(dest, data, root=self.cache)
+        write_bytes_atomic(sidecar, stamp.encode("utf-8"), root=self.cache)
+        return data
 
 
 def select_measures(archives: StatusArchives) -> tuple[Dict[str, dict], int, List[str]]:
@@ -576,18 +617,11 @@ class BillTextUnavailable(Exception):
     """A text version could not be retrieved. The measure is not rebuilt, so that its last verified record is kept."""
 
 
-def build_instrument(entry: dict, texts: TextStore, *, checked_at: str, first_observed: Optional[str] = None,
-                     in_dataset: Optional[set] = None, workers: int = 4) -> tuple[LegislativeInstrument, Dict[str, dict], List[str]]:
-    """One measure's record, the texts of its versions by version id, and notes for the review queue.
-
-    A version whose document fails the text reader's self-check is listed with its link and without mirrored text
-    (and a note says so). A version whose document cannot be retrieved raises :class:`BillTextUnavailable`.
-    """
-    record = entry["record"]
+def listed_versions(record: dict) -> tuple[List[dict], List[str]]:
+    """The text versions a status record lists with a usable address and date, each with its package id, oldest first;
+    and a note for each version that is not listed."""
     kind, number, congress = record["kind"], record["number"], record["congress"]
-    key = bill_id(kind, number, congress)
     notes: List[str] = []
-
     listed = []
     for version in record["versions"]:
         package = _package_of(version["urls"], kind, number, congress)
@@ -598,6 +632,31 @@ def build_instrument(entry: dict, texts: TextStore, *, checked_at: str, first_ob
         listed.append({**version, "package": package})
     code = lambda v: _PACKAGE_RE.match(v["package"])["version"]  # noqa: E731
     listed.sort(key=lambda v: (v["date"], _VERSION_ORDER.index(code(v)) if code(v) in _VERSION_ORDER else len(_VERSION_ORDER), v["package"]))
+    return listed, notes
+
+
+def text_packages(selected: Dict[str, dict]) -> List[str]:
+    """Every text version the selected measures list, for :meth:`TextStore.check`."""
+    packages: set[str] = set()
+    for entry in selected.values():
+        try:
+            packages.update(version["package"] for version in listed_versions(entry["record"])[0])
+        except Exception:  # noqa: BLE001 - a record that cannot be read fails its own measure when it is built
+            continue
+    return sorted(packages)
+
+
+def build_instrument(entry: dict, texts: TextStore, *, checked_at: str, first_observed: Optional[str] = None,
+                     in_dataset: Optional[set] = None, workers: int = 4) -> tuple[LegislativeInstrument, Dict[str, dict], List[str]]:
+    """One measure's record, the texts of its versions by version id, and notes for the review queue.
+
+    A version whose document fails the text reader's self-check is listed with its link and without mirrored text
+    (and a note says so). A version whose document cannot be retrieved raises :class:`BillTextUnavailable`.
+    """
+    record = entry["record"]
+    kind, number, congress = record["kind"], record["number"], record["congress"]
+    key = bill_id(kind, number, congress)
+    listed, notes = listed_versions(record)
     if len({v["package"] for v in listed}) != len(listed):
         raise StatusRecordError(f"{key}: the status record lists one text version twice")
 

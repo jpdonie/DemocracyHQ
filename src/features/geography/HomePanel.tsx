@@ -1,5 +1,8 @@
+import { isFederalBill, shortSession } from '../../lib/bills';
 import { useCore, useEvents } from '../../lib/core';
+import { SCOTUS_ID, casesByCourt } from '../../lib/courts';
 import { formatDate, plural } from '../../lib/format';
+import { NATION_KEY } from '../../lib/geo';
 import { latestEvents, linkedStates } from '../../lib/relations';
 import { buildHash } from '../../lib/router';
 import { dataOf } from '../../lib/useLoad';
@@ -19,15 +22,25 @@ export function HomePanel() {
   const withLinks = relationships && geo
     ? [...linkedStates(relationships).keys()].map((fips) => ({ fips, name: geo.stateName(fips) })).sort((a, b) => a.name.localeCompare(b.name, 'en-US'))
     : [];
+  const federal = bills?.bills.filter(isFederalBill) ?? [];
+  const california = bills?.bills.filter((b) => !isFederalBill(b)) ?? [];
+  const congress = [...new Set(federal.map((b) => shortSession(b.session)))].join(' and ');
+  const byCourt = cases ? casesByCourt(cases) : null;
+  const supreme = byCourt?.get(SCOTUS_ID) ?? 0;
+  const appealsCourts = byCourt ? [...byCourt.keys()].filter((id) => id !== SCOTUS_ID).length : 0;
   return (
     <article className="view view-home">
       <header className="view-head">
         <h1 tabIndex={-1} className="display">Election litigation, voting laws and district boundaries, linked to their sources</h1>
-        <p className="lede">This release covers selected U.S. Supreme Court dockets, California election measures from the current session, and Census Bureau boundaries for states, counties and congressional districts.</p>
+        <p className="lede">Election measures of Congress and the California Legislature, election cases in the Supreme Court and the federal courts of appeals, and Census Bureau boundaries for states, counties and congressional districts.</p>
       </header>
 
       <Section title="Start with a place">
-        <p>Select a state on the map, or search for a state, county, district, case or bill. Each place opens a workspace with its population counts, linked cases, legislation and a dated timeline.</p>
+        <p>Select a state on the map, or search for a place, court, case or bill. A state opens with the cases linked to it, its legislation, a dated timeline and its 2020 Census counts.</p>
+        <p>
+          Two views reach past a single state. The <a href={buildHash(['place', NATION_KEY])}>federal level</a> gathers Congress and the federal courts.{' '}
+          <a href={buildHash(['courts'])}>The courts</a> show which court of appeals takes the appeals from each state.
+        </p>
         {/* One sentence, so the links sit in running text with the line spacing of the words around them. */}
         {withLinks.length > 0 ? (
           <p className="state-links">
@@ -44,23 +57,38 @@ export function HomePanel() {
 
       <Section title="What is in this release">
         <ul className="modules">
+          <li className="module module-bill">
+            <a href={buildHash(['laws'])}>Election legislation</a>
+            <p>
+              {bills
+                ? `${plural(federal.length, 'election measure')} of the ${congress || 'current Congress'} and ${plural(california.length, 'measure')} of California’s current session, each with its official history and text versions you can compare.`
+                : 'Election measures of Congress and of the California Legislature, each with its official history and comparable text versions.'}
+            </p>
+          </li>
           <li className="module module-case">
             <a href={buildHash(['litigation'])}>Election litigation</a>
-            <p>{cases ? `${plural(cases.length, 'Supreme Court docket')} with every entry, linked filings and, where the docket links them, the questions presented.` : 'Supreme Court dockets with every entry and linked filings.'}</p>
+            <p>
+              {cases
+                ? `${plural(supreme, 'Supreme Court docket')} with every entry and linked filings, and ${plural(cases.length - supreme, 'election case')} from ${plural(appealsCourts, 'federal court of appeals', 'federal courts of appeals')}, each from the documents GovInfo holds for it.`
+                : 'Supreme Court dockets with every entry and linked filings, and election cases from the federal courts of appeals.'}
+            </p>
           </li>
-          <li className="module module-bill">
-            <a href={buildHash(['laws'])}>California election legislation</a>
-            <p>{bills ? `${plural(bills.bills.length, 'California election measure')} from the current session, each with its official history and text versions you can compare.` : 'California election measures with official history and comparable text versions.'}</p>
+          <li className="module module-case">
+            <a href={buildHash(['courts'])}>Courts</a>
+            <p>The Supreme Court and the thirteen federal courts of appeals, with the states and territories of each circuit as the statute lists them.</p>
           </li>
           <li className="module module-place">
             <a href={buildHash(['redistricting'])}>Redistricting</a>
             <p>{geo ? `State, county and congressional district boundaries for two Congresses (${geo.size.toLocaleString('en-US')} units), with 2020 Census counts where the vintages match.` : 'Official boundaries with 2020 Census counts where the vintages match.'}</p>
           </li>
         </ul>
-        <GapNotice>Coverage is narrow on purpose while the method is proven: one court, one state legislature. <A to={buildHash(['sources'], { section: 'coverage' })}>See exactly what is and is not covered.</A></GapNotice>
+        <GapNotice>
+          Coverage is narrow on purpose while the method is proven: Congress and one state legislature, the Supreme Court and the federal courts of appeals. Federal district courts, state courts and the other state legislatures are not covered.{' '}
+          <A to={buildHash(['sources'], { section: 'coverage' })}>See exactly what is and is not covered.</A>
+        </GapNotice>
       </Section>
 
-      <Section title="Latest dated events" note="The latest key entries of each kind in the dataset: up to three each from court dockets, legislative histories and Census boundary files, newest first. Court and legislative entries carry the date of the event itself; a boundary entry carries the date of the Census file it comes from, and boundary entries of the same date are shown as one row.">
+      <Section title="Latest dated events" note="Up to three key entries each from the courts’ records, the legislative histories and the Census boundary files, newest first. A boundary entry carries the date of its Census file, and entries of the same date share a row.">
         <Async of={events} what="recent events">
           {(all) => <TimelineList events={latestEvents(all.filter((e) => e.eventType !== 'text_version_changed'), 3)} subjectOf={(id) => bills?.bills.find((b) => b.id === id)?.subject} />}
         </Async>

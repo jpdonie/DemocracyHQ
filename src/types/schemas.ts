@@ -119,6 +119,18 @@ export const IssueTagSchema = z.object({
 });
 export type IssueTag = z.infer<typeof IssueTagSchema>;
 
+/**
+ * A tag the keyword rules assigned to a court of appeals case and a maintainer took off (rule tag-removal-1): the
+ * tag as the rule had assigned it, the reason, and the passage of the case's own document that shows it.
+ */
+export const RemovedTagSchema = IssueTagSchema.extend({
+  removalRuleId: z.string(),
+  reason: z.string(),
+  quote: z.string(),
+  quoteUrl: httpsUrl,
+});
+export type RemovedTag = z.infer<typeof RemovedTagSchema>;
+
 export const EvidenceRefSchema = z.object({
   url: httpsUrl,
   /** The passage relied on, as it appears in the cited document. `[…]` separates parts quoted in order. */
@@ -260,6 +272,8 @@ export const LegalCaseSchema = LegalCaseSummarySchema.extend({
     .optional(),
   events: z.array(LegalEventSchema),
   documents: z.array(CourtDocumentSchema),
+  /** Tags the rules assigned and a maintainer removed, each with its reason and passage. */
+  removedTags: z.array(RemovedTagSchema).default([]),
   contentHash: z.string(),
 });
 export type LegalCase = z.infer<typeof LegalCaseSchema>;
@@ -662,7 +676,13 @@ export const ClassificationFileSchema = z.object({
   /** The rule id a tag carries when a maintainer added it. */
   curatedRuleId: z.string().optional(),
   /** Rules that are not keyword patterns: curation and selection rules, and the text-change rule. */
-  otherRules: z.array(z.object({ ruleId: z.string(), appliesTo: z.string(), description: z.string() })).default([]),
+  otherRules: z.array(z.object({
+    ruleId: z.string(),
+    appliesTo: z.string(),
+    description: z.string(),
+    /** For the rule that names the stage of a measure of Congress: its stages, from the first to the furthest. */
+    order: z.array(z.string()).optional(),
+  })).default([]),
 });
 export type ClassificationFile = z.infer<typeof ClassificationFileSchema>;
 

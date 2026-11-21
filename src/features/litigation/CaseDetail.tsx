@@ -4,7 +4,7 @@ import { useCore } from '../../lib/core';
 import { SCOTUS_ID, courtFullName, courtHash, courtShortName } from '../../lib/courts';
 import { loadCase } from '../../lib/data';
 import { entityNamer, packForCase } from '../../lib/export';
-import { formatDate, plural } from '../../lib/format';
+import { caseNameClass, formatDate, plural } from '../../lib/format';
 import { isRecordStale } from '../../lib/freshness';
 import { eventLabel, relationshipLabel, SCOPE_LABELS, useTagLabels } from '../../lib/labels';
 import { relationshipsForRecord } from '../../lib/relations';
@@ -168,7 +168,7 @@ function IssueTags({ record }: { record: LegalCase }) {
   return (
     <Section title="Issue tags" note="Applied by keyword rules to the stated text. They describe subject matter only, never the merits.">
       {record.issueTags.length === 0 ? (
-        <p className="quiet">No rule matched. The case is listed without tags rather than with a guess.</p>
+        <p className="quiet">{record.removedTags.length > 0 ? 'No tag is assigned.' : 'No rule matched. The case is listed without tags rather than with a guess.'}</p>
       ) : (
         <TableScroll label="Issue tags">
           <table className="table">
@@ -185,6 +185,27 @@ function IssueTags({ record }: { record: LegalCase }) {
           </table>
         </TableScroll>
       )}
+      {record.removedTags.length > 0 ? (
+        <div className="removed-tags">
+          <h3>Removed by a maintainer</h3>
+          <p className="section-note">
+            The rules count words, and a long opinion can reach a rule&rsquo;s count while it only cites decisions on another subject. A tag is removed only on a passage of the case&rsquo;s own document, which is checked on every data run (rule{' '}
+            <A to={buildHash(['sources'], { section: 'rules' })}>{record.removedTags[0]!.removalRuleId}</A>).
+          </p>
+          <ul className="rows">
+            {record.removedTags.map((tag) => (
+              <li key={tag.tag} className="row">
+                <p className="row-title">{labels.get(tag.tag) ?? tag.tag}</p>
+                <p className="row-line">{tag.reason}</p>
+                <p className="row-line">The document reads: <q>{tag.quote}</q> (<Ext href={tag.quoteUrl}>the document</Ext>)</p>
+                <p className="row-meta">
+                  Rule {tag.ruleId} had matched in the {tag.matchedField}{tag.matchCount ? `, ${plural(tag.matchCount, 'time')}` : ''}. The first match: &hellip;{tag.matchedText}&hellip;
+                </p>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
     </Section>
   );
 }
@@ -238,7 +259,7 @@ function SupremeBody({ record, route, links }: { record: LegalCase; route: Route
     <>
       <header className="view-head">
         <TypeMark type="case" />
-        <h1 tabIndex={-1} className="case-name">{record.caseName}</h1>
+        <h1 tabIndex={-1} className={caseNameClass(record.caseName)}>{record.caseName}</h1>
         <p className="lede">No. {record.docketNumber}, Supreme Court of the United States</p>
         <div className="btn-row">
           <WatchButton item={{ type: 'case', id: record.id, label: `${record.caseName}, No. ${record.docketNumber}` }} />
@@ -486,7 +507,7 @@ function AppealBody({ record, route, links }: { record: LegalCase; route: Route;
     <>
       <header className="view-head">
         <TypeMark type="case" />
-        <h1 tabIndex={-1} className="case-name">{record.caseName}</h1>
+        <h1 tabIndex={-1} className={caseNameClass(record.caseName)}>{record.caseName}</h1>
         <p className="lede">No. {record.docketNumber}, <a href={courtHash(record.courtId)}>{courtFullName(court, record.courtId)}</a></p>
         <div className="btn-row">
           <WatchButton item={{ type: 'case', id: record.id, label: `${record.caseName}, No. ${record.docketNumber} (${courtShortName(court, record.courtId)})` }} />

@@ -105,7 +105,7 @@ export function CourtsOverview() {
         <TypeMark type="court" label="Courts" />
         <h1 tabIndex={-1}>Federal courts</h1>
         <p className="lede">
-          The Supreme Court and the thirteen federal courts of appeals. Twelve of the courts of appeals sit over a circuit, a group of states and territories set by statute. The thirteenth, the Federal Circuit, takes cases by subject from the whole country.
+          The Supreme Court and the thirteen federal courts of appeals. Twelve sit over a circuit, a group of states and territories set by statute. The Federal Circuit takes cases by subject from the whole country.
         </p>
       </header>
       <Async of={allOf(core.courts, core.geo, core.cases)} what="the list of courts">

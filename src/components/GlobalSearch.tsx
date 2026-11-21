@@ -1,4 +1,4 @@
-/** Global search: a combobox over places, cases and bills. Results are deterministic prefix matches; close spellings are offered only when nothing matches. */
+/** Global search: a combobox over places, courts, cases and bills. Results are deterministic prefix matches; close spellings are offered only when nothing matches. */
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useCore } from '../lib/core';
 import { NARROW_QUERY, useMediaQuery } from '../lib/media';
@@ -26,7 +26,8 @@ export function GlobalSearch() {
   const geo = dataOf(core.geo);
   const cases = dataOf(core.cases);
   const bills = dataOf(core.bills);
-  const index = useMemo(() => buildSearchIndex(geo, cases ?? [], bills?.bills ?? []), [geo, cases, bills]);
+  const courts = dataOf(core.courts);
+  const index = useMemo(() => buildSearchIndex(geo, cases ?? [], bills?.bills ?? [], courts), [geo, cases, bills, courts]);
   const [query, setQuery] = useState('');
   // A long query (a paste) is searched once typing pauses; until then the results stay those of the query searched last.
   const [settled, setSettled] = useState('');
@@ -104,16 +105,16 @@ export function GlobalSearch() {
   };
 
   const showList = open && query.trim().length >= 2 && searched.trim().length >= 2;
-  // Places, cases and bills come from three files. Results are shown from those that have loaded, and the list says
-  // which are still loading or failed, so a missing result is never presented as "nothing matches".
-  const parts = [['places', core.geo], ['court cases', core.cases], ['bills', core.bills]] as const;
+  // Places, courts, cases and bills come from files of their own. Results are shown from those that have loaded, and the
+  // list says which are still loading or failed, so a missing result is never presented as "nothing matches".
+  const parts = [['places', core.geo], ['courts', core.courts], ['court cases', core.cases], ['bills', core.bills]] as const;
   const loadingParts = parts.filter(([, part]) => part.status === 'loading').map(([name]) => name);
   const failedParts = parts.filter(([, part]) => part.status === 'error').map(([name]) => name);
   const complete = loadingParts.length === 0 && failedParts.length === 0;
   const ready = loadingParts.length < parts.length;
   return (
     <div className="search" ref={wrapRef}>
-      <label className="sr-only" htmlFor={`${listId}-input`}>Search places, cases and bills</label>
+      <label className="sr-only" htmlFor={`${listId}-input`}>Search places, courts, cases and bills</label>
       <Icon name="search" size={15} />
       <input
         id={`${listId}-input`}
@@ -124,7 +125,7 @@ export function GlobalSearch() {
         aria-controls={`${listId}-list`}
         aria-autocomplete="list"
         aria-activedescendant={showList && flat[active] ? `${listId}-opt-${active}` : undefined}
-        placeholder={narrow ? 'Search' : 'Search a place, case or bill'}
+        placeholder={narrow ? 'Search' : 'Search a place, court, case or bill'}
         autoComplete="off"
         spellCheck={false}
         value={query}

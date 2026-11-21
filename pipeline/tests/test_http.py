@@ -126,6 +126,27 @@ def test_retry_after_is_not_waited_for_after_the_last_attempt(fetcher, session, 
     assert sleeps == [120.0, 120.0]  # waits before the second and third attempts only
 
 
+def test_a_request_can_be_made_once_and_its_failure_tells_what_the_server_asked_for(fetcher, session, sleeps):
+    # A caller that asks for many files makes each request once and waits once for all the failed ones.
+    session.on(URL, FakeResponse(502, headers={"Retry-After": "60"}))
+    with pytest.raises(FetchError) as info:
+        fetcher.get(URL, attempts=1)
+    assert len(session.calls) == 1 and sleeps == []
+    assert info.value.retry_after == 60.0 and info.value.may_pass and "after 1 attempt " in str(info.value)
+    fetcher.wait(info.value.retry_after)
+    assert sleeps == [60.0]
+    # A refusal names no wait, and asking again does not help.
+    session.on(URL, FakeResponse(404))
+    with pytest.raises(FetchError) as info:
+        fetcher.get(URL, attempts=1)
+    assert info.value.retry_after is None and not info.value.may_pass
+    # A request that failed in transit can pass later.
+    session.on(URL, requests.ConnectionError("down"))
+    with pytest.raises(FetchError) as info:
+        fetcher.get(URL, attempts=1)
+    assert info.value.status is None and info.value.may_pass
+
+
 def test_head_is_retried_under_the_same_policy_and_never_leaks_a_raw_network_error(fetcher, session, sleeps):
     session.on("HEAD " + URL, FakeResponse(503), requests.ConnectionError("down"), FakeResponse(200, b"", {"Last-Modified": "x"}))
     assert fetcher.head(URL)["Last-Modified"] == "x"

@@ -5,7 +5,7 @@
 import type { CircuitExclusion, Court, LegalCaseSummary } from '../../types/schemas';
 import { useCore, type AppealsCoverage } from '../../lib/core';
 import { FEDERAL_CIRCUIT_ID, SCOTUS_ID, courtFullName, courtHash, courtShortName, type CourtDirectory } from '../../lib/courts';
-import { formatDate, formatDateTime } from '../../lib/format';
+import { caseNameClass, formatDate, formatDateTime } from '../../lib/format';
 import { sourceFreshness } from '../../lib/freshness';
 import type { GeoIndex } from '../../lib/geo';
 import { useTagLabels } from '../../lib/labels';
@@ -175,7 +175,7 @@ function Exclusions({ items }: { items: readonly CircuitExclusion[] }) {
       <ul className="rows">
         {items.map((item) => (
           <li key={item.caseId} className="row">
-            <p className="row-title case-name">{item.caseName}</p>
+            <p className={`row-title ${caseNameClass(item.caseName)}`}>{item.caseName}</p>
             <p className="row-meta">No. {item.docketNumber}</p>
             <p className="row-line">{item.reason}</p>
             <p className="row-line">The opinion reads: <q>{item.quote}</q></p>

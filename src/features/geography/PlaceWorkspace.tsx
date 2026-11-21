@@ -203,14 +203,6 @@ function Overview({ data, route }: { data: PlaceData; route: Route }) {
   const kind = stateKind(data.unit.stateFips).toLowerCase();
   return (
     <>
-      <Section title="Population, 2020 Census">
-        <Async of={data.population} what="population counts">
-          {(result) => <PopulationCard result={result} unit={data.unit} data={data} />}
-        </Async>
-      </Section>
-      <Section title="Related geography">
-        <RelatedGeography data={data} />
-      </Section>
       <Section title="Records tied to this place">
         {/* Each count waits only for the files it is made from; one that failed says so instead of showing a number. */}
         <ul className="plain-list">
@@ -239,6 +231,15 @@ function Overview({ data, route }: { data: PlaceData; route: Route }) {
         </ul>
         <FederalPointer />
         <GapNotice>These counts describe this dataset, not the amount of litigation or legislation that exists.</GapNotice>
+      </Section>
+      <Section title="Related geography">
+        <RelatedGeography data={data} />
+        <p className="quiet">The outline on the map is from the {data.vintage}, U.S. Census Bureau.</p>
+      </Section>
+      <Section title="Population, 2020 Census">
+        <Async of={data.population} what="population counts">
+          {(result) => <PopulationCard result={result} unit={data.unit} data={data} />}
+        </Async>
       </Section>
     </>
   );
@@ -510,7 +511,6 @@ export function PlaceWorkspace({ placeKey, route }: { placeKey: string; route: R
         <TypeMark type="place" />
         <h1 tabIndex={-1}>{unit.name}</h1>
         <p className="lede">{unitNoun(unit)}{abbr && unit.layer === 'state' ? ` (${abbr})` : ''}. Census GEOID <span className="geoid">{unit.geoid}</span>.</p>
-        <p className="quiet">Boundary: {data.vintage}, U.S. Census Bureau.</p>
         <div className="btn-row">
           <WatchButton item={{ type: 'place', id: unit.key, label: unit.name }} />
           <CopyLinkButton hash={buildHash(['place', unit.key], route.query)} />

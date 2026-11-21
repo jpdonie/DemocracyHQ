@@ -15,6 +15,12 @@ export function billLabel(bill: Named): string {
   return isFederalBill(bill) ? bill.identifier : `${bill.stateAbbr} ${bill.identifier}`;
 }
 
+/** The measure as a heading names it: "H.R. 22" for a measure of Congress, "California AB 604" for a state bill. */
+export function billHeading(bill: Named): string {
+  if (isFederalBill(bill)) return bill.identifier;
+  return `${bill.stateAbbr === 'CA' ? 'California' : bill.stateAbbr} ${bill.identifier}`;
+}
+
 /** "119th Congress" from "119th Congress (2025–2026)". A state's session is given as the legislature names it. */
 export function shortSession(session: string): string {
   return session.replace(/\s*\([^)]*\)\s*$/, '');
@@ -90,6 +96,10 @@ export const FEDERAL_STAGES: readonly string[] = [
  */
 export const PASSED_IN_EACH_STAGES: ReadonlySet<string> = new Set(['Passed House and Senate, not sent to the President', 'Agreed to in House and Senate']);
 export const PASSED_IN_EACH_NOTE = 'Each chamber has voted to pass this measure. The record does not show that both passed the same text: one chamber can pass the other’s bill with an amendment, which the first must then accept.';
+/** The same in a few words, for a row of a list. */
+export const PASSED_IN_EACH_SHORT = 'a vote in each chamber, not necessarily on the same text';
+/** The same for a table or a menu of stages, where no single measure is meant. */
+export const PASSED_IN_EACH_LIST_NOTE = 'A stage that names both chambers means a vote of passage in each. The record does not show that both passed the same text: one chamber can pass the other’s bill with an amendment, which the first must then accept.';
 
 /** Where a stage stands in that order; a stage the list does not hold sorts after all the others. */
 export function stageRank(stage: string | null | undefined): number {

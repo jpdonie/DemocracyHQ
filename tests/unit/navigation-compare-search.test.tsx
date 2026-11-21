@@ -167,7 +167,7 @@ describe('global search on pasted text (DB10)', () => {
 describe('source pack titles (DB12)', () => {
   it('name the subject of the pack', () => {
     const cases = [{ id: 'scotus-24-109', caseName: 'Louisiana v. Callais', docketNumber: '24-109' }];
-    const bills = [{ id: 'ca-1', stateAbbr: 'CA', identifier: 'AB 604', subject: 'Redistricting: congressional districts.' }];
+    const bills = [{ id: 'ca-1', state: '06', stateAbbr: 'CA', identifier: 'AB 604', subject: 'Redistricting: congressional districts.' }];
     const geo = { get: (key: string) => (key === 'state:22' ? { name: 'Louisiana' } : undefined) };
     expect(packTitle({ kind: 'case', id: 'scotus-24-109' }, cases, bills, geo)).toBe('Legal source pack: Louisiana v. Callais (No. 24-109)');
     expect(packTitle({ kind: 'bill', id: 'ca-1' }, cases, bills, geo)).toBe('Legal source pack: CA AB 604 (Redistricting: congressional districts)');

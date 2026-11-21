@@ -60,7 +60,7 @@ export function TimelineList({ events, limit, subjectOf }: {
             <time dateTime={event.date}>{formatDate(event.date)}</time>
             <div>
               <p className="timeline-head">
-                <span className="timeline-cat">{CATEGORY_LABEL[event.category]}</span> {eventLabel(event.eventType)}
+                <span className="timeline-cat">{CATEGORY_LABEL[event.category]}</span> {eventLabel(event.eventType, event.ruleId)}
               </p>
               {event.group && event.group.length > 1 ? <GroupEntity group={event.group} /> : (
                 <p className="timeline-entity"><a className={event.entityType === 'case' ? 'case-name' : undefined} href={entityHash(event)}>{event.entityLabel}</a></p>

@@ -3,11 +3,12 @@
  * committees, every recorded action, the roll-call votes the record links and the measures it names as related. The
  * stage is DemocracyHQ's own reading of the actions (rule us-status-1), never an official status.
  */
+import { useState } from 'react';
 import type { EntityRelationship, LegislativeInstrument, RelatedMeasure } from '../../types/schemas';
 import { FEDERAL_TEXT_SOURCE_ID, PASSED_IN_EACH_NOTE, PASSED_IN_EACH_STAGES, billLabel, isAdoptedMeasure } from '../../lib/bills';
 import { useCore } from '../../lib/core';
 import { entityNamer, packForBill } from '../../lib/export';
-import { formatDate, plural } from '../../lib/format';
+import { formatDate, openingOf, plural } from '../../lib/format';
 import { isRecordStale } from '../../lib/freshness';
 import { eventLabel } from '../../lib/labels';
 import { NATION_KEY } from '../../lib/geo';
@@ -25,6 +26,23 @@ function enactmentHeadline(bill: LegislativeInstrument): string {
   return 'Not enacted';
 }
 
+/** A title longer than this is shown by its opening words: a rule for floor consideration can run to a hundred words. */
+const RELATED_TITLE_LIMIT = 170;
+
+/** The measure's number and title. A long title opens in place; nothing is cut off for good. */
+function RelatedTitle({ measure }: { measure: RelatedMeasure }) {
+  const [open, setOpen] = useState(false);
+  const title = measure.title ?? '';
+  const opening = openingOf(title, RELATED_TITLE_LIMIT);
+  const text = <><span className="bill-id">{measure.identifier}</span> {opening && !open ? <>{opening}&hellip;</> : title}</>;
+  return (
+    <p className="row-title">
+      {measure.id ? <a href={buildHash(['laws', measure.id])}>{text}</a> : text}
+      {opening ? <> <button type="button" className="link-btn" aria-expanded={open} onClick={() => setOpen(!open)}>{open ? 'Show less' : 'Show the full title'}</button></> : null}
+    </p>
+  );
+}
+
 function RelatedMeasures({ related }: { related: readonly RelatedMeasure[] }) {
   if (related.length === 0) return null;
   return (
@@ -35,11 +53,7 @@ function RelatedMeasures({ related }: { related: readonly RelatedMeasure[] }) {
       <ul className="rows">
         {related.map((measure, index) => (
           <li key={`${measure.identifier}:${index}`} className="row">
-            <p className="row-title">
-              {measure.id
-                ? <a href={buildHash(['laws', measure.id])}><span className="bill-id">{measure.identifier}</span> {measure.title}</a>
-                : <><span className="bill-id">{measure.identifier}</span> {measure.title}</>}
-            </p>
+            <RelatedTitle measure={measure} />
             <p className="row-meta">
               {measure.relationship}, identified by {measure.identifiedBy === 'CRS' ? 'the Congressional Research Service' : measure.identifiedBy.replace(/\bCRS\b/, 'the Congressional Research Service')}
               {measure.id ? '' : '. Not in this dataset'}

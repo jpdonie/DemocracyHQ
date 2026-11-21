@@ -83,6 +83,7 @@ describe('a case page with a document whose address answered "not found"', () =>
           id: 'synthetic-case-1:d2', caseId: 'synthetic-case-1', entryIndex: 2, title: 'Opinion (linked in docket entry)', filingDate: '2026-03-01',
           documentType: 'Opinion', url: deadUrl, availability: 'unavailable',
           accessNote: 'The Court\'s docket gives this address, which answered 404 (not found) when checked on 2026-06-14. The Court may have moved the file.',
+          sameTextAs: [],
         },
       ],
       events: base.events.map((e) => (e.id === 'synthetic-case-1:e3' ? { ...e, documentIds: ['synthetic-case-1:d2'] } : e)),

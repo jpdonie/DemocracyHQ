@@ -74,8 +74,10 @@ class FakeSession:
 
         def handler(_url: str, headers: dict, _params: Optional[dict]) -> FakeResponse:
             spec = headers.get("Range")
+            if headers.get("If-Modified-Since") == last_modified:
+                return FakeResponse(304, b"", {"Last-Modified": last_modified})
             if not spec:
-                return FakeResponse(200, data)
+                return FakeResponse(200, data, {"Last-Modified": last_modified})
             start, end = (int(x) for x in spec.replace("bytes=", "").split("-"))
             end = min(end, len(data) - 1)
             return FakeResponse(206, data[start : end + 1], {"Content-Range": f"bytes {start}-{end}/{len(data)}"})

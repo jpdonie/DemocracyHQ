@@ -131,10 +131,30 @@ def test_the_same_congress_input_at_the_same_time_gives_identical_bytes_and_a_la
     assert after["contentHash"] == before["contentHash"]
 
 
+def test_a_text_version_already_held_is_asked_for_with_its_date_and_kept_while_the_server_says_it_is_unchanged(laws, session):
+    url = congress.TEXT_URL.format(package="BILLS-119hr22eh")
+    requests = lambda: [(c["method"], c["headers"].get("If-Modified-Since")) for c in session.calls if c["url"] == url]  # noqa: E731
+    laws.run(LAWS, now=T1)
+    assert requests() == [("GET", None)]
+    before = laws.read("congress/text/BILLS-119hr22eh.json")
+    # The second run asks with the date of the copy it holds. The server answers 304 and sends no text.
+    laws.run(LAWS, now=T2)
+    assert requests()[1:] == [("GET", "Mon, 01 Jun 2026 08:00:00 GMT")]
+    assert laws.read("congress/text/BILLS-119hr22eh.json")["textHash"] == before["textHash"]
+    # A text the server has changed since is served in full and read anew.
+    changed = fed.bill_text(OFFICIAL, [SECTIONS_2[0], ("2", "Proof", ["A State shall accept a synthetic document for voter registration within 60 days."])])
+    session.serve_bytes(url, changed, last_modified="Wed, 03 Jun 2026 08:00:00 GMT")
+    code, ctx = laws.run(LAWS, now=T3)
+    assert requests()[2:] == [("GET", "Mon, 01 Jun 2026 08:00:00 GMT")]
+    assert laws.read("congress/text/BILLS-119hr22eh.json")["textHash"] != before["textHash"]
+    laws.run(LAWS, now=T3)
+    assert requests()[3:] == [("GET", "Wed, 03 Jun 2026 08:00:00 GMT")]
+
+
 def test_a_text_version_that_cannot_be_retrieved_keeps_the_last_verified_record(laws, session):
     laws.run(LAWS, now=T1)
     kept = (laws.public / "congress/bills/us-119-hr22.json").read_bytes()
-    session.on("HEAD " + congress.TEXT_URL.format(package="BILLS-119hr22eh"), FakeResponse(503))
+    session.on(congress.TEXT_URL.format(package="BILLS-119hr22eh"), FakeResponse(503))
     code, ctx = laws.run(LAWS, now=T2)
     assert code == 1
     assert (laws.public / "congress/bills/us-119-hr22.json").read_bytes() == kept
@@ -144,6 +164,19 @@ def test_a_text_version_that_cannot_be_retrieved_keeps_the_last_verified_record(
     status, texts = laws.source("govinfo-billstatus"), laws.source("govinfo-bills")
     assert status["processingStatus"] == "ok" and "1 of 2 measures could not be rebuilt" in status["statusDetail"]
     assert (texts["processingStatus"], texts["lastSuccessfulCheck"], texts["lastAttempt"]) == ("failed", T1, T2)
+
+
+def test_a_text_version_the_server_fails_at_first_is_asked_for_again_and_its_measure_is_rebuilt(laws, session):
+    laws.run(LAWS, now=T1)
+    url = congress.TEXT_URL.format(package="BILLS-119hr22eh")
+    served = session.routes[url][0]
+    session.on(url, FakeResponse(502, b"error", {"Retry-After": "60"}), FakeResponse(502, b"error", {"Retry-After": "60"}), served)
+    code, ctx = laws.run(LAWS, now=T2)
+    assert code == 0 and ctx.review == []
+    assert laws.read("congress/bills/us-119-hr22.json")["lastCheckedAt"] == T2
+    asked = [c["headers"].get("If-Modified-Since") for c in session.calls if c["url"] == url]
+    assert asked == [None] + ["Mon, 01 Jun 2026 08:00:00 GMT"] * 3  # the first run, then two failed requests and the one answered
+    assert laws.source("govinfo-bills")["processingStatus"] == "ok"
 
 
 def test_a_new_measure_whose_text_cannot_be_retrieved_is_not_published_half_built(env, session):  # noqa: F811
@@ -291,6 +324,97 @@ def test_an_exclusion_whose_passage_is_not_in_the_opinion_leaves_the_case_in_and
     assert sorted((r["kind"], r["entity"]) for r in ctx.review) == [
         ("exclusion_check_failed", "ca11-25-00003"), ("exclusion_unusable", "../../etc/passwd"), ("exclusion_unusable", "USCOURTS-ca5-25-30725"),
         ("exclusion_unused", "ca5-25-00002"), ("exclusion_unused", "ca5-25-99999")]
+
+
+#: An opinion on late absentee ballots that names gerrymandering five times, only where it compares the case with others.
+GERRYMANDER = "The court compared the standing of the voters with that in the gerrymandering decisions. "
+ABOUT = "This synthetic case is about absentee ballots that arrived late."
+REMOVAL = {"entity": "ca5-25-30725", "tag": "redistricting", "reason": "The synthetic case is about absentee ballots.", "quote": ABOUT}
+
+
+@pytest.fixture
+def compared(courts):
+    courts.courts.add(LEAGUE, "Synthetic Voters League v. Synthetic County", [ORIGIN + ABOUT + " " + fed.election_opinion(sentences=6) + GERRYMANDER * 5])
+    courts.courts.serve()
+    return courts
+
+
+def test_a_tag_a_maintainer_removed_is_published_with_the_rule_that_assigned_it_and_the_passage_that_shows_why(compared):
+    code, ctx = compared.run(COURTS, now=T1)
+    assert [t["tag"] for t in compared.read("circuits/cases/ca5-25-30725.json")["issueTags"]] == ["redistricting", "mail-voting"]
+    assert compared.read("circuits/cases/ca5-25-30725.json")["removedTags"] == []
+    write_json(compared.seeds_dir / "tag_removals.json", {"removals": [REMOVAL]})
+    code, ctx = compared.run(COURTS, now=T2)
+    assert code == 0 and ctx.review == []
+    case = compared.read("circuits/cases/ca5-25-30725.json")
+    assert [t["tag"] for t in case["issueTags"]] == ["mail-voting"]
+    assert case["removedTags"] == [{
+        "tag": "redistricting", "ruleId": "tag-redist-2", "matchedField": "full text of the opinion", "matchCount": 5,
+        "matchedText": "standing of the voters with that in the gerrymandering decisions. The court compared the standing",
+        "removalRuleId": "tag-removal-1", "reason": "The synthetic case is about absentee ballots.", "quote": ABOUT,
+        "quoteUrl": f"https://www.govinfo.gov/content/pkg/{LEAGUE}/pdf/{LEAGUE}-0.pdf"}]
+    summary = compared.read("circuits/index.json")["cases"][0]
+    assert [t["tag"] for t in summary["issueTags"]] == ["mail-voting"] and "removedTags" not in summary
+    rule = next(r for r in compared.read("classification.json")["otherRules"] if r["ruleId"] == "tag-removal-1")
+    assert "pipeline/seeds/tag_removals.json" in rule["description"] and "the tag stays" in rule["description"]
+    # Without the entry the rules decide again.
+    write_json(compared.seeds_dir / "tag_removals.json", {"removals": []})
+    compared.run(COURTS, now=T3)
+    case = compared.read("circuits/cases/ca5-25-30725.json")
+    assert [t["tag"] for t in case["issueTags"]] == ["redistricting", "mail-voting"] and case["removedTags"] == []
+
+
+def test_a_tag_stays_when_the_passage_quoted_for_its_removal_is_not_in_the_opinion(compared):
+    write_json(compared.seeds_dir / "tag_removals.json", {"removals": [
+        {**REMOVAL, "quote": "This synthetic case is about something the opinion never says."},
+        {**REMOVAL, "tag": "voter-id"},                                   # a tag the rules do not assign to this case
+        {**REMOVAL, "entity": "ca11-25-00003"},                           # a case on the list of exclusions
+        {**REMOVAL, "entity": "ca5-25-00002"},                            # a case the selection rule does not select
+        {**REMOVAL, "entity": "ca9-25-99999"},                            # a case GovInfo does not list
+        {**REMOVAL, "quote": "A second entry for the same tag of the same case."},
+        {**REMOVAL, "tag": "no-such-tag"},
+        {**REMOVAL, "entity": "99-0001"},                                 # not a case of a court of appeals
+        {"entity": "ca5-25-30725", "tag": "mail-voting", "quote": ABOUT},  # no reason
+        {"entity": "ca5-25-30725", "tag": "mail-voting", "reason": "No passage is quoted for this one."},
+    ]})
+    code, ctx = compared.run(COURTS)
+    assert code == 0
+    case = compared.read("circuits/cases/ca5-25-30725.json")
+    assert [t["tag"] for t in case["issueTags"]] == ["redistricting", "mail-voting"] and case["removedTags"] == []
+    assert sorted((r["kind"], r["entity"]) for r in ctx.review) == [
+        ("tag_removal_not_applied", "ca5-25-30725"), ("tag_removal_not_applied", "ca5-25-30725"),
+        ("tag_removal_unusable", "99-0001"), ("tag_removal_unusable", "ca5-25-30725"), ("tag_removal_unusable", "ca5-25-30725"),
+        ("tag_removal_unusable", "ca5-25-30725"), ("tag_removal_unusable", "ca5-25-30725"),
+        ("tag_removal_unused", "ca11-25-00003"), ("tag_removal_unused", "ca5-25-00002"), ("tag_removal_unused", "ca9-25-99999")]
+    details = sorted(r["detail"] for r in ctx.review if r["kind"] == "tag_removal_not_applied")
+    assert "was not found in the documents of the case" in details[1] and "do not assign the tag 'voter-id'" in details[0]
+
+
+def test_the_removal_of_a_tag_is_kept_while_the_case_cannot_be_read(compared, session):
+    write_json(compared.seeds_dir / "tag_removals.json", {"removals": [REMOVAL]})
+    compared.run(COURTS, now=T1)
+    before = compared.read("circuits/cases/ca5-25-30725.json")
+    assert [t["tag"] for t in before["removedTags"]] == ["redistricting"]
+    # The case changes at GovInfo and its record cannot be fetched: the published record stays, with its removal.
+    compared.courts.add(LEAGUE, "Synthetic Voters League v. Synthetic County", ["Not served."], changed="2026-06-02T12:00:00.123Z")
+    compared.courts.serve()
+    session.on(uscourts.RECORD_URL.format(package=LEAGUE), FakeResponse(503, "unavailable"))
+    code, ctx = compared.run(COURTS, now=T2)
+    assert compared.read("circuits/cases/ca5-25-30725.json") == before
+    assert [(r["kind"], r["entity"]) for r in ctx.review] == [("fetch_failed", "ca5-25-30725")]
+
+
+def test_the_shipped_list_of_removed_tags_is_usable(env):  # noqa: F811
+    """Every entry of the real seeds/tag_removals.json names a court of appeals case and a tag, gives a reason and quotes a passage."""
+    from pathlib import Path
+
+    from dhq.util import read_json
+    shipped = read_json(Path(pipeline.__file__).resolve().parents[1] / "seeds" / "tag_removals.json")
+    write_json(env.seeds_dir / "tag_removals.json", shipped)
+    ctx = pipeline.Context(public=env.public, staging=env.staging, cache=env.staging / "cache", fetcher_factory=lambda **kw: None)
+    seeds = pipeline._tag_removal_seeds(ctx)
+    assert ctx.review == [] and sum(len(entries) for entries in seeds.values()) == len(shipped["removals"]) >= 3
+    assert all(len(entry["quote"].replace(" ", "")) >= 25 and entry["reason"].endswith(".") for entries in seeds.values() for entry in entries)
 
 
 def test_a_decision_is_listed_under_its_circuit_and_under_no_state(courts):

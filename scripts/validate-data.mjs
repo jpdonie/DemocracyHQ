@@ -65,10 +65,13 @@ function parse(schema, rel, value) {
 }
 
 const server = await createServer({ root, logLevel: 'error', server: { middlewareMode: true, hmr: false, ws: false }, appType: 'custom', optimizeDeps: { noDiscovery: true } });
-let S, geoLib;
+let S, geoLib, billsLib, courtsLib;
 try {
   S = await server.ssrLoadModule('/src/types/schemas.ts');
   geoLib = await server.ssrLoadModule('/src/lib/geo.ts');
+  // The lists the site holds as fixed text, which the data must agree with: the stages of a measure and the courts' names.
+  billsLib = await server.ssrLoadModule('/src/lib/bills.ts');
+  courtsLib = await server.ssrLoadModule('/src/lib/courts.ts');
 } finally {
   await server.close();
 }
@@ -262,6 +265,9 @@ if (circuitsFile && geoIndex) {
     seenIds.add(court.id);
     if (court.courtType !== 'federal_appellate') fail(`geo/circuits.json: ${court.id} is not listed as a federal court of appeals`);
     if (!court.shortName) fail(`geo/circuits.json: ${court.id} has no short name`);
+    // The site names a court from fixed text where this file has not loaded yet (a search entry, a file name).
+    if (courtsLib.fixedShortName(court.id) !== court.shortName) fail(`geo/circuits.json: ${court.id} is called "${court.shortName}", the site's fixed name for it is "${courtsLib.fixedShortName(court.id)}" (src/lib/courts.ts)`);
+    if (courtsLib.fixedFullName(court.id) !== court.name) fail(`geo/circuits.json: ${court.id} is named "${court.name}", the site's fixed name for it is "${courtsLib.fixedFullName(court.id)}" (src/lib/courts.ts)`);
     if (!court.basis?.quote || !court.basis?.citation) fail(`geo/circuits.json: ${court.id} is published without the words of the statute it rests on`);
     if (court.geoKey) {
       if (!drawn.has(court.geoKey)) fail(`geo/circuits.json: ${court.id} names the map unit ${court.geoKey}, which is not in the index`);
@@ -352,6 +358,7 @@ const ruleIds = new Set([
   ...(classification?.otherRules ?? []).map((r) => r.ruleId),
 ]);
 if (classification?.curatedRuleId) ruleIds.add(classification.curatedRuleId);
+const tagNames = new Set((classification?.issueRules ?? []).map((r) => r.tag));
 if (circuitsFile && !ruleIds.has(circuitsFile.statute.ruleId)) fail(`geo/circuits.json: cites unknown rule ${circuitsFile.statute.ruleId}`);
 const exists = (ref) => (ref.type === 'case' ? cases.has(ref.id) : ref.type === 'bill' ? bills.has(ref.id) : geoKeys.has(ref.id));
 
@@ -384,6 +391,14 @@ for (const record of cases.values()) {
   }
   if (record.events.length !== record.entryCount) fail(`case ${record.id}: entryCount is ${record.entryCount} but ${record.events.length} entries are stored`);
   for (const tag of record.issueTags) if (!ruleIds.has(tag.ruleId)) fail(`case ${record.id}: tag ${tag.tag} cites unknown rule ${tag.ruleId}`);
+  // A tag a maintainer took off: it is no longer assigned, and the removal names its rules, its reason and a passage of a document of the case.
+  for (const removed of record.removedTags) {
+    if (!ruleIds.has(removed.ruleId) || !ruleIds.has(removed.removalRuleId)) fail(`case ${record.id}: the removal of tag ${removed.tag} cites an unknown rule (${removed.ruleId}, ${removed.removalRuleId})`);
+    if (!tagNames.has(removed.tag)) fail(`case ${record.id}: the removed tag ${removed.tag} is not a tag of the published rules`);
+    if (record.issueTags.some((tag) => tag.tag === removed.tag)) fail(`case ${record.id}: tag ${removed.tag} is shown both as assigned and as removed`);
+    if (!removed.reason.trim() || !removed.quote.trim()) fail(`case ${record.id}: tag ${removed.tag} was removed without a reason or without a quoted passage`);
+    if (!record.documents.some((doc) => doc.url === removed.quoteUrl)) fail(`case ${record.id}: the passage quoted for removing tag ${removed.tag} is not from a document of the case`);
+  }
   for (const event of record.events) {
     if (event.classificationRule && !ruleIds.has(event.classificationRule)) fail(`case ${record.id}: entry ${event.id} cites unknown rule ${event.classificationRule}`);
     if (!/^https:\/\//.test(event.evidence.url)) fail(`case ${record.id}: entry ${event.id} cites a link that is not https (${event.evidence.url})`);
@@ -435,6 +450,14 @@ if (federalIndex) {
     if ((byTest[test] ?? 0) !== (selection.selectedByTest[test] ?? 0)) fail(`congress/index.json: says ${selection.selectedByTest[test] ?? 0} measure(s) were selected by the "${test}" test, the records say ${byTest[test] ?? 0}`);
   }
   if (selection.totalMeasuresRead < federalBills.length) fail(`congress/index.json: ${federalBills.length} measures are published, but only ${selection.totalMeasuresRead} are said to have been read`);
+  // The site lists stages in the order of its own list (src/lib/bills.ts), which must be the order the rule publishes.
+  const published = classification?.otherRules.find((rule) => rule.order)?.order;
+  if (!published) fail('classification.json: no rule publishes the order of the stages of a measure of Congress');
+  else if (JSON.stringify(published) !== JSON.stringify(billsLib.FEDERAL_STAGES)) fail(`classification.json: the stages of a measure of Congress are published as [${published.join('; ')}], the site lists them as [${billsLib.FEDERAL_STAGES.join('; ')}] (src/lib/bills.ts)`);
+  for (const record of federalBills) {
+    const stage = record.legislativeStatus.currentStatus;
+    if (!billsLib.FEDERAL_STAGES.includes(stage)) fail(`bill ${record.id}: its stage "${stage}" is not one of the stages the site lists (src/lib/bills.ts)`);
+  }
   if (errors.length === before) pass('Measures of Congress', `${federalBills.length} of ${selection.totalMeasuresRead.toLocaleString('en-US')} measures read are published, each with the test of the selection rule it met`);
 }
 if (circuitIndex) {

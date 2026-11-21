@@ -1,5 +1,5 @@
 {
- "contentHash": "c553919b7a9c9dccbccc1b1d6acbfb4c9a4a435582881c294ae5b864522122bc",
+ "contentHash": "993d2e95a7608d7b435c541e2e945f30cfb0d04a690f6728c7705716720d9512",
  "counts": {
   "appealsCourtCases": 128,
   "bills": 404,
@@ -11,19 +11,18 @@
   "stateBills": 132,
   "supremeCourtCases": 25
  },
- "generatedAt": "2026-11-21T08:05:26Z",
+ "generatedAt": "2026-11-21T12:01:28Z",
  "reviewQueue": {
   "byKind": {
-   "fetch_failed": 1,
    "text_version_note": 1
   },
-  "items": 2
+  "items": 1
  },
  "schemaVersion": 1,
  "sources": {
   "ca-leginfo-bulk": {
-   "lastAttempt": "2026-11-20T22:05:28Z",
-   "lastSuccessfulCheck": "2026-11-20T22:05:28Z",
+   "lastAttempt": "2026-11-21T09:01:56Z",
+   "lastSuccessfulCheck": "2026-11-21T09:01:56Z",
    "processingStatus": "ok"
   },
   "census-cb-2025": {
@@ -57,13 +56,13 @@
    "processingStatus": "credential_missing"
   },
   "govinfo-bills": {
-   "lastAttempt": "2026-11-21T06:05:19Z",
-   "lastSuccessfulCheck": "2026-11-21T06:05:19Z",
+   "lastAttempt": "2026-11-21T09:01:56Z",
+   "lastSuccessfulCheck": "2026-11-21T09:01:56Z",
    "processingStatus": "ok"
   },
   "govinfo-billstatus": {
-   "lastAttempt": "2026-11-21T06:05:19Z",
-   "lastSuccessfulCheck": "2026-11-21T06:05:19Z",
+   "lastAttempt": "2026-11-21T09:01:56Z",
+   "lastSuccessfulCheck": "2026-11-21T09:01:56Z",
    "processingStatus": "ok"
   },
   "govinfo-uscode": {
@@ -72,8 +71,8 @@
    "processingStatus": "ok"
   },
   "govinfo-uscourts": {
-   "lastAttempt": "2026-11-21T08:05:26Z",
-   "lastSuccessfulCheck": "2026-11-21T08:05:26Z",
+   "lastAttempt": "2026-11-21T09:01:56Z",
+   "lastSuccessfulCheck": "2026-11-21T09:01:56Z",
    "processingStatus": "ok"
   },
   "openstates-api": {
@@ -82,8 +81,8 @@
    "processingStatus": "credential_missing"
   },
   "scotus-docket": {
-   "lastAttempt": "2026-11-20T22:05:28Z",
-   "lastSuccessfulCheck": "2026-11-20T22:05:28Z",
+   "lastAttempt": "2026-11-21T09:01:56Z",
+   "lastSuccessfulCheck": "2026-11-21T09:01:56Z",
    "processingStatus": "ok"
   }
  }

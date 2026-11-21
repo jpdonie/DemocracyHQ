@@ -8,9 +8,12 @@ import hashlib
 import pytest
 
 from dhq.adapters import bill_text, congress
+from dhq import http
+from dhq.http import FetchError
 from dhq.schemas import LegislativeAction
 
 import synthetic_federal as fed
+from conftest import FakeResponse
 
 OFFICIAL = "To require synthetic proof of eligibility to register an individual to vote in elections for Federal office, and for other purposes."
 
@@ -237,6 +240,77 @@ def test_a_text_that_fails_the_readers_check_is_listed_with_a_link_only_and_a_mi
     assert len(notes) == 1 and "listed with a link only" in notes[0] and "self-check failed" in notes[0]
     with pytest.raises(congress.BillTextUnavailable, match="BILLS-119hr22ih"):
         congress.build_instrument(_entry(data), Texts({}), checked_at="2026-06-01T10:00:00Z")
+
+
+# --- the text versions of a run, checked together ---------------------------------------
+
+def _text_url(package: str) -> str:
+    return congress.TEXT_URL.format(package=package)
+
+
+def _served(package: str) -> FakeResponse:
+    return FakeResponse(200, f"<bill>{package}</bill>", {"Last-Modified": "Mon, 01 Jun 2026 08:00:00 GMT"})
+
+
+def test_text_versions_the_server_failed_are_asked_for_again_together_after_one_pause(fetcher, session, sleeps, tmp_path):
+    store = congress.TextStore(fetcher, tmp_path)
+    first, second, third = "BILLS-119hr1ih", "BILLS-119hr2ih", "BILLS-119hr3ih"
+    come_back_later = FakeResponse(502, b"error", {"Retry-After": "60"})
+    session.on(_text_url(first), _served(first))
+    session.on(_text_url(second), come_back_later, _served(second))
+    session.on(_text_url(third), come_back_later, come_back_later, _served(third))
+    assert store.check([first, second, third]) == {}
+    # One pause for a round, however many versions the server failed in it: the minute it asked for.
+    assert sleeps == [60.0, 60.0]
+    assert [session.urls().count(_text_url(package)) for package in (first, second, third)] == [1, 2, 3]
+    # What was checked is read from the copy held, without another request.
+    assert store.get(third) == b"<bill>BILLS-119hr3ih</bill>"
+    assert len(session.calls) == 6
+
+
+def test_a_text_version_that_does_not_exist_is_asked_for_once(fetcher, session, sleeps, tmp_path):
+    store = congress.TextStore(fetcher, tmp_path)
+    missing, there = "BILLS-119hr1ih", "BILLS-119hr2ih"  # the first is not served: the answer is 404
+    session.on(_text_url(there), _served(there))
+    failed = store.check([missing, there])
+    assert list(failed) == [missing] and failed[missing].status == 404
+    assert sleeps == []
+    with pytest.raises(FetchError):
+        store.get(missing)
+    assert session.urls().count(_text_url(missing)) == 1
+    assert store.get(there) == b"<bill>BILLS-119hr2ih</bill>"
+
+
+def test_a_text_version_is_asked_for_a_limited_number_of_times_with_longer_pauses(fetcher, session, sleeps, tmp_path):
+    store = congress.TextStore(fetcher, tmp_path)
+    package = "BILLS-119hr1ih"
+    session.on(_text_url(package), FakeResponse(502))  # no wait is named: the pauses double, up to a minute
+    failed = store.check([package])
+    assert failed[package].status == 502
+    assert session.urls().count(_text_url(package)) == http.ROUNDS == 12
+    assert sleeps == [5.0, 10.0, 20.0, 40.0] + [60.0] * 7
+    with pytest.raises(FetchError):
+        store.get(package)
+    assert session.urls().count(_text_url(package)) == 12  # the answer of the check stands for the run
+
+
+def test_a_server_that_answers_no_request_at_all_is_not_asked_again(fetcher, session, sleeps, tmp_path):
+    store = congress.TextStore(fetcher, tmp_path)
+    packages = [f"BILLS-119hr{number}ih" for number in range(1, http.DOWN_AT + 1)]
+    for package in packages:
+        session.on(_text_url(package), FakeResponse(502, b"error", {"Retry-After": "60"}))
+    failed = store.check(packages)
+    assert sorted(failed) == sorted(packages)
+    assert sleeps == [] and len(session.calls) == len(packages)
+
+
+def test_the_text_versions_of_the_selected_measures_are_listed_for_the_check():
+    listed = fed.status_record("hr", 22, title="Synthetic Voter Eligibility Act", official=OFFICIAL,
+                               versions=[("Engrossed in House", "2025-04-10", "eh"), ("Introduced in House", "2025-01-03", "ih")])
+    other = fed.status_record("sres", 5, title="A resolution recognizing synthetic poll workers on Election Day.",
+                              versions=[("Introduced in Senate", "2025-02-03", "is")])
+    selected = {"us-119-hr22": _entry(listed), "us-119-sres5": _entry(other), "unreadable": {"record": {}}}
+    assert congress.text_packages(selected) == ["BILLS-119hr22eh", "BILLS-119hr22ih", "BILLS-119sres5is"]
 
 
 def test_a_version_the_record_lists_without_a_text_address_is_left_out_and_noted():

@@ -4,7 +4,7 @@
  */
 import { useMemo } from 'react';
 import type { EventCategory, LegislativeInstrumentSummary } from '../../types/schemas';
-import { shortSession, stageRank } from '../../lib/bills';
+import { PASSED_IN_EACH_LIST_NOTE, PASSED_IN_EACH_STAGES, shortSession, stageRank } from '../../lib/bills';
 import { useCore, type BillCatalog } from '../../lib/core';
 import { SCOTUS_ID, casesByCourt } from '../../lib/courts';
 import { countBy } from '../../lib/filters';
@@ -84,8 +84,9 @@ function Overview({ data, route }: { data: PlaceData; route: Route }) {
           {(events) => <p><a href={tabHash('timeline')}>{plural(events.length, 'dated event')}</a> on the federal timeline: actions of Congress and entries of the Supreme Court&rsquo;s dockets.</p>}
         </Async>
       </Section>
-      <Section title="Population">
-        <p className="quiet">No figure is shown for the country as a whole. {NO_COUNTS_FOR_UNIT} Select a state on the map for its 2020 Census counts.</p>
+      <Section title="On the map">
+        <p className="quiet">The outline of the country is from the {data.vintage}, U.S. Census Bureau.</p>
+        <p className="quiet">No population figure is shown for the country as a whole. {NO_COUNTS_FOR_UNIT} Select a state on the map for its 2020 Census counts.</p>
       </Section>
     </>
   );
@@ -112,6 +113,7 @@ function Congress({ bills, catalog, labels, tabHash }: {
       <Stages bills={bills} />
       <p className="quiet">
         The stage is the furthest step among a measure&rsquo;s recorded actions, worked out by a published rule (us-status-1). It is not an official status and does not say what is happening to the measure now.
+        {bills.some((b) => PASSED_IN_EACH_STAGES.has(currentStatus(b))) ? ` ${PASSED_IN_EACH_LIST_NOTE}` : ''}
       </p>
       {advanced.length > 0 ? (
         <>
@@ -195,7 +197,6 @@ export function FederalWorkspace({ route }: { route: Route }) {
         <TypeMark type="place" label="Federal level" />
         <h1 tabIndex={-1}>{unit.name}</h1>
         <p className="lede">Congress and the federal courts. What is listed here applies to the whole country and belongs to no single state.</p>
-        <p className="quiet">Outline on the map: {data.vintage}, U.S. Census Bureau.</p>
         <div className="btn-row">
           <WatchButton item={{ type: 'place', id: unit.key, label: `${unit.name} (federal level)` }} />
           <CopyLinkButton hash={buildHash(['place', unit.key], route.query)} />

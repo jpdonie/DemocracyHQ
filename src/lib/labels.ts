@@ -91,6 +91,8 @@ const FEDERAL_EVENT_LABELS: Readonly<Record<string, string>> = {
 
 const CIRCUIT_EVENT_LABELS: Readonly<Record<string, string>> = {
   decision: 'Decision',
+  // A document the rules give no closer kind. "Court document" after the timeline's "Court" would read "Court Court document".
+  court_document: 'Other document',
 };
 
 export const isFederalRule = (ruleId: string | null | undefined): boolean => Boolean(ruleId?.startsWith('us-'));

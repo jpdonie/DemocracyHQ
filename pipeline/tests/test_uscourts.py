@@ -341,6 +341,19 @@ def test_the_first_scan_reads_every_listed_case_and_records_what_the_rule_found(
     assert coverage["cafc"]["cases"] == 0 and coverage["ca11"]["excluded"] == 1
 
 
+def test_a_package_the_server_fails_at_first_is_read_again_after_one_pause_for_all(courts, session, tmp_path):
+    url = uscourts.RECORD_URL.format(package=PKG)
+    served = session.routes[url][-1]
+    later = FakeResponse(502, b"error", {"Retry-After": "60"})
+    session.on(url, later, later, served)
+    sleeps = []
+    fetcher = Fetcher(session=session, retries=4, backoff=1.5, sleep=sleeps.append)
+    result = uscourts.scan(fetcher, tmp_path / "cache", None, {}, now=NOW, workers=2)
+    assert result.failed == {} and PKG in result.selected
+    assert sleeps == [60.0, 60.0]  # the minute the server asked for, once in each round
+    assert session.urls().count(url) == 3
+
+
 def test_a_later_scan_reads_only_what_is_new_changed_or_in_the_dataset(courts, session, tmp_path):
     first = scan(session, tmp_path)
     courts.add("USCOURTS-ca5-25-00004", "Another Synthetic Supplier v. Buyer", [fed.other_opinion()])

@@ -141,6 +141,24 @@ class IssueTag(Model):
     matchCount: Optional[int] = None
 
 
+class RemovedTag(Model):
+    """A tag a keyword rule assigned to a record and a maintainer removed, published with the record so that the removal
+    can be seen and checked."""
+
+    tag: str
+    #: The rule that had assigned the tag, and what it had matched.
+    ruleId: str
+    matchedField: str
+    matchedText: str
+    matchCount: Optional[int] = None
+    #: The rule the removal follows (``tag-removal-1``).
+    removalRuleId: str
+    reason: str
+    #: A passage of the record's own document that shows what the record is about, found there on this run.
+    quote: str
+    quoteUrl: HttpsUrl
+
+
 class EvidenceRef(Model):
     url: str
     #: A passage found verbatim in the document at ``url``.
@@ -299,6 +317,8 @@ class LegalCase(LegalCaseSummary):
     #: Derived by rule ``same-lower-court-2``; the Court does not state it.
     sameLowerCourt: List[Dict[str, str]] = Field(default_factory=list)
     questionsPresented: Optional[QuestionsPresented] = None
+    #: Tags the keyword rules assigned and a maintainer removed (rule ``tag-removal-1``).
+    removedTags: List[RemovedTag] = Field(default_factory=list)
     events: List[LegalEvent]
     documents: List[CourtDocument]
     contentHash: str

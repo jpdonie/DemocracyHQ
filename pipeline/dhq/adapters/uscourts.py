@@ -32,6 +32,7 @@ record carries no addresses or telephone numbers.
 from __future__ import annotations
 
 import gzip
+import itertools
 import html
 import logging
 import re
@@ -45,7 +46,7 @@ from typing import Callable, Dict, Iterable, List, Optional
 
 from .. import classify, evidence
 from ..circuits import BY_CODE, CIRCUITS, Circuit
-from ..http import FetchError, Fetcher
+from ..http import FetchError, Fetcher, in_rounds
 from ..schemas import (
     CaseOrigin,
     CaseParty,
@@ -610,7 +611,7 @@ def build_case(record: dict, texts: Dict[str, Optional[str]], evaluation: dict, 
     )
     fields: List[tuple] = [("case title", record["title"])]
     if best and texts.get(best):
-        fields.append(("full text of the opinion", classify.join_line_hyphens(texts[best]), "long"))
+        fields.append(("full text of the opinion", classify.join_line_hyphens(texts[best]), classify.LONG))
     dates = [e.date for e in events]
     body = dict(
         id=cid,
@@ -717,6 +718,8 @@ class PackageResult:
     texts: Dict[str, Optional[str]] = field(default_factory=dict)
     evaluation: Optional[dict] = None
     error: Optional[str] = None
+    #: What ended the reading, kept so that a failed request that may pass later is made again (see ``scan``).
+    failure: Optional[BaseException] = None
 
 
 @dataclass
@@ -745,15 +748,17 @@ class Reader:
     """Reads one package: its record and the text of its documents issued since ``SINCE``, with a cache keyed by the
     time GovInfo says the package last changed, so that a changed package is always read again."""
 
-    def __init__(self, fetcher: Fetcher, cache: Path):
+    def __init__(self, fetcher: Fetcher, cache: Path, attempts: Optional[int] = None):
         self.fetcher = fetcher
         self.cache = Path(cache)
+        #: How often each request is made at most; a scan makes each once and reads the failed packages again together.
+        self.attempts = attempts
 
     def record(self, package: str, changed_at: str, *, live: bool) -> dict:
         path = self.cache / "records" / f"{package}.{_stamp(changed_at)}.xml"
         if not live and path.exists():
             return parse_record(path.read_bytes(), package)
-        result = self.fetcher.get(RECORD_URL.format(package=package), max_bytes=MAX_RECORD_BYTES)
+        result = self.fetcher.get(RECORD_URL.format(package=package), max_bytes=MAX_RECORD_BYTES, attempts=self.attempts)
         record = parse_record(result.content, package)
         write_bytes_atomic(path, result.content, root=self.cache)
         return record
@@ -762,7 +767,7 @@ class Reader:
         path = self.cache / "text" / f"{granule}.{_stamp(changed_at)}.txt.gz"
         if path.exists():
             return gzip.decompress(path.read_bytes()).decode("utf-8") or None
-        result = self.fetcher.get(DOCUMENT_URL.format(package=package, granule=granule), max_bytes=MAX_PDF_BYTES)
+        result = self.fetcher.get(DOCUMENT_URL.format(package=package, granule=granule), max_bytes=MAX_PDF_BYTES, attempts=self.attempts)
         text = extract_pdf_text(result.content)
         write_bytes_atomic(path, gzip.compress((text or "").encode("utf-8"), mtime=0), root=self.cache)
         return text
@@ -780,6 +785,7 @@ class Reader:
                 result.evaluation["counts"] = {}  # not needed for a case that is not selected
         except (FetchError, RecordError, PdfTextError, OSError, EOFError) as exc:
             result.error = f"{type(exc).__name__}: {exc}"[:300]
+            result.failure = exc
         return result
 
 
@@ -818,21 +824,25 @@ def scan(fetcher: Fetcher, cache: Path, previous: Optional[dict], exclusions: Di
     to_read = [package for package in sorted(listing)
                if package not in before or before[package][0] != listing[package] or before[package][4] != NOT_SELECTED
                or package in exclusions]
-    reader = Reader(fetcher, cache)
+    reader = Reader(fetcher, cache, attempts=1)
+    results: Dict[str, PackageResult] = {}
+    count = itertools.count(1)
 
-    def read(package: str) -> PackageResult:
+    def read(package: str) -> Optional[BaseException]:
         known = before.get(package)
         # A case that is, or may become, a published record is read from GovInfo itself; the cache only saves reading
         # again what the scan has already seen in the same state.
         live = bool(known and known[4] != NOT_SELECTED) or package in exclusions
-        return reader.read(package, listing[package], live=live, exclusion=exclusions.get(package))
+        result = reader.read(package, listing[package], live=live, exclusion=exclusions.get(package))
+        first = package not in results
+        results[package] = result
+        done = next(count) if first else 0
+        if progress and first and (done % 500 == 0 or done == len(to_read)):
+            progress(done, len(to_read))
+        return result.failure
 
-    results: Dict[str, PackageResult] = {}
-    with ThreadPoolExecutor(max_workers=workers) as pool:
-        for done, result in enumerate(pool.map(read, to_read), start=1):
-            results[result.package] = result
-            if progress and (done % 500 == 0 or done == len(to_read)):
-                progress(done, len(to_read))
+    # Each request is made once; the packages a request failed for are read again together, after one pause for all.
+    in_rounds(fetcher, to_read, read, what="court of appeals packages", workers=workers)
 
     failed = {package: result.error for package, result in results.items() if result.error}
     if len(failed) > max(MAX_FAILED_PACKAGES, MAX_FAILED_SHARE * len(to_read)):
