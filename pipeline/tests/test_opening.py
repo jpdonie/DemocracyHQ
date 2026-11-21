@@ -402,3 +402,32 @@ def test_an_author_whose_line_is_too_narrow_for_four_words_still_opens_the_opini
                              "absentee ballots. We hold that the League has standing and reverse the judgment of the district court."], indent=False),
             piece(470, 300, "I."), *paragraph(500, BACKGROUND)]
     assert opening.opening_passage(layout(page)).text == OPENING
+
+
+def test_a_senior_judge_a_disposition_and_the_author_named_again_on_the_next_page():
+    first = [*STATE_CAPTION, piece(220, MARGIN, "Before Alpha, Presiding Judge, Beta, Judge, and"), piece(242, MARGIN, "Rowan, Senior Judge."),
+             piece(270, INDENT, "ROWAN, S. J."), *paragraph(300, ["Vacated and remanded for entry of judgment declaring", "the rights of the parties."])]
+    second = [piece(100, INDENT, "ROWAN, S. J."), *paragraph(130, CANDIDATE), *paragraph(190, BACKGROUND)]
+    found = opening.opening_passage(layout(first, second))
+    assert found.text == CANDIDATE_TEXT and found.paragraph == 1 and found.page == 2
+
+
+@pytest.mark.parametrize("title", ["PER CURIAM ORDER", "OPINION OF ROWAN, J.,"])
+def test_an_order_or_opinion_headed_by_its_kind_or_its_author_begins_under_the_heading(title):
+    page = [*STATE_CAPTION, piece(220, 400, "Alpha, C.J.,"), piece(242, 400, "Beta,"), piece(264, 400, "Gamma,"), piece(286, 420, "JJ."),
+            piece(320, 380, title), piece(342, 380, "IN WHICH ALPHA, C.J., JOINS"), *paragraph(380, CANDIDATE), *paragraph(440, BACKGROUND)]
+    assert opening.opening_passage(layout(page)).text == CANDIDATE_TEXT
+
+
+def test_the_okina_of_hawaiian_is_a_letter_an_opinion_is_written_in():
+    assert opening.legible("The Office of Elections of the State of Hawaiʻi certified the results.")
+    assert not opening.legible("The Office of Elections \u0441ertified the results.")  # a Cyrillic letter in place of a Latin one
+
+
+def test_a_short_first_line_that_goes_on_below_is_the_start_of_a_paragraph_and_not_a_heading():
+    page = [*STATE_CAPTION, piece(220, 340, "ORDER DISMISSING COMPLAINT"), piece(240, 300, "(By: Alpha, C.J., Beta, and Gamma, JJ.)"),
+            piece(260, INDENT, "On August 24, 2026, Plaintiff Synthetic Smith"),
+            piece(282, MARGIN, "(Plaintiff) filed an election contest complaint against the county board", right=EDGE),
+            piece(304, MARGIN, "of elections, which moved to dismiss it."), *paragraph(350, BACKGROUND)]
+    assert opening.opening_passage(layout(page)).text == ("On August 24, 2026, Plaintiff Synthetic Smith (Plaintiff) filed an election contest "
+                                                         "complaint against the county board of elections, which moved to dismiss it.")

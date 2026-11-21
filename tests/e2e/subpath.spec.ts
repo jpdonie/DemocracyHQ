@@ -78,9 +78,10 @@ test.describe('Data sources and methodology', () => {
       await expect(sources).toContainText(name);
     }
     await expect(sources.getByText('Last successful check').first()).toBeVisible();
-    // Optional sources that have no credential say so; they are not presented as working.
-    await expect(sources).toContainText('COURTLISTENER_API_TOKEN is not set');
-    await expect(sources).toContainText('It has never been run against the live API');
+    // The secondary sources say what they are, and what has not been checked.
+    await expect(sources).toContainText('CourtListener');
+    await expect(sources).toContainText('is a collection, not a court');
+    await expect(sources).toContainText('have not been checked against the official bill pages');
 
     for (const section of ['Coverage and selection', 'Verification states', 'Dates', 'Classification rules', 'Geography', 'Processing', 'Corrections']) {
       await expect(page.getByRole('navigation', { name: 'On this page' }).getByRole('link', { name: section })).toBeVisible();

@@ -1,5 +1,5 @@
 {
- "contentHash": "18819cb2a837e4bd8b4e23cc0d36508a248bb7dd8a55a45725dc4e0bbfcf3319",
+ "contentHash": "644bccd274cd2fc77d6c676d0d07e3300a6b3e151b16ed929102490f600b7f52",
  "counts": {
   "appealsCourtCases": 128,
   "bills": 405,
@@ -12,13 +12,12 @@
   "stateBills": 132,
   "supremeCourtCases": 25
  },
- "generatedAt": "2026-11-21T22:26:44Z",
+ "generatedAt": "2026-11-21T22:32:14Z",
  "reviewQueue": {
   "byKind": {
-   "case_left_selection": 1,
    "text_version_note": 1
   },
-  "items": 2
+  "items": 1
  },
  "schemaVersion": 1,
  "sources": {
@@ -53,8 +52,8 @@
    "processingStatus": "ok"
   },
   "courtlistener-api": {
-   "lastAttempt": "2026-11-21T22:25:27Z",
-   "lastSuccessfulCheck": "2026-11-21T22:25:27Z",
+   "lastAttempt": "2026-11-21T22:32:14Z",
+   "lastSuccessfulCheck": "2026-11-21T22:32:14Z",
    "processingStatus": "ok"
   },
   "govinfo-bills": {

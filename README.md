@@ -13,7 +13,8 @@ pipeline retrieves the records from official sources and writes plain JSON; the
 site reads that JSON.
 
 > **Status: an early, working prototype.** It covers Congress and one state
-> legislature, the Supreme Court and the federal courts of appeals. It is published at <https://democracy-hq.org/> by the deploy
+> legislature, the Supreme Court, the federal courts of appeals and, from CourtListener, decisions of federal
+> district courts and of the courts of the states. It is published at <https://democracy-hq.org/> by the deploy
 > workflow (GitHub Pages); the scheduled data update has not yet run on GitHub. Read
 > [Known limitations](docs/KNOWN_LIMITATIONS.md) before relying on anything here.
 
@@ -27,6 +28,7 @@ site reads that JSON.
 | Election litigation | 25 hand-picked U.S. Supreme Court dockets in election cases, with every docket entry, links to filed documents, the latest ruling entry and, where the docket links them, the questions presented | supremecourt.gov docket pages |
 | Election litigation, courts of appeals | 128 election cases of the federal courts of appeals, selected by a published rule from the 27,813 cases GovInfo lists with a document issued since 2025, each with its opinion, where the appeal began and why it was selected | GovInfo, United States Courts Opinions |
 | Election measures of Congress | 273 of the 20,191 measures of the 119th Congress, selected by a published rule, with their actions, the stage reached, every text version and a version comparison | GovInfo bulk data (Bill Status and Bills) |
+| Election litigation, district courts and state courts | 95 election cases of federal district courts and of the courts of the states, selected by the same published rule from the decisions CourtListener's search lists since 2025, each with its court, the decision it rests on, its opening paragraph where the decision is a PDF the rule can read, and why it was selected. Labelled as a secondary source; decisions only, no dockets | CourtListener (Free Law Project), with an API token |
 | Courts | The Supreme Court and the thirteen courts of appeals, with the states and territories of each circuit as 28 U.S.C. § 41 lists them, drawn on the map | United States Code on GovInfo |
 | California election legislation | 132 of the 5,041 measures of the 2025-2026 Regular Session, selected by a published rule, with official history, every text version and a version comparison | California Legislative Information bulk data |
 | Redistricting | Boundaries for 56 states and state equivalents, 3,235 counties and county equivalents, and the congressional districts of the 119th Congress (441) and of the 120th Congress, elected in 2026 (441), with 2020 Census counts shown only on the lines they were tabulated for, or on a 2026 district that the Census Bureau reports as unchanged | U.S. Census Bureau |
@@ -120,11 +122,12 @@ The pipeline keeps its downloads in `pipeline/.cache/` (about 820 MB after the
 run of 2026-11-21, most of it the text of the court of appeals documents) and reads the large archives, including California's 1.3 GB
 one, with HTTP range requests instead of downloading them whole. The pipeline
 spaces its requests to supremecourt.gov at least 1.1 seconds apart, because the
-Court's `robots.txt` sets a crawl delay of one second. No API key is needed. Two
-optional sources can be switched on with keys; their records go to separate files
-under `public/data/` (`litigation_secondary.json` and `legislation_secondary.json`)
-for a maintainer to review, and the site does not display them. See
-[`.env.example`](.env.example).
+Court's `robots.txt` sets a crawl delay of one second. Two sources need keys:
+CourtListener (`COURTLISTENER_API_TOKEN`), whose decisions the site shows as cases of
+district courts and state courts, and Open States (`OPENSTATES_API_KEY`), whose
+records go to `public/data/legislation_secondary.json` for a maintainer to review
+and are not displayed. Without a key the stage records `credential_missing` and
+publishes nothing from that source. See [`.env.example`](.env.example).
 
 The pipeline writes to a staging folder, checks the staged cases, bills and links
 against its data model, and only then replaces the files in `public/data/`. If

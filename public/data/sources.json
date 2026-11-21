@@ -304,7 +304,7 @@
   {
    "attribution": "CourtListener, a project of Free Law Project",
    "authority": "Free Law Project, a non-profit organisation. It is not a court and not an official source.",
-   "contentHash": "80bd931f82773ba8b5ea06e2b8522a0272aa1dcc959c3047863a6d6b6ca8a391",
+   "contentHash": "9e7298ffb6010ca5654c7f68fd1f2eb5816c6784483407f9bab742705cee72fe",
    "credentialEnv": "COURTLISTENER_API_TOKEN",
    "geographicCoverage": "Federal district courts and the supreme, appellate and trial courts of the states, as far as CourtListener holds their decisions. Its holdings differ much from court to court.",
    "id": "courtlistener-api",
@@ -318,13 +318,13 @@
     "CourtListener limits how often its search may be asked, so the list of decisions is kept month by month. The two newest months are asked for on every run and the earlier months in turn, a few on each run. A decision CourtListener adds to, changes in or removes from an earlier month can take some days to show here. The data and methodology page says how many months have been read and when the one read longest ago was read.",
     "Requires an API token; anonymous requests are refused. Without one the stage does not run and the published cases stay as they are."
    ],
-   "lastAttempt": "2026-11-21T22:25:27Z",
-   "lastSuccessfulCheck": "2026-11-21T22:25:27Z",
+   "lastAttempt": "2026-11-21T22:32:14Z",
+   "lastSuccessfulCheck": "2026-11-21T22:32:14Z",
    "license": "The decisions of courts are not subject to copyright in the United States. CourtListener's collection and its records are provided by Free Law Project under its terms. The decisions are linked, not mirrored, and every record read from it is labelled 'Imported from secondary source'.",
    "name": "CourtListener: decisions of federal district courts and of state courts (Free Law Project)",
    "processingStatus": "ok",
    "recordCount": 95,
-   "retrievedAt": "2026-11-21T22:25:27Z",
+   "retrievedAt": "2026-11-21T22:32:14Z",
    "sourcePublishedAt": null,
    "sourceType": "secondary_api",
    "staleAfterDays": 7,
@@ -452,7 +452,7 @@
    "knownLimitations": [
     "Requires an API key.",
     "Secondary source: records are labelled 'Imported from secondary source' and carry links to the official bill page.",
-    "This adapter has been exercised only against synthetic test responses shaped like the documented API. It has never been run against the live API.",
+    "The adapter has read the live API since November 2026; the records it writes have not been checked against the official bill pages.",
     "Records it imports are written to a separate file for maintainer review and are not shown on the site yet."
    ],
    "lastAttempt": "2026-11-21T22:26:44Z",

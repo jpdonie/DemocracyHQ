@@ -11,9 +11,10 @@ Status as of the data release of 2026-11-21. The limits of the federal level
 
 - **Courts.** The U.S. Supreme Court (25 dockets chosen by hand) and the thirteen
   federal courts of appeals (128 cases selected by a word-counting rule from what
-  the courts send GovInfo, since 2025 only, as opinions without dockets). No
-  federal district court, no state court. Most election litigation starts in the
-  courts that are missing. The Eighth Circuit's cases are more likely to be
+  the courts send GovInfo, since 2025 only, as opinions without dockets), and the
+  federal district courts and the courts of the states as far as CourtListener
+  holds their decisions (95 cases at this release; see below). Most election
+  litigation starts in those courts, and most of it is still missing here. The Eighth Circuit's cases are more likely to be
   missing than those of other courts, because GovInfo holds its cover letters in
   place of its opinions.
 - **Two legislatures.** Congress (273 of the 20,191 measures of the 119th
@@ -273,10 +274,31 @@ great deal of litigation.
   the CI and deploy workflows have run on GitHub, but the scheduled ingestion
   workflow has not run there yet. Treat its first runs as a test and watch their
   exit codes and review queue.
-- **Optional sources never run live.** The CourtListener and Open States adapters
-  were exercised only with synthetic test responses. Their output would be
-  published as separate data files (`litigation_secondary.json` and
-  `legislation_secondary.json`), which the site does not display.
+- **District courts and state courts come from a secondary source.** CourtListener
+  is run by the Free Law Project, not by any court, and does not hold every
+  decision of every court. The cases are selected from the decisions its search
+  lists since 2025 that use one of the search terms; a case whose decision is not
+  there, or uses none of the terms, is missed. Only decisions are read: there are
+  no docket entries, no filings and no timeline entries for these cases, and a
+  case is shown with the latest decision CourtListener holds, not with what
+  happened after it.
+- **The list of decisions fills in over several days.** CourtListener allows this
+  project's token five requests a minute, fifty an hour and 125 a day. The list is
+  kept month by month, and one run asks for at most 40 pages of twenty decisions.
+  At this release 4 of the 23 months since January 2025 are listed (August to
+  November 2026); the daily update lists the others in about four more days and
+  then reads every month again in turn. A month that returns far fewer decisions
+  than before keeps its earlier list and is flagged for review.
+- **The opening paragraph is quoted only from a PDF.** A decision CourtListener
+  holds as a web page (many New York, Maryland and Oklahoma decisions) is listed
+  without one, and so is a PDF whose layout the rule cannot read with confidence.
+  Of the 95 cases, 67 quote one.
+- **One case may be listed twice.** Decisions one court files under two dockets
+  with the same number are shown as one case (rule `cl-same-docket`); an order
+  filed under a docket number that differs by a letter (California's "H053842M"
+  for an order modifying the opinion of "H053842") is a second case.
+- **Open States has run live but is not displayed.** Its records are written to
+  `legislation_secondary.json` for review; the site does not show them.
 - **One machine, one browser engine.** Browser tests ran in headless Chromium
   only, at a desktop size and with a phone profile. Firefox, Safari, real phones
   and real assistive technology were not tested.

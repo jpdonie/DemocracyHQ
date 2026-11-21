@@ -17,7 +17,8 @@ What the rule does, in order:
 2. The opinion begins after the line that names its author ("SMITH, Circuit Judge.", "PER CURIAM:", the forms of the
    courts of the states such as "ROWAN, PRESIDING JUSTICE, FOR THE COURT:" or "ROWAN, J.—Voters in ...") or, where
    there is none, after the line that names the panel ("Before A, B, and C, Circuit Judges.", "(By: A, C.J., ...)"),
-   or else after the heading of the opinion near the head of the file ("MEMORANDUM OPINION", "O P I N I O N"). A
+   or else after the heading of the opinion near the head of the file ("MEMORANDUM OPINION", "O P I N I O N",
+   "PER CURIAM ORDER", "OPINION OF ROWAN, J."). A
    judge's name that signs an order, or names the judge of the court appealed from, is not the author's line, and a
    panel named at the foot of the opinion is not its beginning.
 3. Headings are passed over, and so are the words that every order begins with ("This appeal was considered on the
@@ -281,7 +282,7 @@ _NAME = r"(?!Before\b|BEFORE\b|The Honorable\b|THE HONORABLE\b|Hon\.|HON\.)[A-Z�
 _AUTHOR_RE = re.compile(
     r"^(?:" + _NAME + r", (?:(?:Chief|Senior|Circuit|District) ){1,2}Judge|P(?:ER|er) C(?:URIAM|uriam)"
     r"|" + _NAME + r", (?:(?i:chief|presiding|associate|senior|acting) )?(?i:justice|judge)(?:, (?i:for the court))?(?=\s*[.:—–])"
-    r"|" + _NAME + r", (?:(?:Vice )?Chancellor|C\. ?J|P\. ?J|V\. ?C|C|J)\.(?=\s*(?:[:—–]|--|$)))\s*[.:]?\s*"
+    r"|" + _NAME + r", (?:(?:Vice )?Chancellor|C\. ?J|P\. ?J|S\. ?J|V\. ?C|C|J)\.(?=\s*(?:[:—–]|--|$)))\s*[.:]?\s*"
 )
 _BYLINE_RE = re.compile(r"\b(?:Opinion|Dissent|Concurrence|Memorandum|Order|Statement)\b.*\bby\b", re.I)
 _SENTENCE_STOP_RE = re.compile(r"[.?!:][\"”’)\]]*$")
@@ -406,6 +407,17 @@ def _is_heading(line: Line, frame: _Frame) -> bool:
     return frame.short(line) and len(words) <= 12 and not re.search(r"[.?!][\"”’)\]]*$", text)
 
 
+def _runs_on(line: Line, following: Optional[Line], frame: "_Frame", pitches: Dict[int, float]) -> bool:
+    """Whether a short line set in from the margin is the first line of a paragraph and not a heading: the next line
+    follows at the margin at the usual distance and goes on with the sentence ("On August 24, 2026, Plaintiff Jane Roe"
+    above "(Plaintiff) filed a complaint ...")."""
+    if following is None or following.page != line.page or not frame.indented(line) or frame.indented(following):
+        return False
+    gap = following.top - line.top
+    pitch = pitches.get(line.page) or gap
+    return _starts_prose(line.text) and 0 < gap <= pitch * 1.45 and bool(re.match(r"^[a-z(\[]", following.text))
+
+
 def _starts_prose(text: str) -> bool:
     return bool(re.match(r"^[\"“‘'\[(]?[A-Z0-9]", text)) and len(text.split()) >= 4
 
@@ -427,7 +439,7 @@ _TITLE_RE = re.compile(r"^(?:O ?R ?D ?E ?R|J ?U ?D ?G ?M ?E ?N ?T|OPINION(?: OF 
 #: or the words above an order of the Court of Appeals of Georgia. It is looked for near the head of the document.
 _OPENING_TITLE_RE = re.compile(
     r"^(?:(?:MEMORANDUM )?OPINION(?: OF THE COURT)?(?: AND (?:ORDER|JUDGMENT))?|MEMORANDUM(?: DECISION)?(?: AND ORDER)?|DECISION AND ORDER"
-    r"|OPINION ON (?:REHEARING|MOTION)[A-Z ]{0,40}|(?i:OPINION OF THE COURT BY) .{3,60}|(?:The )?Court of Appeals hereby passes the following order:?)[\s*]*$")
+    r"|OPINION ON (?:REHEARING|MOTION)[A-Z ]{0,40}|(?i:OPINION OF THE COURT BY) .{3,60}|OPINION OF [A-Z][A-Za-z.'’ -]{1,40}, (?:(?:ACTING )?C\. ?)?J\.,?|PER CURIAM (?:ORDER|OPINION)|(?:The )?Court of Appeals hereby passes the following order:?)[\s*]*$")
 _TITLE_SEARCH_LINES = 90
 #: A panel named below such a heading and this many lines of prose is named at the end of the opinion, not above it.
 _PANEL_AFTER_TITLE = 8
@@ -587,7 +599,8 @@ def opening_paragraphs(pages: List[List[Line]]) -> List[List[Line]]:
         read += 1
         if not current:
             line = _without_number(line)
-            if _is_heading(line, frame) or not _starts_prose(line.text):
+            heading = _is_heading(line, frame) and not _runs_on(line, flat[index] if index < len(flat) else None, frame, pitches)
+            if heading or not _starts_prose(line.text):
                 if paragraphs:
                     break  # the first heading after the opening paragraphs ends them
                 continue
@@ -634,8 +647,9 @@ def opening_paragraphs(pages: List[List[Line]]) -> List[List[Line]]:
 _ARTIFACT_RES = [re.compile(r"Appellate Case|Date Filed|Document: ?\d|USCA\d|Page: ?\d"), re.compile(r"_{4,}")]
 
 
-#: Signs an opinion is set in besides the letters, digits and punctuation of the keyboard.
-_SIGNS = set("§¶°·½¼¾×©®™•…–—‐‑‒―‘’‚“”„′″†‡€£ ")
+#: Signs an opinion is set in besides the letters, digits and punctuation of the keyboard. The ʻokina is a letter of
+#: Hawaiian, which the courts of Hawaiʻi write in every name of the state.
+_SIGNS = set("§¶°·½¼¾×©®™•…–—‐‑‒―‘’‚“”„′″†‡€£ ʻ")
 
 
 def legible(text: str) -> bool:
@@ -710,6 +724,8 @@ def _not_prose(paragraph: str, text: str) -> bool:
     if caption and len(paragraph.split()) < _CAPTION_WORDS and (
             caption.group("last") or not re.search(r"\b(?!et\b|al\b)[a-z]{2,}", caption.group("first"))):
         return True  # "Holtz et al. v. Moreles, as Registrar of Voters, etc., et al.", not "The judgment ... in light of Watson v. RNC"
+    if _DISPOSITION_RE.match(paragraph):
+        return True  # the disposition alone: "Vacated and remanded for entry of judgment."
     if _JUDGES_RE.search(paragraph) and not sentence_ends(paragraph) and not _PROSE_WORDS_RE.search(paragraph):
         return True  # the panel: "Alpha, C.J., Beta, Gamma, and Delta, JJ."
     return bool(_JOINED_RE.match(text))

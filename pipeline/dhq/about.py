@@ -464,12 +464,16 @@ RULES = [
      "description": "The entry that opens the docket is quoted, for example an application for a stay. It names the kind of "
                     "request, not its subject; the issue tags and the court below say more."},
     {"ruleId": OPINION_RULE_ID, "appliesTo": "What a case decided by a court of appeals, a district court or a court of a state is about",
-     "description": "Quoted from the opening of the opinion the selection rule rests on. The layout of the opinion's first pages is "
+     "description": "Quoted from the opening of the decision the selection rule rests on; where that is the opinion of a single "
+                    "judge (a dissent, a concurrence), from the court's own decision with the most election words instead. The "
+                    "layout of the opinion's first pages is "
                     "read (poppler's pdftohtml), so that running heads, page numbers, footnotes and footnote marks can be told from "
                     "the text by their place and type size and left out. The opinion begins after the line that names its author "
                     "('SMITH, Circuit Judge.', 'PER CURIAM:', 'ROWAN, PRESIDING JUSTICE, FOR THE COURT:', 'ROWAN, J.—', "
                     "'McCORMICK, C.') or, where there is none, after the line that names the panel ('Before ...', '(By: ...)'), "
-                    "or else after the heading of the opinion near the head of the file ('MEMORANDUM OPINION', 'O P I N I O N'). "
+                    "or else after the heading of the opinion near the head of the file ('MEMORANDUM OPINION', 'O P I N I O N', "
+                    "'PER CURIAM ORDER', 'OPINION OF ROWAN, J.'). A short first line set in from the margin whose sentence goes "
+                    "on at the margin below is the start of a paragraph, not a heading. "
                     "A judge's name that signs an order (under 'FOR THE COURT', or among other judges' names), that names the "
                     "judge of the court appealed from, or that stands beside other words is not taken for the author, and a "
                     "panel named below the opinion is not taken for its beginning. Its first paragraph is quoted. The numbers "

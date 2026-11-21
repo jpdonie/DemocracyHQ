@@ -262,7 +262,7 @@ SOURCES: dict[str, dict] = {
         knownLimitations=[
             "Requires an API key.",
             "Secondary source: records are labelled 'Imported from secondary source' and carry links to the official bill page.",
-            "This adapter has been exercised only against synthetic test responses shaped like the documented API. It has never been run against the live API.",
+            "The adapter has read the live API since November 2026; the records it writes have not been checked against the official bill pages.",
             "Records it imports are written to a separate file for maintainer review and are not shown on the site yet.",
         ],
     ),
