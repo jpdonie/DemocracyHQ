@@ -5,7 +5,9 @@
  * quadrangle: brown for the land itself (geography), green for what grows on it
  * by statute (legislation), purple for revisions overprinted later (litigation).
  * They encode record type only and are never used as decoration. Map fills
- * avoid red and blue so nothing reads as a party colour.
+ * avoid red and blue so nothing reads as a party colour. The one exception is
+ * the party-control view, where red and blue mean exactly that: the party that
+ * holds an office or more than half of a chamber's seats.
  */
 :root {
   /* Surfaces */
@@ -44,6 +46,14 @@
   --ins-ink: #0a4a37;
   --del-bg: #f8dedb;
   --del-ink: #7c1d17;
+
+  /* Party control: the only use of red and blue. Each names one of the two parties and nothing else. */
+  --party-r: #c5443a;
+  --party-r-tint: #f9e5e2;
+  --party-d: #2c69ad;
+  --party-d-tint: #e0ebf7;
+  --party-split: #cdc2e0;  /* a government divided between the parties */
+  --party-none: #c5cbc2;   /* seats held under no party's label */
 
   /* Map thematic ramp (single hue, light to dark; brown plate) */
   --ramp-1: #f4ead9;

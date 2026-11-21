@@ -216,6 +216,8 @@ const TYPE_LABEL: Readonly<Record<string, string>> = {
   official_api: 'Official API',
   official_web: 'Official web page',
   secondary_api: 'Secondary aggregator API',
+  secondary_bulk: 'Secondary aggregator, bulk files',
+  secondary_web: 'Secondary source, web pages',
   curated: 'Curated by maintainers',
 };
 

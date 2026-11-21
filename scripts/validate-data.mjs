@@ -65,10 +65,12 @@ function parse(schema, rel, value) {
 }
 
 const server = await createServer({ root, logLevel: 'error', server: { middlewareMode: true, hmr: false, ws: false }, appType: 'custom', optimizeDeps: { noDiscovery: true } });
-let S, geoLib, billsLib, courtsLib;
+let S, geoLib, billsLib, courtsLib, governmentLib;
 try {
   S = await server.ssrLoadModule('/src/types/schemas.ts');
   geoLib = await server.ssrLoadModule('/src/lib/geo.ts');
+  // The rules on who holds a chamber and a government, worked out a second time from the published parts.
+  governmentLib = await server.ssrLoadModule('/src/lib/government.ts');
   // The lists the site holds as fixed text, which the data must agree with: the stages of a measure and the courts' names.
   billsLib = await server.ssrLoadModule('/src/lib/bills.ts');
   courtsLib = await server.ssrLoadModule('/src/lib/courts.ts');
@@ -87,6 +89,7 @@ const events = parse(S.EventsFileSchema, 'events.json', read('events.json'));
 const geoIndex = parse(S.GeoIndexSchema, 'geo/index.json', read('geo/index.json'));
 const countyCd = parse(S.CountyCdSchema, 'geo/county_cd119.json', read('geo/county_cd119.json'));
 const circuitsFile = parse(S.CircuitsFileSchema, 'geo/circuits.json', read('geo/circuits.json'));
+const government = parse(S.GovernmentFileSchema, 'government.json', read('government.json'));
 const caseIndex = parse(S.CaseIndexSchema, 'litigation/index.json', read('litigation/index.json'));
 const circuitIndex = parse(S.CircuitIndexSchema, 'circuits/index.json', read('circuits/index.json'));
 const circuitScan = parse(S.CircuitScanSchema, 'circuits/scan.json', read('circuits/scan.json'));
@@ -624,6 +627,52 @@ if (redistricting && geoIndex) {
   for (const geoid of redistricting.areaCheck?.mismatches ?? []) warn(`redistricting.json: district ${geoid} failed the land-area check; its population count is withheld`);
   if (redistricting.areaCheck) pass('District area check', `${redistricting.areaCheck.compared} unchanged districts compared, largest land-area difference ${(redistricting.areaCheck.largestRelativeDifference * 100).toFixed(3)}%, ${redistricting.areaCheck.mismatches.length} over tolerance`);
   else warn('redistricting.json: no district area check is recorded');
+}
+
+/* ---------- 5b. who holds office ---------- */
+if (government) {
+  const before = errors.length;
+  const ids = government.governments.map((record) => record.id);
+  if (new Set(ids).size !== ids.length) fail('government.json: a government is listed twice');
+  if (!ids.includes(geoLib.NATION_KEY)) fail(`government.json: no record for the United States (${geoLib.NATION_KEY})`);
+  // The fifty states: every state of the index but the District of Columbia and the territories.
+  const fifty = [...geoKeys].filter((key) => key.startsWith('state:') && geoLib.stateKind(key.slice(6)) === 'State').sort();
+  const listed = ids.filter((id) => id.startsWith('state:')).sort();
+  if (JSON.stringify(fifty) !== JSON.stringify(listed)) fail(`government.json: lists ${listed.length} state(s), not exactly the ${fifty.length} states of the map index`);
+  const sum = (items) => items.reduce((total, item) => total + item.seats, 0);
+  for (const record of government.governments) {
+    const at = `government.json: ${record.id}`;
+    if (!ruleIds.has(record.ruleId)) fail(`${at} cites unknown rule ${record.ruleId}`);
+    if (record.executive && !sourceIds.has(record.executive.sourceId)) fail(`${at}: the ${record.executive.office} cites unknown source ${record.executive.sourceId}`);
+    if (record.executive && (record.executive.office === 'President') !== (record.id === geoLib.NATION_KEY)) fail(`${at}: a ${record.executive.office} is given for it`);
+    if (!record.executive && !record.executiveNote) fail(`${at} names no executive and does not say why`);
+    const keys = record.chambers.map((chamber) => chamber.chamber);
+    if (new Set(keys).size !== keys.length) fail(`${at} lists a chamber twice`);
+    for (const key of record.missingChambers) if (keys.includes(key)) fail(`${at}: the ${key} chamber is published and said to be missing`);
+    for (const chamber of record.chambers) {
+      const where = `${at}, ${chamber.name}`;
+      if (!ruleIds.has(chamber.ruleId)) fail(`${where} cites unknown rule ${chamber.ruleId}`);
+      if (!sourceIds.has(chamber.sourceId)) fail(`${where} cites unknown source ${chamber.sourceId}`);
+      if (sum(chamber.parties) !== chamber.members) fail(`${where}: the parties add up to ${sum(chamber.parties)} members, the chamber says ${chamber.members}`);
+      for (const party of chamber.parties) {
+        if (sum(party.labels) !== party.seats) fail(`${where}: the labels counted as ${party.name} add up to ${sum(party.labels)}, the party says ${party.seats}`);
+        const fixed = { R: 'Republican', D: 'Democratic', I: 'Independent', N: 'Nonpartisan' }[party.group];
+        if (fixed && party.name !== fixed) fail(`${where}: the group ${party.group} is named "${party.name}"`);
+      }
+      if (chamber.parties.filter((party) => party.group === 'R').length > 1 || chamber.parties.filter((party) => party.group === 'D').length > 1) fail(`${where}: a party is listed twice`);
+      if (chamber.seats === null ? chamber.vacant !== null : chamber.vacant !== chamber.seats - chamber.members) fail(`${where}: ${chamber.seats} seats, ${chamber.members} members and ${chamber.vacant} vacant do not agree`);
+      // A majority counted from the seats must be the one the rule gives; a stated one must be stated for a party.
+      if (chamber.leadBasis === 'seats' && chamber.lead !== governmentLib.leadBySeats(chamber)) fail(`${where}: shown as ${chamber.lead ?? 'without a majority'}, the seats give ${governmentLib.leadBySeats(chamber) ?? 'no majority'} (rule party-seats-1)`);
+      if (chamber.leadBasis === 'stated' && !chamber.lead) fail(`${where}: a stated majority is claimed, but no party is named`);
+      if (Date.parse(chamber.checkedAt) > Date.parse(government.generatedAt)) fail(`${where}: read after the file was written`);
+    }
+    const worked = governmentLib.controlOf(record);
+    if (worked !== record.control) fail(`${at}: shown as "${record.control}", its parts give "${worked}" (rule party-trifecta-1)`);
+  }
+  if (errors.length === before) {
+    const tally = governmentLib.controlTally(government.governments.filter((record) => record.id.startsWith('state:')));
+    pass('Who holds office', `the United States and ${listed.length} states; every chamber's parties add up to its members, and every majority and every government follows from the published parts (${tally.R} Republican, ${tally.D} Democratic, ${tally.divided} divided, ${tally.undetermined} not determined)`);
+  }
 }
 
 /* ---------- 6. manifest ---------- */

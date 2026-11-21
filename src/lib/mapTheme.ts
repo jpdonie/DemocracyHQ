@@ -5,11 +5,12 @@
  * Absence of data is always a hatch, never the lightest colour, so it cannot be
  * mistaken for a low value or a verified zero.
  */
-import type { Layer, PopulationFile, RedistrictingFile } from '../types/schemas';
+import type { Government, GovernmentControl, Layer, PopulationFile, RedistrictingFile } from '../types/schemas';
 import { courtGeoKey } from './courts';
 import type { GeoIndex } from './geo';
 import { ISLAND_AREAS, isDistrictLayer, parseGeoKey } from './geo';
 import { formatNumber } from './format';
+import { controlSummary, whyUndetermined } from './government';
 
 export interface ThemeClass { token: string; label: string }
 
@@ -28,6 +29,11 @@ export interface MapTheme {
   /** Shown under the legend: what the encoding does and does not mean. */
   note: string | null;
   sourceId: string | null;
+  /**
+   * What the tooltip says for single units, where a unit has more to say than the label of its class: which parts of
+   * a state's government a party holds, or why none is shown. GEOID -> text.
+   */
+  detailOf?: ReadonlyMap<string, string>;
 }
 
 export function linkedRecordsTheme(counts: ReadonlyMap<string, number>, what: 'cases' | 'records'): MapTheme {
@@ -107,6 +113,42 @@ export function coverageTheme(coveredStates: ReadonlySet<string>, withFederal = 
     plain: null,
     note: withFederal ? 'The measures of Congress in this dataset apply to the whole country and are not drawn as shading.' : null,
     sourceId: 'ca-leginfo-bulk',
+  };
+}
+
+/** The classes of the party map, in the order of its legend. Red and blue are used for this view and nowhere else. */
+export const PARTY_CLASSES: ReadonlyArray<{ control: GovernmentControl; token: string; label: string }> = [
+  { control: 'R', token: '--party-r', label: 'Republican governor and legislature' },
+  { control: 'D', token: '--party-d', label: 'Democratic governor and legislature' },
+  { control: 'divided', token: '--party-split', label: 'Divided between the parties' },
+];
+
+/**
+ * The states by the party that holds their government (rule party-trifecta-1). A state is red or blue only when its
+ * governor and every chamber of its legislature are that party's. A state that is not determined, and every unit no
+ * record is published for, is hatched: no colour there is not a finding.
+ */
+export function partyControlTheme(states: readonly Government[]): MapTheme {
+  const classOf = new Map<string, number>();
+  const detailOf = new Map<string, string>();
+  for (const record of states) {
+    if (!record.id.startsWith('state:')) continue;
+    const fips = record.id.slice(6);
+    const index = PARTY_CLASSES.findIndex((item) => item.control === record.control);
+    if (index >= 0) classOf.set(fips, index);
+    detailOf.set(fips, record.control === 'undetermined' ? `Not determined. ${whyUndetermined(record)}` : controlSummary(record));
+  }
+  return {
+    id: `party:${states.map((record) => `${record.id.slice(6)}${record.control[0]}`).join('')}`,
+    layer: 'state',
+    title: 'Party control of the state governments',
+    classes: PARTY_CLASSES.map(({ token, label }) => ({ token, label })),
+    classOf,
+    hatch: { geoids: 'rest', label: 'Not determined, or not covered (the District of Columbia and the territories)' },
+    plain: null,
+    note: 'A state is red or blue when its governor is of that party and the members counted with that party hold more than half of the seats of every chamber, vacant seats included (rules party-seats-1 and party-trifecta-1). Seats show who was elected under which label, not who runs a chamber. The figures are the members each source lists on the day given on the state’s page. They are not an election result.',
+    sourceId: 'openstates-people',
+    detailOf,
   };
 }
 

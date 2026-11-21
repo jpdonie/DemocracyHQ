@@ -745,6 +745,21 @@
    "appliesTo": "What a court of appeals case is about",
    "description": "Quoted from the opening of the opinion the selection rule rests on. The layout of the opinion's first pages is read (poppler's pdftohtml), so that running heads, page numbers, footnotes and footnote marks can be told from the text by their place and type size and left out. The opinion begins after the line that names its author ('SMITH, Circuit Judge.', 'PER CURIAM:') or, where there is none, after the line that names the panel. Its first paragraph is quoted. The words every order begins with ('This appeal was considered on the record ...') are passed over, and so is a passage the court sets in from the margin, such as a statute it quotes: it carries no quotation marks and would read as the court's words. A word the page broke across two lines is joined again, with or without its hyphen as the rest of the opinion writes it. The passage is then checked against the plain text of the same file, read by another program (pdftotext): its letters must stand there one after the other, with none left out; other matter may stand between them only where the passage crosses a page, since the plain text runs the footnotes and the page head in there. A paragraph that fails a check (too short, not ending with a sentence, a remnant of a page head in it, a character of a wrongly mapped typeface, not found in the plain text) is not quoted. The next paragraph is then tried, up to the first heading and the fourth paragraph, and the line says which paragraph of the opinion it quotes. Where none passes, the case has no quotation. The quotation runs whole sentences until it has 220 characters; a first sentence longer than 560 characters is cut at a word and marked as cut.",
    "ruleId": "about-opinion-1"
+  },
+  {
+   "appliesTo": "members of Congress and of the state legislatures, governors",
+   "description": "Which party a member is counted with. The label the source gives is used: \"Republican\" and \"Democratic\" are counted as such. A label that names several parties, as states with fusion voting write it (\"Democratic/Working Families\", \"Republican/Conservative\"), is counted with the party named first when that is one of the two. The Minnesota Democratic-Farmer-Labor Party and the North Dakota Democratic-Nonpartisan League Party are the state parties of the Democratic Party and are counted with it. \"Independent\" and \"Nonpartisan\" are counted on their own, and so is every other label. The count under each label as the source wrote it is published beside the total.",
+   "ruleId": "party-group-1"
+  },
+  {
+   "appliesTo": "the Senate, the House of Representatives, the chambers of the state legislatures",
+   "description": "When a chamber is shown in red or blue. It is, when the members counted with the Republican or the Democratic party hold more than half of the chamber's seats, vacant seats included. Otherwise it has no colour. For the House of Representatives the majority its Clerk states is used. The figures are the members a source lists on the day given; they are not an election result. Seats do not show who runs a chamber: where members of both parties form the governing coalition, the colour still follows the seats.",
+   "ruleId": "party-seats-1"
+  },
+  {
+   "appliesTo": "the United States and the fifty states",
+   "description": "When a government is shown as held by one party. It is, when the President or the governor is of that party and every chamber is shown in that party's colour under rule party-seats-1. Any other combination is shown as divided. A government with a part no source was read for, with a chamber whose list of members does not fit its number of seats, or with a chamber elected without party labels (the Nebraska Legislature), is shown as not determined.",
+   "ruleId": "party-trifecta-1"
   }
  ]
 }

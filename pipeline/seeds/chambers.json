@@ -1,0 +1,657 @@
+{
+ "about": "The chambers of the fifty state legislatures: the name of each and the number of its seats with a vote. The number of seats is fixed by each state's constitution or statutes and changes rarely. The pipeline compares it with the members a source lists on every run and flags a chamber that lists more members than seats. \"numberedDistrictsOnly\" marks a chamber in which only the members of numbered districts hold such a seat: the Maine House also seats representatives of tribal governments, who have no vote on the floor, and the source's figure of 153 for it counts two of them.",
+ "source": {
+  "name": "Open States metadata, as distributed in the package openstates 7.0.0",
+  "url": "https://pypi.org/project/openstates/7.0.0/",
+  "readOn": "2026-11-21"
+ },
+ "states": {
+  "AK": {
+   "fips": "02",
+   "chambers": {
+    "lower": {
+     "name": "House",
+     "seats": 40
+    },
+    "upper": {
+     "name": "Senate",
+     "seats": 20
+    }
+   }
+  },
+  "AL": {
+   "fips": "01",
+   "chambers": {
+    "lower": {
+     "name": "House",
+     "seats": 105
+    },
+    "upper": {
+     "name": "Senate",
+     "seats": 35
+    }
+   }
+  },
+  "AR": {
+   "fips": "05",
+   "chambers": {
+    "lower": {
+     "name": "House",
+     "seats": 100
+    },
+    "upper": {
+     "name": "Senate",
+     "seats": 35
+    }
+   }
+  },
+  "AZ": {
+   "fips": "04",
+   "chambers": {
+    "lower": {
+     "name": "House",
+     "seats": 60
+    },
+    "upper": {
+     "name": "Senate",
+     "seats": 30
+    }
+   }
+  },
+  "CA": {
+   "fips": "06",
+   "chambers": {
+    "lower": {
+     "name": "Assembly",
+     "seats": 80
+    },
+    "upper": {
+     "name": "Senate",
+     "seats": 40
+    }
+   }
+  },
+  "CO": {
+   "fips": "08",
+   "chambers": {
+    "lower": {
+     "name": "House",
+     "seats": 65
+    },
+    "upper": {
+     "name": "Senate",
+     "seats": 35
+    }
+   }
+  },
+  "CT": {
+   "fips": "09",
+   "chambers": {
+    "lower": {
+     "name": "House",
+     "seats": 151
+    },
+    "upper": {
+     "name": "Senate",
+     "seats": 36
+    }
+   }
+  },
+  "DE": {
+   "fips": "10",
+   "chambers": {
+    "lower": {
+     "name": "House",
+     "seats": 41
+    },
+    "upper": {
+     "name": "Senate",
+     "seats": 21
+    }
+   }
+  },
+  "FL": {
+   "fips": "12",
+   "chambers": {
+    "lower": {
+     "name": "House",
+     "seats": 120
+    },
+    "upper": {
+     "name": "Senate",
+     "seats": 40
+    }
+   }
+  },
+  "GA": {
+   "fips": "13",
+   "chambers": {
+    "lower": {
+     "name": "House",
+     "seats": 180
+    },
+    "upper": {
+     "name": "Senate",
+     "seats": 56
+    }
+   }
+  },
+  "HI": {
+   "fips": "15",
+   "chambers": {
+    "lower": {
+     "name": "House",
+     "seats": 51
+    },
+    "upper": {
+     "name": "Senate",
+     "seats": 25
+    }
+   }
+  },
+  "IA": {
+   "fips": "19",
+   "chambers": {
+    "lower": {
+     "name": "House",
+     "seats": 100
+    },
+    "upper": {
+     "name": "Senate",
+     "seats": 50
+    }
+   }
+  },
+  "ID": {
+   "fips": "16",
+   "chambers": {
+    "lower": {
+     "name": "House",
+     "seats": 70
+    },
+    "upper": {
+     "name": "Senate",
+     "seats": 35
+    }
+   }
+  },
+  "IL": {
+   "fips": "17",
+   "chambers": {
+    "lower": {
+     "name": "House",
+     "seats": 118
+    },
+    "upper": {
+     "name": "Senate",
+     "seats": 59
+    }
+   }
+  },
+  "IN": {
+   "fips": "18",
+   "chambers": {
+    "lower": {
+     "name": "House",
+     "seats": 100
+    },
+    "upper": {
+     "name": "Senate",
+     "seats": 50
+    }
+   }
+  },
+  "KS": {
+   "fips": "20",
+   "chambers": {
+    "lower": {
+     "name": "House",
+     "seats": 125
+    },
+    "upper": {
+     "name": "Senate",
+     "seats": 40
+    }
+   }
+  },
+  "KY": {
+   "fips": "21",
+   "chambers": {
+    "lower": {
+     "name": "House",
+     "seats": 100
+    },
+    "upper": {
+     "name": "Senate",
+     "seats": 38
+    }
+   }
+  },
+  "LA": {
+   "fips": "22",
+   "chambers": {
+    "lower": {
+     "name": "House",
+     "seats": 105
+    },
+    "upper": {
+     "name": "Senate",
+     "seats": 39
+    }
+   }
+  },
+  "MA": {
+   "fips": "25",
+   "chambers": {
+    "lower": {
+     "name": "House",
+     "seats": 160
+    },
+    "upper": {
+     "name": "Senate",
+     "seats": 40
+    }
+   }
+  },
+  "MD": {
+   "fips": "24",
+   "chambers": {
+    "lower": {
+     "name": "House",
+     "seats": 141
+    },
+    "upper": {
+     "name": "Senate",
+     "seats": 47
+    }
+   }
+  },
+  "ME": {
+   "fips": "23",
+   "chambers": {
+    "lower": {
+     "name": "House",
+     "seats": 151,
+     "numberedDistrictsOnly": true
+    },
+    "upper": {
+     "name": "Senate",
+     "seats": 35
+    }
+   }
+  },
+  "MI": {
+   "fips": "26",
+   "chambers": {
+    "lower": {
+     "name": "House",
+     "seats": 110
+    },
+    "upper": {
+     "name": "Senate",
+     "seats": 38
+    }
+   }
+  },
+  "MN": {
+   "fips": "27",
+   "chambers": {
+    "lower": {
+     "name": "House",
+     "seats": 134
+    },
+    "upper": {
+     "name": "Senate",
+     "seats": 67
+    }
+   }
+  },
+  "MO": {
+   "fips": "29",
+   "chambers": {
+    "lower": {
+     "name": "House",
+     "seats": 163
+    },
+    "upper": {
+     "name": "Senate",
+     "seats": 34
+    }
+   }
+  },
+  "MS": {
+   "fips": "28",
+   "chambers": {
+    "lower": {
+     "name": "House",
+     "seats": 122
+    },
+    "upper": {
+     "name": "Senate",
+     "seats": 52
+    }
+   }
+  },
+  "MT": {
+   "fips": "30",
+   "chambers": {
+    "lower": {
+     "name": "House",
+     "seats": 100
+    },
+    "upper": {
+     "name": "Senate",
+     "seats": 50
+    }
+   }
+  },
+  "NC": {
+   "fips": "37",
+   "chambers": {
+    "lower": {
+     "name": "House",
+     "seats": 120
+    },
+    "upper": {
+     "name": "Senate",
+     "seats": 50
+    }
+   }
+  },
+  "ND": {
+   "fips": "38",
+   "chambers": {
+    "lower": {
+     "name": "House",
+     "seats": 94
+    },
+    "upper": {
+     "name": "Senate",
+     "seats": 47
+    }
+   }
+  },
+  "NE": {
+   "fips": "31",
+   "chambers": {
+    "legislature": {
+     "name": "Nebraska Legislature",
+     "seats": 49
+    }
+   }
+  },
+  "NH": {
+   "fips": "33",
+   "chambers": {
+    "lower": {
+     "name": "House",
+     "seats": 400
+    },
+    "upper": {
+     "name": "Senate",
+     "seats": 24
+    }
+   }
+  },
+  "NJ": {
+   "fips": "34",
+   "chambers": {
+    "lower": {
+     "name": "Assembly",
+     "seats": 80
+    },
+    "upper": {
+     "name": "Senate",
+     "seats": 40
+    }
+   }
+  },
+  "NM": {
+   "fips": "35",
+   "chambers": {
+    "lower": {
+     "name": "House",
+     "seats": 70
+    },
+    "upper": {
+     "name": "Senate",
+     "seats": 42
+    }
+   }
+  },
+  "NV": {
+   "fips": "32",
+   "chambers": {
+    "lower": {
+     "name": "Assembly",
+     "seats": 42
+    },
+    "upper": {
+     "name": "Senate",
+     "seats": 21
+    }
+   }
+  },
+  "NY": {
+   "fips": "36",
+   "chambers": {
+    "lower": {
+     "name": "Assembly",
+     "seats": 150
+    },
+    "upper": {
+     "name": "Senate",
+     "seats": 63
+    }
+   }
+  },
+  "OH": {
+   "fips": "39",
+   "chambers": {
+    "lower": {
+     "name": "House",
+     "seats": 99
+    },
+    "upper": {
+     "name": "Senate",
+     "seats": 33
+    }
+   }
+  },
+  "OK": {
+   "fips": "40",
+   "chambers": {
+    "lower": {
+     "name": "House",
+     "seats": 101
+    },
+    "upper": {
+     "name": "Senate",
+     "seats": 48
+    }
+   }
+  },
+  "OR": {
+   "fips": "41",
+   "chambers": {
+    "lower": {
+     "name": "House",
+     "seats": 60
+    },
+    "upper": {
+     "name": "Senate",
+     "seats": 30
+    }
+   }
+  },
+  "PA": {
+   "fips": "42",
+   "chambers": {
+    "lower": {
+     "name": "House",
+     "seats": 203
+    },
+    "upper": {
+     "name": "Senate",
+     "seats": 50
+    }
+   }
+  },
+  "RI": {
+   "fips": "44",
+   "chambers": {
+    "lower": {
+     "name": "House",
+     "seats": 75
+    },
+    "upper": {
+     "name": "Senate",
+     "seats": 38
+    }
+   }
+  },
+  "SC": {
+   "fips": "45",
+   "chambers": {
+    "lower": {
+     "name": "House",
+     "seats": 124
+    },
+    "upper": {
+     "name": "Senate",
+     "seats": 46
+    }
+   }
+  },
+  "SD": {
+   "fips": "46",
+   "chambers": {
+    "lower": {
+     "name": "House",
+     "seats": 70
+    },
+    "upper": {
+     "name": "Senate",
+     "seats": 35
+    }
+   }
+  },
+  "TN": {
+   "fips": "47",
+   "chambers": {
+    "lower": {
+     "name": "House",
+     "seats": 99
+    },
+    "upper": {
+     "name": "Senate",
+     "seats": 33
+    }
+   }
+  },
+  "TX": {
+   "fips": "48",
+   "chambers": {
+    "lower": {
+     "name": "House",
+     "seats": 150
+    },
+    "upper": {
+     "name": "Senate",
+     "seats": 31
+    }
+   }
+  },
+  "UT": {
+   "fips": "49",
+   "chambers": {
+    "lower": {
+     "name": "House",
+     "seats": 75
+    },
+    "upper": {
+     "name": "Senate",
+     "seats": 29
+    }
+   }
+  },
+  "VA": {
+   "fips": "51",
+   "chambers": {
+    "lower": {
+     "name": "House",
+     "seats": 100
+    },
+    "upper": {
+     "name": "Senate",
+     "seats": 40
+    }
+   }
+  },
+  "VT": {
+   "fips": "50",
+   "chambers": {
+    "lower": {
+     "name": "House",
+     "seats": 150
+    },
+    "upper": {
+     "name": "Senate",
+     "seats": 30
+    }
+   }
+  },
+  "WA": {
+   "fips": "53",
+   "chambers": {
+    "lower": {
+     "name": "House",
+     "seats": 98
+    },
+    "upper": {
+     "name": "Senate",
+     "seats": 49
+    }
+   }
+  },
+  "WI": {
+   "fips": "55",
+   "chambers": {
+    "lower": {
+     "name": "Assembly",
+     "seats": 99
+    },
+    "upper": {
+     "name": "Senate",
+     "seats": 33
+    }
+   }
+  },
+  "WV": {
+   "fips": "54",
+   "chambers": {
+    "lower": {
+     "name": "House",
+     "seats": 100
+    },
+    "upper": {
+     "name": "Senate",
+     "seats": 34
+    }
+   }
+  },
+  "WY": {
+   "fips": "56",
+   "chambers": {
+    "lower": {
+     "name": "House",
+     "seats": 62
+    },
+    "upper": {
+     "name": "Senate",
+     "seats": 31
+    }
+   }
+  }
+ }
+}

@@ -62,7 +62,7 @@ export const SourceRecordSchema = z.object({
   id: z.string(),
   name: z.string(),
   url: httpsUrl,
-  sourceType: z.enum(['official_bulk', 'official_api', 'official_web', 'secondary_api', 'curated']),
+  sourceType: z.enum(['official_bulk', 'official_api', 'official_web', 'secondary_api', 'secondary_bulk', 'secondary_web', 'curated']),
   authority: z.string(),
   retrievedAt: isoDateTime.nullable().optional(),
   lastSuccessfulCheck: isoDateTime.nullable().optional(),
@@ -892,3 +892,78 @@ export const RelationshipFileSchema = z.object({
 export const EventsFileSchema = z.object({ events: z.array(TimelineEventSchema) });
 export const SourcesFileSchema = z.object({ sources: z.array(SourceRecordSchema) });
 export const CourtsFileSchema = z.object({ courts: z.array(CourtSchema) });
+
+// --- who holds office (rules party-*) ---
+
+/** The group a party label is counted with: Republican, Democratic, Independent, Nonpartisan, or another party. */
+export const PARTY_GROUPS = ['R', 'D', 'I', 'N', 'O'] as const;
+export type PartyGroup = (typeof PARTY_GROUPS)[number];
+/** The two parties that are given a colour. */
+export const ColouredPartySchema = z.enum(['R', 'D']);
+export type ColouredParty = z.infer<typeof ColouredPartySchema>;
+
+export const PartySeatsSchema = z.object({
+  group: z.enum(PARTY_GROUPS),
+  /** "Republican", "Democratic", "Independent", "Nonpartisan", or the source's own label for another party. */
+  name: z.string().min(1),
+  seats: z.number().int().min(1),
+  /** The count under each label exactly as the source writes it. */
+  labels: z.array(z.object({ label: z.string().min(1), seats: z.number().int().min(1) })).min(1),
+});
+export type PartySeats = z.infer<typeof PartySeatsSchema>;
+
+export const ChamberSeatsSchema = z.object({
+  chamber: z.enum(['upper', 'lower', 'legislature']),
+  name: z.string().min(1),
+  /** The members the source lists who hold a seat with a vote. */
+  members: z.number().int().min(0),
+  /** The number of seats, vacant ones included; null when the source lists more members than the chamber has seats. */
+  seats: z.number().int().min(1).nullable(),
+  vacant: z.number().int().min(0).nullable(),
+  parties: z.array(PartySeatsSchema),
+  /** The party the chamber is shown in the colour of (rule party-seats-1), or null. */
+  lead: ColouredPartySchema.nullable(),
+  leadBasis: z.enum(['seats', 'stated']),
+  note: z.string().nullable(),
+  sourceId: z.string().min(1),
+  sourceUrl: httpsUrl,
+  /** The day the source gives for its list, where it gives one. */
+  asOf: isoDate.nullable(),
+  checkedAt: isoDateTime,
+  ruleId: z.string().min(1),
+});
+export type ChamberSeats = z.infer<typeof ChamberSeatsSchema>;
+
+export const OfficeHolderSchema = z.object({
+  office: z.enum(['President', 'Governor']),
+  name: z.string().min(1),
+  /** The party as the source writes it, and the group it is counted with. */
+  party: z.string().min(1),
+  group: z.enum(PARTY_GROUPS),
+  termStarted: isoDate.nullable(),
+  sourceId: z.string().min(1),
+  sourceUrl: httpsUrl,
+  checkedAt: isoDateTime,
+});
+export type OfficeHolder = z.infer<typeof OfficeHolderSchema>;
+
+export const GOVERNMENT_CONTROLS = ['R', 'D', 'divided', 'undetermined'] as const;
+export type GovernmentControl = (typeof GOVERNMENT_CONTROLS)[number];
+
+export const GovernmentSchema = z.object({
+  /** The key of the map unit: nation:US or state:<FIPS>. */
+  id: z.string().regex(/^(?:nation:US|state:\d{2})$/),
+  name: z.string().min(1),
+  /** R or D: the executive and every chamber are that party's. divided: they are not. undetermined: a part has no party or no source. */
+  control: z.enum(GOVERNMENT_CONTROLS),
+  executive: OfficeHolderSchema.nullable(),
+  executiveNote: z.string().nullable(),
+  chambers: z.array(ChamberSeatsSchema),
+  /** The chambers of the legislature that no source was read for. */
+  missingChambers: z.array(z.enum(['upper', 'lower', 'legislature'])),
+  ruleId: z.string().min(1),
+});
+export type Government = z.infer<typeof GovernmentSchema>;
+
+export const GovernmentFileSchema = z.object({ generatedAt: isoDateTime, governments: z.array(GovernmentSchema) });
+export type GovernmentFile = z.infer<typeof GovernmentFileSchema>;

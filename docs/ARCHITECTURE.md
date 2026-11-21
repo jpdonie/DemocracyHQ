@@ -49,6 +49,7 @@ a schedule, commits the changed JSON and redeploys the site to GitHub Pages.
 | `geo/county_cd119.json` | Which counties each 119th Congress district overlaps, with the Bureau's land and water area of each part |
 | `population/{state,county,cd119}.json` | 2020 Census counts by GEOID, with the Bureau's variable codes and labels |
 | `redistricting.json` | Which states have new congressional boundaries for 2026 and the Bureau's statement that all others are unchanged, both quoted from the Census Bureau, and a land-area check of the unchanged districts |
+| `government.json` | Who holds office: for the United States and each of the fifty states the executive (name, party, the day the current term began), each chamber with its number of seats, the members a source lists by party label and group, the vacant seats, the party with more than half of the seats, and which party holds the government under rule `party-trifecta-1`. Every part names its source and the day it was read |
 | `litigation_secondary.json`, `legislation_secondary.json` | Written only when an optional source runs with its key. Not in this release, and not shown on the site |
 
 Nothing else may be in the folder. `scripts/validate-data.mjs` lists the whole
@@ -148,6 +149,7 @@ no names, all of them in this order:
 | `scotus` | Fetches the Court's public docket page for each docket in `seeds/cases.json`, at least 1.1 seconds apart, labels entries by rule, fetches the questions presented and the documents the seeds cite, tags the case by rule, checks each curated link and tag against its document, asks the Court for each opinion or order linked inside an entry and publishes those that answer 404 or 410 as unavailable, and pairs dockets that come from the same lower-court case (rule `same-lower-court-2`) |
 | `california` | Reads the Legislature's bulk archive by HTTP range request, selects Regular Session election measures by rule `ca-select-2` and counts the Regular Session measures it was applied to, and builds histories, versions, paragraph-level differences, issue tags and the conditions and repeal clauses quoted from the text by rules `ca-cond-1` and `ca-sunset-1` |
 | `courtlistener`, `openstates` | Optional. Without a credential they record `credential_missing` and do nothing else |
+| `government` | Reads the Senate's and the Clerk of the House's lists of members, the governors' pages of the National Governors Association and Open States' list of the current legislators of each state, counts the members of each chamber by party label (rule `party-group-1`), sets them against the number of seats in `seeds/chambers.json` (rule `party-seats-1`) and works out which party holds each government (rule `party-trifecta-1`). Each of the four sources stands on its own: when one cannot be read, what was published from it before is kept with the day it was read, and the source is marked `failed` |
 | `relationships` | Checks the passage of each link in `seeds/relationships.json` when the run has the cited text (see Failure safety), adds these links to the case-to-place links from the `scotus` stage (or to the published ones that the seeds still list unchanged, if that stage did not run or failed), and drops any link whose ends do not resolve |
 | `events` | Builds the timeline from the records above: key entries and actions only, each changed text version, and the boundary-file date of each redrawn state; each bill action carries its `subjectInForce` |
 
@@ -169,6 +171,40 @@ and nation layers. Their rules, seeds (`seeds/circuit_exclusions.json`,
 [FEDERAL_LEVEL.md](FEDERAL_LEVEL.md). On the site, `src/lib/courts.ts` and
 `src/lib/bills.ts` hold the fixed names of the fourteen courts and the order of the
 stages of a measure; `npm run data:validate` compares both with the data.
+
+### Who holds office
+
+The stage `government` (adapter `adapters/officials.py`, rules in `government.py`)
+writes `government.json`. It needs no key. Three rules, published with the others
+in `classification.json`, decide what the site may show in a party's colour:
+
+- `party-group-1`: which label of a source counts with which party. "Republican"
+  and "Democratic" count as such, a label that names several parties
+  ("Democratic/Working Families") counts with the one named first, and the
+  Democratic-Farmer-Labor Party and the Democratic-Nonpartisan League Party count
+  as Democratic. An independent stays an independent whichever party they caucus
+  with. The count under each label as the source wrote it is published too.
+- `party-seats-1`: a chamber is a party's when its members hold more than half of
+  all the seats of the chamber, vacant seats included. The number of seats comes
+  from `seeds/chambers.json`, not from the list of members. For the House of
+  Representatives the majority is the one the Clerk states in the list. A list
+  with more members than the chamber has seats gives no majority, and the state
+  goes to the review queue (`chamber_size`).
+- `party-trifecta-1`: a government is a party's when the executive and every
+  chamber are that party's, and `divided` otherwise. It is `undetermined` when no
+  executive was read, a chamber is missing, a list does not fit the seats, or the
+  members are elected without party labels (the Nebraska Legislature).
+
+The pipeline decides; the site only puts the record into words. `src/lib/government.ts`
+works the rules out a second time from the published parts (`controlOf`,
+`leadBySeats`), and `npm run data:validate` fails when the two disagree, when the
+party figures do not add up to the members, or when the file holds anything other
+than the United States and the fifty states. `src/components/WhoGoverns.tsx` draws
+the block on the page of a state and of the country and the count on the overview,
+and `partyControlTheme` in `src/lib/mapTheme.ts` colours the states. Red and blue
+are used for this and for nothing else on the site, and every part also names its
+party in words. The colouring is the query value `shade=party`, which `mapQuery` in
+`src/lib/router.ts` carries from place to place.
 
 ### Failure safety
 

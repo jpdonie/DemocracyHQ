@@ -33,7 +33,7 @@ export function AboutPage({ route }: { route: Route }) {
       </Section>
 
       <Section title="Neutrality">
-        <p>The same rules apply to every record, whichever party or interest benefits. Records are described in the words of the source: docket entries and court records are quoted, and a bill carries its official titles, subject line and summary. Where {APP_NAME} adds something of its own, such as an issue tag or a link between a case and a place, the rule or the supporting passage is shown next to it. Map colours avoid red and blue.</p>
+        <p>The same rules apply to every record, whichever party or interest benefits. Records are described in the words of the source: docket entries and court records are quoted, and a bill carries its official titles, subject line and summary. Where {APP_NAME} adds something of its own, such as an issue tag or a link between a case and a place, the rule or the supporting passage is shown next to it. Map colours avoid red and blue, with one exception: where the site shows which party holds a governor&rsquo;s office or a chamber, red and blue stand for the two parties and for nothing else, and every part also names its party in words. Those figures are the members a source lists today. They are not an election result and not a forecast.</p>
       </Section>
 
       <Section title="Corrections" id="corrections">

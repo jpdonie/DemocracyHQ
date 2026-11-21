@@ -45,8 +45,8 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Callable, Dict, List, NoReturn, Optional
 
-from . import about, circuits, classify, evidence
-from .adapters import ca_leginfo, census_geo, census_pop, congress, courtlistener, openstates, scotus, uscourts
+from . import about, circuits, classify, evidence, government
+from .adapters import ca_leginfo, census_geo, census_pop, congress, courtlistener, officials, openstates, scotus, uscourts
 from .cli import EXIT_UNEXPECTED, LOG_FORMAT
 from .http import CredentialMissing, FetchError, Fetcher
 from .schemas import (
@@ -58,6 +58,7 @@ from .schemas import (
     EntityRef,
     EntityRelationship,
     EvidenceRef,
+    Government,
     IssueTag,
     LegalCase,
     LegislativeInstrument,
@@ -1471,6 +1472,117 @@ def stage_openstates(ctx: Context) -> None:
     ctx.published_files.append("legislation_secondary.json")
 
 
+# --- stage: who holds office ------------------------------------------------------
+
+GOVERNMENT_FILE = "government.json"
+FIFTY_STATES = tuple(fips for fips, (abbr, _) in STATES.items() if abbr not in ("DC", "PR", "AS", "GU", "MP", "VI"))
+
+
+def _previous_governments(ctx: Context) -> Dict[str, dict]:
+    return {record["id"]: record for record in (read_json(ctx.public / GOVERNMENT_FILE) or {}).get("governments", [])}
+
+
+def _kept_chambers(previous: Optional[dict], keys: tuple[str, ...]) -> List[dict]:
+    """The chambers published before, with the day they were read, for a source that could not be read in this run."""
+    return [chamber for chamber in (previous or {}).get("chambers", []) if chamber["chamber"] in keys]
+
+
+def stage_government(ctx: Context) -> None:
+    """``government.json``: the President (once a source is read for the office), the Senate and the House; for each of
+    the fifty states the governor and the chambers of the legislature (rules ``party-*``).
+
+    Each of the four sources stands on its own. One that cannot be read, or that no longer has the form its reader
+    knows, is reported as failed, and what was published from it before stays, with the day it was read.
+    """
+    previous = _previous_governments(ctx)
+    table = read_json(SEEDS_DIR / "chambers.json")["states"]
+    if sorted(entry["fips"] for entry in table.values()) != sorted(FIFTY_STATES):
+        raise SeedError("seeds/chambers.json does not list exactly the fifty states")
+    official = ctx.fetcher_factory(timeout=60, min_interval=1.0)
+    bulk = ctx.fetcher_factory(timeout=60, min_interval=0.3)
+
+    # The United States.
+    nation = previous.get(government.NATION_ID)
+    federal: List[dict] = []
+    try:
+        listed = officials.senate(official)
+        federal.append(government.senate_chamber(listed, officials.SENATE_SEATS, source_id=officials.SENATE_SOURCE_ID,
+                                                 source_url=officials.SENATE_URL, checked_at=ctx.now))
+        ctx.ok(officials.SENATE_SOURCE_ID, sourcePublishedAt=listed["asOf"], recordCount=len(listed["labels"]))
+    except (FetchError, officials.SourceFormatError) as exc:
+        log.error("senate: %s", exc)
+        federal.extend(_kept_chambers(nation, ("upper",)))
+        ctx.fail(officials.SENATE_SOURCE_ID, "failed", f"{exc}; the figures published before are kept")
+    try:
+        listed = officials.house(official)
+        made = government.house_chamber(listed, source_id=officials.HOUSE_SOURCE_ID, source_url=officials.HOUSE_URL, checked_at=ctx.now)
+        counted = government.majority(made["parties"], made["seats"])
+        if made["leadBasis"] == "stated" and counted and counted != made["lead"]:
+            ctx.flag("stated_majority_differs", government.NATION_ID,
+                     f"the Clerk states the majority {made['lead']}, the members listed give {counted} more than half of the seats")
+        federal.append(made)
+        ctx.ok(officials.HOUSE_SOURCE_ID, sourcePublishedAt=listed["asOf"], recordCount=len(listed["labels"]))
+    except (FetchError, officials.SourceFormatError) as exc:
+        log.error("house: %s", exc)
+        federal.extend(_kept_chambers(nation, ("lower",)))
+        ctx.fail(officials.HOUSE_SOURCE_ID, "failed", f"{exc}; the figures published before are kept")
+    federal.sort(key=lambda made: government.CHAMBER_ORDER.index(made["chamber"]))
+    records = [government.government(unit_id=government.NATION_ID, name="United States", holder=None, chambers=federal,
+                                     executive_note=government.NO_PRESIDENT_NOTE, expected_chambers=("upper", "lower"))]
+
+    # The governors.
+    governors: Dict[str, dict] = {}
+    try:
+        for entry in officials.governors(official):
+            fips = STATE_BY_NAME.get(entry["state"].lower())
+            if fips in FIFTY_STATES:
+                governors[fips] = government.executive(office="Governor", name=entry["name"], party=entry["party"],
+                                                       term_started=entry["termStarted"], source_id=officials.GOVERNORS_SOURCE_ID,
+                                                       source_url=entry["url"], checked_at=ctx.now)
+        if len(governors) != len(FIFTY_STATES):
+            raise officials.SourceFormatError(f"the governors' association lists a governor for {len(governors)} of the fifty states")
+        ctx.ok(officials.GOVERNORS_SOURCE_ID, recordCount=len(governors))
+    except (FetchError, officials.SourceFormatError) as exc:
+        log.error("governors: %s", exc)
+        governors = {fips: previous[f"state:{fips}"]["executive"] for fips in FIFTY_STATES
+                     if (previous.get(f"state:{fips}") or {}).get("executive")}
+        ctx.fail(officials.GOVERNORS_SOURCE_ID, "failed", f"{exc}; the governors published before are kept")
+
+    # The legislatures.
+    failed: List[str] = []
+    members = 0
+    newest: Optional[str] = None
+    for abbr, entry in sorted(table.items()):
+        fips, unit_id = entry["fips"], f"state:{entry['fips']}"
+        try:
+            listed = officials.legislators(bulk, abbr)
+            chambers, problems = government.state_chambers(listed["chambers"], entry["chambers"], source_id=officials.LEGISLATORS_SOURCE_ID,
+                                                           source_url=listed["url"], as_of=listed["asOf"], checked_at=ctx.now)
+            for problem in problems:
+                ctx.flag("chamber_size", unit_id, problem)
+            members += sum(chamber["members"] for chamber in chambers)
+            newest = max(filter(None, [newest, listed["asOf"]]), default=None)
+        except (FetchError, officials.SourceFormatError, ValueError) as exc:
+            log.error("legislators of %s: %s", abbr, exc)
+            failed.append(abbr)
+            chambers = _kept_chambers(previous.get(unit_id), government.CHAMBER_ORDER)
+        records.append(government.government(
+            unit_id=unit_id, name=STATES[fips][1], holder=governors.get(fips), chambers=chambers,
+            executive_note=None if fips in governors else "No governor was read for this state.",
+            expected_chambers=tuple(entry["chambers"])))
+    if failed:
+        ctx.fail(officials.LEGISLATORS_SOURCE_ID, "failed",
+                 f"the members of {len(failed)} of {len(table)} legislatures could not be read ({', '.join(failed)}); the figures published before are kept for them")
+    else:
+        ctx.ok(officials.LEGISLATORS_SOURCE_ID, sourcePublishedAt=newest, recordCount=members)
+
+    write_json(ctx.staging / GOVERNMENT_FILE, {
+        "generatedAt": ctx.now,
+        "governments": [Government(**record).model_dump(mode="json") for record in records],
+    })
+    ctx.published_files.append(GOVERNMENT_FILE)
+
+
 # --- stage: relationships and events --------------------------------------------
 
 def _staged_or_public(ctx: Context, rel: str) -> Path:
@@ -1936,6 +2048,7 @@ OTHER_RULES = [
      "description": "A text version is listed as changed when the paragraph-level comparison with the previous official version adds or removes "
                     "at least one paragraph. The counts come from a standard longest-common-subsequence comparison of the extracted paragraphs."},
     *about.RULES,
+    *government.RULES,
 ]
 
 
@@ -2034,6 +2147,11 @@ SOURCE_FILES: Dict[str, tuple[str, ...]] = {
     circuits.SOURCE_ID: ("geo/circuits.json",),
     "courtlistener-api": ("litigation_secondary.json",),
     "openstates-api": ("legislation_secondary.json",),
+    # One file holds what four sources say; each source's hash therefore changes with any of them.
+    officials.SENATE_SOURCE_ID: (GOVERNMENT_FILE,),
+    officials.HOUSE_SOURCE_ID: (GOVERNMENT_FILE,),
+    officials.GOVERNORS_SOURCE_ID: (GOVERNMENT_FILE,),
+    officials.LEGISLATORS_SOURCE_ID: (GOVERNMENT_FILE,),
 }
 
 
@@ -2196,10 +2314,13 @@ STAGES: Dict[str, tuple[Callable[[Context], None], List[str]]] = {
     "circuits": (stage_circuits, [uscourts.SOURCE_ID]),
     "courtlistener": (stage_courtlistener, ["courtlistener-api"]),
     "openstates": (stage_openstates, ["openstates-api"]),
+    "government": (stage_government, [officials.SENATE_SOURCE_ID, officials.HOUSE_SOURCE_ID, officials.GOVERNORS_SOURCE_ID,
+                                      officials.LEGISLATORS_SOURCE_ID]),
     "relationships": (stage_relationships, []),
     "events": (stage_events, []),
 }
-DEFAULT_ORDER = ["geo", "population", "scotus", "california", "congress", "circuits", "courtlistener", "openstates", "relationships", "events"]
+DEFAULT_ORDER = ["geo", "population", "scotus", "california", "congress", "circuits", "courtlistener", "openstates", "government",
+                 "relationships", "events"]
 #: Stages whose records the links and the timeline are built from: after any of them, those two are rebuilt.
 RECORD_STAGES = ("geo", "scotus", "california", "congress", "circuits")
 

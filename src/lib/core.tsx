@@ -4,11 +4,12 @@ import type {
   SourceRecord, TimelineEvent,
 } from '../types/schemas';
 import {
-  loadBillIndex, loadCaseIndex, loadCircuitIndex, loadCircuits, loadCourts, loadEvents, loadFederalBillIndex, loadGeoIndex, loadManifest,
+  loadBillIndex, loadCaseIndex, loadCircuitIndex, loadCircuits, loadCourts, loadEvents, loadFederalBillIndex, loadGeoIndex, loadGovernment, loadManifest,
   loadRedistricting, loadRelationships, loadSources,
 } from './data';
 import { CourtDirectory } from './courts';
 import { GeoIndex } from './geo';
+import { GovernmentIndex } from './government';
 import { useLoad, type Loadable } from './useLoad';
 
 /**
@@ -100,4 +101,14 @@ const loadEventList = async () => (await loadEvents()).events;
  */
 export function useEvents(): Loadable<TimelineEvent[]> {
   return useLoad('events', loadEventList);
+}
+
+const loadGovernmentIndex = async () => new GovernmentIndex(await loadGovernment());
+
+/**
+ * Who holds office (government.json). Requested by the views that show it: the overview, the page of a state or of
+ * the country, and the map while it is shaded by party. `wanted` false leaves the file alone.
+ */
+export function useGovernment(wanted = true): Loadable<GovernmentIndex> {
+  return useLoad(wanted ? 'government' : null, loadGovernmentIndex);
 }

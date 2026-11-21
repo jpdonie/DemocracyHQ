@@ -10,7 +10,7 @@ import type { FeatureCollection, Geometry } from 'geojson';
 import type { z } from 'zod';
 import {
   BillIndexSchema, CaseIndexSchema, CIRCUIT_CASE_ID_PATTERN, CircuitIndexSchema, CircuitsFileSchema, ClassificationFileSchema, CountyCdSchema,
-  CourtsFileSchema, EventsFileSchema, FederalBillIndexSchema, GeoIndexSchema, LegalCaseSchema, LegislativeInstrumentSchema, ManifestSchema,
+  CourtsFileSchema, EventsFileSchema, FederalBillIndexSchema, GeoIndexSchema, GovernmentFileSchema, LegalCaseSchema, LegislativeInstrumentSchema, ManifestSchema,
   PopulationFileSchema, RedistrictingFileSchema, RelationshipFileSchema, SourcesFileSchema, US_BILL_ID_PATTERN, VersionTextSchema,
   type Layer, type Manifest,
 } from '../types/schemas';
@@ -136,6 +136,8 @@ export const loadRelationships = loader(RELATIONSHIPS_PATH, RelationshipFileSche
 export const loadEvents = loader('events.json', EventsFileSchema);
 export const loadClassification = loader('classification.json', ClassificationFileSchema);
 export const loadCourts = loader('courts.json', CourtsFileSchema);
+/** Who holds office: the executive and the chambers of the United States and of the fifty states (rules party-*). */
+export const loadGovernment = loader('government.json', GovernmentFileSchema);
 
 const SAFE_ID = /^[A-Za-z0-9_-]+$/;
 

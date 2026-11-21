@@ -1,7 +1,7 @@
 # Data sources
 
-Every case, bill, boundary and count in DemocracyHQ comes from one of the sources
-below. The links between records, and the tags that the keyword rules miss, are
+Every case, bill, boundary, count and office holder in DemocracyHQ comes from one
+of the sources below. The links between records, and the tags that the keyword rules miss, are
 written by maintainers, each with a passage quoted from one of these sources. The
 other labels and tags come from DemocracyHQ's own rules, published in
 `public/data/classification.json`. The same information about each source, with
@@ -246,6 +246,33 @@ The district page shows each district's difference from the state's average
 district, computed from these 2020 Census counts. Some states balance districts on
 an adjusted population base, so this figure is not a plan's legal deviation.
 
+### Who holds office: the Senate, the Clerk of the House, the National Governors Association, Open States
+
+Four sources, read by the stage `government` into `public/data/government.json`.
+None needs a key. Two are official and two are secondary; the site names the
+source beside every part it shows.
+
+| Source | Address | What is taken | Kind |
+| --- | --- | --- | --- |
+| United States Senate, list of senators (XML) | `https://www.senate.gov/general/contact_information/senators_cfm.xml` | The party of each senator listed, and the day the list was last changed | Official. U.S. Government work |
+| Clerk of the House of Representatives, Member Data (XML) | `https://clerk.house.gov/xml/lists/MemberData.xml` | The party of each representative, the vacant seats, the majority party as the Clerk states it, and the day of publication. The delegates and the resident commissioner are listed and not counted | Official. U.S. Government work |
+| National Governors Association, pages of the sitting governors | `https://www.nga.org/governors/` | For each of the fifty states the governor's name, party and the first day of the current term | Secondary: the governors' own association, not a government body. Facts only; no text or image is copied |
+| Open States, current members of the state legislatures (CSV, one file per state) | `https://data.openstates.org/people/current/{state}.csv` | The chamber and party label of each member, counted; no name is published. The day is the one the server gives for the file | Secondary: compiled by Plural Policy and volunteers from the legislatures' own sites. Offered under a public-domain dedication unless noted |
+
+All four are read daily and marked stale after 14 days.
+
+Limits: the figures are the members a source lists on the day shown. They are not
+an election result, and nobody elected is counted before taking office. The two
+secondary sources can lag a resignation, a death, a party switch or a special
+election by days or longer. The number of seats of each state chamber is not in
+Open States' files; it comes from `pipeline/seeds/chambers.json`, and a chamber
+whose list holds more members than seats is shown without a majority and queued
+for a maintainer. Seats do not show who runs a chamber. No source read here names
+the President or the President's party, so the United States is shown as "not
+determined" (see [Known limitations](KNOWN_LIMITATIONS.md#coverage)). The rules
+that turn these figures into a colour (`party-group-1`, `party-seats-1`,
+`party-trifecta-1`) are described in [ARCHITECTURE.md](ARCHITECTURE.md#who-holds-office).
+
 ## Optional sources, off by default
 
 Both need a key, both are secondary sources, and **neither has ever been run
@@ -286,9 +313,12 @@ maintainers wrote, are not part of that check.
 ## Personal data
 
 DemocracyHQ collects none. It holds no voter records, no party affiliation of any
-individual and no information about private individuals beyond the names of
-parties, counsel and officials that appear in public court dockets and legislative
-records. The site sets no cookies, runs no analytics and makes no request to any
+private individual and no information about private individuals beyond the names
+of parties, counsel and officials that appear in public court dockets and
+legislative records. The one party affiliation it publishes with a name is that of
+the sitting governor of each state, as the National Governors Association states
+it. Members of Congress and of the state legislatures are published as counts by
+party, not by name. The site sets no cookies, runs no analytics and makes no request to any
 third party. The watchlist is stored in the reader's own browser.
 
 ## Attribution
@@ -297,5 +327,6 @@ If you reuse the data, credit the original publishers named above. A suggested
 line for the dataset as a whole:
 
 > Compiled by DemocracyHQ from the U.S. Census Bureau, the Supreme Court of the
-> United States and California Legislative Information. DemocracyHQ is not an
-> official source.
+> United States, GovInfo, California Legislative Information, the United States
+> Senate, the Clerk of the House, the National Governors Association and Open
+> States. DemocracyHQ is not an official source.

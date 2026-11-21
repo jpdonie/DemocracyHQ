@@ -2,16 +2,16 @@ import { Component, lazy, Suspense, useCallback, useEffect, useMemo, useRef, use
 import type { Layer } from './types/schemas';
 import { APP_NAME, REPO_URL } from './config';
 import { billLabel, isFederalBill } from './lib/bills';
-import { CoreProvider, useCore } from './lib/core';
+import { CoreProvider, useCore, useGovernment } from './lib/core';
 import {
   SCOTUS_ID, casesByCourt, circuitCourtId, circuitViewBbox, courtFullName, courtGeoKey, courtHash, courtIdOfCase, isCourtId,
 } from './lib/courts';
 import { isAppealsCaseId, isFederalBillId, loadPopulation } from './lib/data';
 import { caseStateCounts } from './lib/filters';
 import { NATION_KEY, isCensusLayer, isDistrictLayer, isLayer, parseGeoKey, unionBbox, type Bbox } from './lib/geo';
-import { caseStatesTheme, circuitTheme, coverageTheme, linkedRecordsTheme, populationTheme, redrawnTheme, type MapTheme } from './lib/mapTheme';
+import { caseStatesTheme, circuitTheme, coverageTheme, linkedRecordsTheme, partyControlTheme, populationTheme, redrawnTheme, type MapTheme } from './lib/mapTheme';
 import { linkedStates, relationshipsForRecord } from './lib/relations';
-import { buildHash, moveStartedOn, navigate, patchQuery, useRoute, type Route } from './lib/router';
+import { buildHash, mapQuery, moveStartedOn, navigate, patchQuery, useRoute, type Route } from './lib/router';
 import { COMPACT_QUERY, SHORT_COMPACT_QUERY, TINY_COMPACT_QUERY, useMediaQuery } from './lib/media';
 import { isPlainClick, RaiseSheetContext } from './lib/sheet';
 import { dataOf, useLoad } from './lib/useLoad';
@@ -19,7 +19,7 @@ import { focusHeadingWhenShown, restorePlaceWhenShown } from './lib/focus';
 import { lastArrival } from './lib/scrollMemory';
 import { BrandMark } from './components/BrandMark';
 import { GlobalSearch } from './components/GlobalSearch';
-import { LayerControl, Legend, type DistrictPlan, type MapChoice } from './components/MapChrome';
+import { LayerControl, Legend, type DistrictPlan, type MapChoice, type StateShading } from './components/MapChrome';
 import { ReleaseNotice } from './components/ReleaseNotice';
 import type { MapPadding } from './components/MapView';
 import { ErrorNote, Icon, Loading } from './components/ui';
@@ -307,12 +307,17 @@ function Shell() {
   const populationDataset = shade === 'population' ? (activeLayer === 'state' ? 'state' : activeLayer === 'county' ? 'county' : 'cd119') : null;
   const populationFile = useLoad(populationDataset ? `population:${populationDataset}` : null, () => loadPopulation(populationDataset!));
 
+  // The states by the party that holds their government: a choice of the reader that stays from state to state.
+  const partyShading = activeLayer === 'state' && shade === 'party';
+  const government = useGovernment(partyShading);
+
   const theme = useMemo<MapTheme | null>(() => {
     if (!geo) return null;
     if (activeLayer === 'circuit') return cases ? circuitTheme(casesByCourt(cases)) : null;
     if (shade === 'population') {
       return populationFile.status === 'ready' ? populationTheme(activeLayer, geo, populationFile.data, redistricting) : null;
     }
+    if (partyShading) return government.status === 'ready' ? partyControlTheme(government.data.states) : null;
     if (isDistrictLayer(activeLayer)) return redistricting && shade !== 'none' ? redrawnTheme(activeLayer, geo, redistricting) : null;
     if (activeLayer !== 'state') return null;
     // A record of the whole country belongs to no single state, so no state is shaded for it.
@@ -326,7 +331,7 @@ function Shell() {
     // The Supreme Court's page: the states its dockets are linked to.
     if (view.name === 'court') return relationships ? linkedRecordsTheme(linkedStates(relationships, 'case'), 'cases') : null;
     return relationships ? linkedRecordsTheme(linkedStates(relationships, 'any'), 'records') : null;
-  }, [geo, shade, populationFile, activeLayer, redistricting, module, bills, relationships, cases, federalRecord, view.name]);
+  }, [geo, shade, populationFile, partyShading, government, activeLayer, redistricting, module, bills, relationships, cases, federalRecord, view.name]);
 
   const onSelect = useCallback((key: string) => {
     const current = routeRef.current;
@@ -342,7 +347,7 @@ function Shell() {
       patchQuery(current, { state: current.query.state === fips ? '' : fips }, { replace: false });
       return;
     }
-    navigate(buildHash(['place', key]));
+    navigate(buildHash(['place', key], mapQuery(current.query)));
   }, []);
   const routeRef = useRef(route);
   routeRef.current = route;
@@ -351,18 +356,19 @@ function Shell() {
   const onChoice = useCallback((choice: MapChoice) => {
     const current = routeRef.current;
     const currentView = resolveView(current);
-    if (choice === 'federal') return navigate(buildHash(['place', NATION_KEY]));
+    if (choice === 'federal') return navigate(buildHash(['place', NATION_KEY], mapQuery(current.query)));
     if (choice === 'supreme') return navigate(courtHash(SCOTUS_ID));
     if (choice === 'circuit') return navigate(buildHash(['courts']));
     const layer: Layer = choice === 'district' ? 'cd120' : choice;
     // The pages of the country and of the courts have no boundaries of their own to change: from them the choice
     // leads to the overview with those boundaries. Every other view stays and only its map changes.
     const leaves = currentView.name === 'courts' || currentView.name === 'court' || (currentView.name === 'place' && currentView.key === NATION_KEY);
-    if (leaves) return navigate(buildHash([], layer === 'state' ? {} : { layer }));
+    if (leaves) return navigate(buildHash([], layer === 'state' ? mapQuery(current.query) : { layer }));
     return patchQuery(current, { layer, shade: '' }, { replace: false });
   }, []);
   const onPlan = useCallback((plan: DistrictPlan) => patchQuery(routeRef.current, { layer: plan, shade: '' }, { replace: false }), []);
   const onCircuit = useCallback((courtId: string) => navigate(courtId ? courtHash(courtId) : buildHash(['courts'])), []);
+  const onShading = useCallback((value: StateShading) => patchQuery(routeRef.current, { shade: value === 'party' ? 'party' : '' }, { replace: false }), []);
   const [controlBottom, setControlBottom] = useState(0);
 
   const onBoundaryError = useCallback((layer: Layer, message: string) => {
@@ -542,12 +548,16 @@ function Shell() {
                     onChoice={onChoice}
                     onPlan={onPlan}
                     onCircuit={onCircuit}
+                    shading={activeLayer === 'state' ? (partyShading ? 'party' : 'records') : null}
+                    onShading={onShading}
                     onExtent={setControlBottom}
                   />
                   {/* On a phone the legend starts closed to leave the map and its controls clear; its summary shows the colours in use. */}
                   <Legend
                     theme={theme} layer={activeLayer} geo={core.geo.data} sources={sources} now={core.now} boundaryError={boundaryErrors[activeLayer] ?? null} startOpen={!compact}
-                    emptyNote={federalRecord && activeLayer === 'state' ? 'No shading: the records of Congress belong to the whole country, which is outlined. Select a state to open its records.' : null}
+                    emptyNote={partyShading
+                      ? (government.status === 'error' ? 'The party figures could not be loaded, so the states are not coloured.' : 'Loading the party figures.')
+                      : federalRecord && activeLayer === 'state' ? 'No shading: the records of Congress belong to the whole country, which is outlined. Select a state to open its records.' : null}
                   />
                 </MapView>
               </Suspense>

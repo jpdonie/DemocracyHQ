@@ -773,8 +773,63 @@ ul.pack-items { list-style: disc; }
   .panel { transition: none; }
 }
 
+/* ---------- who governs: the executive and the chambers by party ---------- */
+
+/* Red and blue are used in this block and on the party map only. Every coloured part also names its party in words. */
+.gov { display: grid; gap: var(--s-3); }
+.gov-chip { display: inline-block; flex: none; width: 0.7rem; height: 0.7rem; border-radius: 50%; background: var(--party-none); box-shadow: inset 0 0 0 1px rgb(23 35 59 / 0.28); }
+.gov-chip-R, .seat-R { background: var(--party-r); }
+.gov-chip-D, .seat-D { background: var(--party-d); }
+.gov-chip-split, .seat-split { background: var(--party-split); }
+.gov-chip-unknown, .seat-unknown { background: repeating-linear-gradient(135deg, transparent 0 3px, rgb(95 106 128 / 0.75) 3px 4.2px) var(--land); }
+
+.gov-verdict { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--s-3); align-items: start; padding: var(--s-3) var(--s-4); border-radius: var(--radius-2); background: var(--sunk); border-left: 4px solid var(--party-none); max-width: none !important; }
+.gov-verdict .gov-chip { width: 1rem; height: 1rem; margin-top: 0.2rem; }
+.gov-verdict strong { display: block; font-size: var(--text-lg); font-weight: 680; line-height: 1.25; letter-spacing: -0.005em; }
+.gov-verdict-detail { display: block; color: var(--ink-2); font-size: var(--text-md); }
+.gov-verdict-R { background: var(--party-r-tint); border-left-color: var(--party-r); }
+.gov-verdict-D { background: var(--party-d-tint); border-left-color: var(--party-d); }
+.gov-verdict-split { background: color-mix(in srgb, var(--party-split) 38%, var(--surface)); border-left-color: var(--party-split); }
+
+.gov-parts { display: grid; gap: var(--s-2); }
+.gov-part { display: grid; gap: var(--s-2); padding: var(--s-3) var(--s-4); border: var(--border); border-left: 4px solid var(--party-none); border-radius: var(--radius-2); background: var(--surface); }
+.gov-part-R { border-left-color: var(--party-r); }
+.gov-part-D { border-left-color: var(--party-d); }
+.gov-part-unknown { border-left-style: dashed; border-left-color: var(--rule-strong); }
+.gov-part-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: var(--s-1) var(--s-3); }
+.gov-office { font-weight: 650; }
+.gov-party { display: inline-flex; align-items: center; gap: var(--s-2); font-size: var(--text-sm); font-weight: 600; color: var(--ink-2); }
+.gov-holder { font-family: var(--font-text); font-size: var(--text-lg); line-height: 1.3; }
+.gov-since { display: block; font-family: var(--font-ui); font-size: var(--text-sm); color: var(--ink-3); }
+.gov-note { color: var(--ink-2); font-size: var(--text-sm); line-height: 1.4; }
+.gov-seats { display: flex; flex-wrap: wrap; gap: 2px var(--s-4); font-size: var(--text-sm); font-variant-numeric: tabular-nums; }
+.gov-seats span { display: inline-flex; align-items: center; gap: var(--s-1); white-space: nowrap; }
+
+/* One bar for a chamber: Democratic seats from the left, Republican seats from the right, a mark at the middle. */
+.seatbar { display: grid; grid-template-columns: minmax(2.2ch, auto) minmax(0, 1fr) minmax(2.2ch, auto); align-items: center; gap: var(--s-2); }
+.seatbar-count { font-size: var(--text-xl); font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1; letter-spacing: -0.01em; }
+.seatbar-count-D { color: var(--party-d); text-align: right; }
+.seatbar-count-R { color: var(--party-r); }
+.seatbar-track { position: relative; display: flex; height: 0.95rem; border-radius: 3px; overflow: hidden; background: var(--sunk); box-shadow: inset 0 0 0 1px rgb(23 35 59 / 0.16); }
+.seat { min-width: 2px; }
+.seat + .seat { box-shadow: -1px 0 0 var(--surface); }
+.seat-other { background: var(--party-none); }
+.seat-vacant { background: repeating-linear-gradient(135deg, transparent 0 3px, rgb(95 106 128 / 0.6) 3px 4.2px) var(--surface); }
+.seatbar-mark { position: absolute; left: 50%; top: -2px; bottom: -2px; width: 2px; margin-left: -1px; background: var(--ink); box-shadow: 0 0 0 1px var(--surface); }
+.seatbar-plain { grid-template-columns: minmax(0, 1fr); }
+.seatbar-tall .seatbar-track { height: 1.35rem; }
+.seatbar-tall .seatbar-count { font-size: var(--text-2xl); }
+
+.gov-more { font-size: var(--text-sm); color: var(--ink-2); }
+.gov-more summary { cursor: pointer; font-weight: 600; color: var(--ink); width: fit-content; }
+.gov-more[open] summary { margin-bottom: var(--s-2); }
+.gov-more > * + * { margin-top: var(--s-2); }
+.gov-sources { display: grid; gap: var(--s-1); }
+
+
 @media (forced-colors: active) {
-  .type-mark::before, .swatch { forced-color-adjust: none; }
+  .type-mark::before, .swatch, .gov-chip, .seat { forced-color-adjust: none; }
+  .seatbar-mark { background: CanvasText; }
   /* The rule under matched words is a background, which this mode removes: an underline takes its place. */
   mark.hit { background: none; text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 3px; }
   .seg label.is-on span, .segmented-options label.is-on span { outline: 2px solid CanvasText; outline-offset: -2px; }

@@ -30,6 +30,31 @@ Status as of the data release of 2026-11-21. The limits of the federal level
   its published exclusion pattern are removed. Election-related bills with other
   subject lines are missed, and the rule can admit a bill that is only loosely
   about elections.
+- **Who governs: the President is not shown.** No source read here names the
+  President or the President's party, so the United States is shown as "not
+  determined" even though both chambers of Congress have a majority. The page of
+  the country says so.
+- **Who governs: seats, not power.** A chamber is shown in a party's colour when
+  the members listed under that party's label hold more than half of all its
+  seats. That does not say who runs the chamber: where members of both parties
+  form the governing coalition, the colour still follows the seats.
+  A veto-proof majority, a tie broken by a lieutenant governor and a
+  power-sharing agreement are not shown. An evenly split chamber, or one where
+  vacant seats leave no party with more than half, is shown without a majority.
+- **Who governs: two secondary sources.** The governors come from the pages of
+  the National Governors Association and the legislators from Open States, which
+  volunteers and scrapers keep. A resignation, a death, a party switch or a
+  special election can take days or longer to appear, and nothing here checks
+  either source against a state's own record. The figures are never an election
+  result: nobody elected is counted before taking office.
+- **Who governs: fifty states only.** The District of Columbia and the
+  territories have no record, and the map hatches them. Nebraska's legislature is
+  elected without party labels, so the state is "not determined". Courts, other
+  statewide offices (secretaries of state, attorneys general) and local
+  governments are not covered.
+- **Who governs is not in the exports.** The legal source pack of a place does not
+  include the block. The party colouring of the map is kept by the map and by
+  the link back to the overview, and is dropped by the other links in the panel.
 - **No ballot or election results.** The site does not track the outcome of any
   vote of the people. Where a measure or a condition in it turns on such a vote,
   the page says so and points to the Secretary of State's Statement of Vote.

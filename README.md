@@ -30,10 +30,11 @@ site reads that JSON.
 | Courts | The Supreme Court and the thirteen courts of appeals, with the states and territories of each circuit as 28 U.S.C. § 41 lists them, drawn on the map | United States Code on GovInfo |
 | California election legislation | 132 of the 5,041 measures of the 2025-2026 Regular Session, selected by a published rule, with official history, every text version and a version comparison | California Legislative Information bulk data |
 | Redistricting | Boundaries for 56 states and state equivalents, 3,235 counties and county equivalents, and the congressional districts of the 119th Congress (441) and of the 120th Congress, elected in 2026 (441), with 2020 Census counts shown only on the lines they were tabulated for, or on a 2026 district that the Census Bureau reports as unchanged | U.S. Census Bureau |
+| Who governs | For each of the fifty states the governor and every chamber of the legislature, and for the United States the Senate and the House of Representatives, with the seats each party holds and, by published rules, which party holds the government: 23 states Republican, 15 Democratic, 11 divided, 1 not determined. The President is not shown yet | Senate.gov, the Clerk of the House, the National Governors Association, Open States |
 
 Across the modules: a workspace for any place, a dated "What changed here?"
 timeline of the docket entries and legislative actions that the published rules
-mark as key, changed bill texts and boundary-file dates (1,475 events), 38 links
+mark as key, changed bill texts and boundary-file dates (1,476 events), 38 links
 between cases, bills and places that each quote the passage supporting them, a
 search box, a watchlist kept in your own browser, and a "legal source pack" export
 as JSON, CSV or a printable page.
@@ -85,8 +86,8 @@ npm run test:e2e       # builds the browser-test build in dist-e2e/, then runs t
                        # browser tests against it, served under a sub-path
 ```
 
-The suites hold 337 unit tests in 24 files, 247 browser tests in 17 files (a
-desktop project at 1366 x 768 and a phone project) and 708 pipeline tests.
+The suites hold 358 unit tests in 25 files, 259 browser tests in 18 files (a
+desktop project at 1366 x 768 and a phone project) and 772 pipeline tests.
 [CONTRIBUTING.md](CONTRIBUTING.md#tests) says what each covers.
 
 ### Data pipeline

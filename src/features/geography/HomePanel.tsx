@@ -1,17 +1,22 @@
 import { isFederalBill, shortSession } from '../../lib/bills';
-import { useCore, useEvents } from '../../lib/core';
+import { useCore, useEvents, useGovernment } from '../../lib/core';
 import { SCOTUS_ID, casesByCourt } from '../../lib/courts';
 import { formatDate, plural } from '../../lib/format';
 import { NATION_KEY } from '../../lib/geo';
 import { latestEvents, linkedStates } from '../../lib/relations';
-import { buildHash } from '../../lib/router';
+import { buildHash, useRoute } from '../../lib/router';
 import { dataOf } from '../../lib/useLoad';
 import { A, Async, GapNotice, Section } from '../../components/ui';
+import { ControlTally } from '../../components/WhoGoverns';
 import { TimelineList } from './Timeline';
 
 export function HomePanel() {
   const core = useCore();
+  const route = useRoute();
   const events = useEvents();
+  const government = useGovernment();
+  // The map is coloured by party while the address says so; the layer in the address must be the states.
+  const partyShown = route.query.shade === 'party' && (!route.query.layer || route.query.layer === 'state');
   const geo = dataOf(core.geo);
   const cases = dataOf(core.cases);
   const bills = dataOf(core.bills);
@@ -53,6 +58,12 @@ export function HomePanel() {
             ))}.
           </p>
         ) : null}
+      </Section>
+
+      <Section title="Who governs the states">
+        <Async of={government} what="who holds office">
+          {(index) => <ControlTally index={index} shown={partyShown} mapHash={buildHash([], partyShown ? {} : { shade: 'party' })} />}
+        </Async>
       </Section>
 
       <Section title="What is in this release">

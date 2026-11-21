@@ -47,6 +47,10 @@ The three record inks come from the print separations of a topographic sheet:
 brown for the land itself, green for what is planted on it, purple for revisions
 overprinted later. They mark what kind of record something is and are never used
 as decoration. Map fills avoid red and blue so nothing reads as a party colour.
+The one exception is the view of who governs (`shade=party` and the block "Who
+governs"): there red and blue mean the Republican and the Democratic party and
+nothing else, lilac means a government divided between them, and every part also
+names its party in words.
 Hatching means "no data" everywhere it appears, on the map and in the panel.
 
 **Type**

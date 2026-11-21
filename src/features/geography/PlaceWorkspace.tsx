@@ -5,19 +5,21 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { EVENT_CATEGORIES, type EventCategory, type LegalCaseSummary } from '../../types/schemas';
 import { billJurisdiction, isFederalBill } from '../../lib/bills';
-import { useCore } from '../../lib/core';
+import { useCore, useGovernment } from '../../lib/core';
 import { courtHash, courtShortName } from '../../lib/courts';
 import { isoDateParam, positiveInt } from '../../lib/filters';
 import { formatDate, formatNumber, formatPercent, formatSignedPercent, plural } from '../../lib/format';
 import { sourceFreshness } from '../../lib/freshness';
 import { NATION_KEY, isCensusLayer, isDistrictLayer, STATE_ABBR, stateKind, unitNoun, type GeoUnit } from '../../lib/geo';
 import { districtDeviation, groupBreakdown, groupsSumToTotal, type PopulationResult } from '../../lib/population';
-import { buildHash, patchQuery, shareUrl, type Route } from '../../lib/router';
+import { GOVERNMENT_SOURCE_IDS } from '../../lib/government';
+import { buildHash, mapQuery, patchQuery, shareUrl, type Route } from '../../lib/router';
 import { COMPACT_QUERY, useMediaQuery } from '../../lib/media';
 import { isPlainClick, revealElement, useRaiseSheet } from '../../lib/sheet';
 import { allOf, dataOf } from '../../lib/useLoad';
 import { useTagLabels } from '../../lib/labels';
 import { A, Async, BackLink, CopyLinkButton, Empty, ErrorHeading, ErrorNote, ExportMenu, Ext, Facts, GapNotice, Loading, Section, Segmented, TableScroll, TabPanel, Tabs, TextField, TypeMark, VerificationBadge, WatchButton } from '../../components/ui';
+import { WhoGoverns } from '../../components/WhoGoverns';
 import { CaseRow, CaseRows } from '../litigation/CaseDirectory';
 import { BillRow } from '../legislation/BillDirectory';
 import { TimelineList } from './Timeline';
@@ -207,6 +209,7 @@ function Overview({ data, route }: { data: PlaceData; route: Route }) {
   const kind = stateKind(data.unit.stateFips).toLowerCase();
   return (
     <>
+      {isState ? <StateGovernment data={data} /> : null}
       <Section title="Records tied to this place">
         {/* Each count waits only for the files it is made from; one that failed says so instead of showing a number. */}
         <ul className="plain-list">
@@ -246,6 +249,27 @@ function Overview({ data, route }: { data: PlaceData; route: Route }) {
         </Async>
       </Section>
     </>
+  );
+}
+
+/**
+ * The governor and the chambers of a state by party. Published for the fifty states; the District of Columbia and the
+ * territories are said not to be covered, so that no colour there is not read as a finding.
+ */
+function StateGovernment({ data }: { data: PlaceData }) {
+  const core = useCore();
+  const government = useGovernment();
+  const kind = stateKind(data.unit.stateFips).toLowerCase();
+  return (
+    <Section title="Who governs">
+      <Async of={government} what="who holds office">
+        {(index) => {
+          const record = index.get(data.unit.key);
+          if (!record) return <GapNotice>Who holds office is shown for the fifty states only. It is not shown for a {kind}.</GapNotice>;
+          return <WhoGoverns record={record} sources={dataOf(core.sources) ?? []} />;
+        }}
+      </Async>
+    </Section>
   );
 }
 
@@ -401,6 +425,7 @@ export function TimelineTab({ data, events, route, kinds = EVENT_CATEGORIES, not
 
 export function SourcesTab({ data, also = [] }: { data: PlaceData; also?: readonly string[] }) {
   const core = useCore();
+  const government = useGovernment(data.unit.layer === 'state');
   const population = dataOf(data.population);
   const ids = new Set<string>([data.geoSourceId, ...also]);
   if (population?.status === 'available') ids.add(population.dataset.sourceId);
@@ -411,6 +436,8 @@ export function SourcesTab({ data, also = [] }: { data: PlaceData; also?: readon
   if (data.unit.layer === 'state' && statuteSource) ids.add(statuteSource);
   for (const bill of dataOf(data.legislation)?.bills ?? []) ids.add(bill.sourceId);
   if (dataOf(data.events)?.some((e) => e.category === 'geography')) ids.add('census-cd120-page');
+  // Who governs is shown on the page of each of the fifty states.
+  if (data.unit.layer === 'state' && dataOf(government)?.get(data.unit.key)) for (const id of GOVERNMENT_SOURCE_IDS.state) ids.add(id);
   return (
     <>
       <Section title="Sources behind this page">
@@ -510,7 +537,7 @@ export function PlaceWorkspace({ placeKey, route }: { placeKey: string; route: R
   const abbr = STATE_ABBR[unit.stateFips];
   return (
     <article className="view">
-      {unit.layer !== 'state' ? <BackLink to={buildHash(['place', `state:${unit.stateFips}`])}>{data.geo.stateName(unit.stateFips)}</BackLink> : <BackLink to={buildHash([])}>Overview</BackLink>}
+      {unit.layer !== 'state' ? <BackLink to={buildHash(['place', `state:${unit.stateFips}`])}>{data.geo.stateName(unit.stateFips)}</BackLink> : <BackLink to={buildHash([], mapQuery(route.query))}>Overview</BackLink>}
       <header className="view-head">
         <TypeMark type="place" />
         <h1 tabIndex={-1}>{unit.name}</h1>

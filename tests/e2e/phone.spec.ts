@@ -472,6 +472,27 @@ test.describe('Narrow phone, 320 x 568', () => {
     await expectNoSidewaysOverflow(page);
   });
 
+  test('the party map is chosen from a menu, and the block of who governs fits the screen', async ({ page }) => {
+    await open(page, '#/', { withMap: true });
+    await mapReady(page, 'state');
+    await page.getByRole('combobox', { name: 'States coloured by' }).selectOption('party');
+    await expect(page).toHaveURL(/shade=party/);
+    await mapReady(page, 'state');
+    await expectMapControlsApart(page);
+    // The closed legend shows the three colours and the hatch of the party map.
+    await expect(page.locator('.legend summary .legend-key .swatch')).toHaveCount(4);
+
+    await open(page, '#/place/state:20?shade=party');
+    await expect(heading(page)).toHaveText('Kansas');
+    await page.getByRole('button', { name: 'Show more detail' }).tap();
+    const block = page.getByRole('region', { name: 'Who governs', exact: true });
+    await expect(block.getByRole('list', { name: 'The offices of Kansas by party' }).getByRole('listitem')).toHaveCount(3);
+    expect(await brokenWords(page, '.gov')).toEqual([]);
+    const overflow = await sidewaysOverflow(page);
+    expect(overflow.document).toBeLessThanOrEqual(0);
+    expect(overflow.panel).toBeLessThanOrEqual(0);
+  });
+
   test('the closed legend keeps its key on one line between the zoom buttons and the edge', async ({ page }) => {
     await open(page, '#/redistricting?shade=population', { withMap: true });
     await mapReady(page, 'cd120');

@@ -86,7 +86,7 @@ class SourceRecord(Model):
     id: str
     name: str
     url: HttpsUrl
-    sourceType: Literal["official_bulk", "official_api", "official_web", "secondary_api", "curated"]
+    sourceType: Literal["official_bulk", "official_api", "official_web", "secondary_api", "secondary_bulk", "secondary_web", "curated"]
     authority: str
     retrievedAt: Optional[IsoDateTime] = None
     lastSuccessfulCheck: Optional[IsoDateTime] = None
@@ -634,3 +634,85 @@ class CaseLink(Model):
     number: str
     #: The Supreme Court's docket page.
     sourceUrl: HttpsUrl
+
+
+# --- who holds office (rules party-*) ---------------------------------------------
+
+#: The group a party label is counted with: Republican, Democratic, Independent, Nonpartisan, or another party.
+PartyGroup = Literal["R", "D", "I", "N", "O"]
+#: The party a chamber or a government is shown in the colour of. Only these two have a colour.
+ColouredParty = Literal["R", "D"]
+
+
+class LabelSeats(Model):
+    #: The party label exactly as the source writes it.
+    label: NonEmpty
+    seats: int = Field(ge=1)
+
+
+class PartySeats(Model):
+    """The members counted with one party (rule ``party-group-1``), and the labels they were listed under."""
+
+    group: PartyGroup
+    #: "Republican", "Democratic", "Independent", "Nonpartisan", or the source's own label for another party.
+    name: NonEmpty
+    seats: int = Field(ge=1)
+    labels: List[LabelSeats] = Field(min_length=1)
+
+
+class ChamberSeats(Model):
+    """One chamber: the members a source lists, by party, and whether one party holds more than half of the seats."""
+
+    chamber: Literal["upper", "lower", "legislature"]
+    name: NonEmpty
+    #: The members the source lists who hold a seat with a vote.
+    members: int = Field(ge=0)
+    #: The number of seats, vacant ones included. ``None`` when the source lists more members than the chamber has seats.
+    seats: Optional[int] = Field(default=None, ge=1)
+    vacant: Optional[int] = Field(default=None, ge=0)
+    parties: List[PartySeats]
+    #: The party the chamber is shown in the colour of (rule ``party-seats-1``), or ``None``.
+    lead: Optional[ColouredParty] = None
+    #: "seats": counted from the members listed. "stated": the source itself states the majority (the House).
+    leadBasis: Literal["seats", "stated"]
+    note: Optional[str] = None
+    sourceId: NonEmpty
+    sourceUrl: HttpsUrl
+    #: The day the source gives for its list, where it gives one.
+    asOf: Optional[IsoDate] = None
+    #: When DemocracyHQ last read the list.
+    checkedAt: IsoDateTime
+    ruleId: NonEmpty
+
+
+class OfficeHolder(Model):
+    """The President or a governor, as a source names them."""
+
+    office: Literal["President", "Governor"]
+    name: NonEmpty
+    #: The party as the source writes it, and the group it is counted with.
+    party: NonEmpty
+    group: PartyGroup
+    #: The first day of the term the source marks as current.
+    termStarted: Optional[IsoDate] = None
+    sourceId: NonEmpty
+    sourceUrl: HttpsUrl
+    checkedAt: IsoDateTime
+
+
+class Government(Model):
+    """The executive and the chambers of the United States or of one state, and what rule ``party-trifecta-1`` makes of them."""
+
+    #: The key of the map unit: ``nation:US`` or ``state:<FIPS>``.
+    id: Annotated[str, StringConstraints(pattern=r"^(?:nation:US|state:[0-9]{2})$")]
+    name: NonEmpty
+    #: "R" or "D": the executive and every chamber are that party's. "divided": they are not. "undetermined": a part
+    #: carries no party label or was not read from a source.
+    control: Literal["R", "D", "divided", "undetermined"]
+    executive: Optional[OfficeHolder] = None
+    #: Why no executive is given, when none is.
+    executiveNote: Optional[str] = None
+    chambers: List[ChamberSeats]
+    #: The chambers of the legislature that no source was read for, in this run or before.
+    missingChambers: List[Literal["upper", "lower", "legislature"]] = Field(default_factory=list)
+    ruleId: NonEmpty

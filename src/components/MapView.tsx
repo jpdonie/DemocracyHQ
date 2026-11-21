@@ -292,7 +292,9 @@ export function MapView(props: MapViewProps) {
           let detail = '';
           if (current && current.layer === layer) {
             const index = current.classOf.get(geoid);
-            if (index !== undefined) detail = current.classes[index]?.label ?? '';
+            const own = current.detailOf?.get(geoid);
+            if (own) detail = own;
+            else if (index !== undefined) detail = current.classes[index]?.label ?? '';
             else if (current.hatch && (current.hatch.geoids === 'rest' || current.hatch.geoids.has(geoid))) detail = current.hatch.label;
             else if (current.plain) detail = current.plain;
           }
