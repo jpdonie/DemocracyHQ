@@ -292,16 +292,25 @@ export function TextField({ label, value, onChange, type = 'search', placeholder
  * The result count (`status`) comes before the folded filters there, so opening them never pushes it off the screen;
  * on a larger screen it follows the filters, just above the list.
  */
-export function MoreFilters({ count, status, children }: { count: number; status: ReactNode; children: ReactNode }) {
+export function MoreFilters({ count, status, children, primary, primaryCount = 0 }: {
+  count: number; status: ReactNode; children: ReactNode;
+  /** The filters a reader reaches for first. On a wide screen they stand above the disclosure; on a phone they are in it with the rest. */
+  primary?: ReactNode; primaryCount?: number;
+}) {
   const compact = useMediaQuery(COMPACT_QUERY);
-  if (!compact) return <>{children}{status}</>;
+  // Open from the start when one of the filters inside is set, so that a filter in force is never out of sight.
+  const [open, setOpen] = useState(count > 0);
+  if (!compact && !primary) return <>{children}{status}</>;
+  const inside = compact ? count + primaryCount : count;
   return (
     <>
-      {status}
-      <details className="filters-more">
-        <summary>{count > 0 ? `More filters (${count} set)` : 'More filters'}</summary>
+      {compact ? status : primary}
+      <details className="filters-more" open={compact ? undefined : open || count > 0} onToggle={compact ? undefined : (event) => setOpen(event.currentTarget.open)}>
+        <summary>{inside > 0 ? `More filters (${inside} set)` : 'More filters'}</summary>
+        {compact ? primary : null}
         {children}
       </details>
+      {compact ? null : status}
     </>
   );
 }

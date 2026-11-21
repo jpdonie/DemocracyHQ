@@ -1,9 +1,10 @@
 {
- "contentHash": "5efe7159b5620c8eead76db112f07d628e7ff73b66e43acd72eb178a1d09a0b7",
+ "contentHash": "18819cb2a837e4bd8b4e23cc0d36508a248bb7dd8a55a45725dc4e0bbfcf3319",
  "counts": {
   "appealsCourtCases": 128,
   "bills": 405,
-  "cases": 153,
+  "cases": 248,
+  "districtAndStateCourtCases": 95,
   "events": 1476,
   "federalBills": 273,
   "geographicUnits": 4186,
@@ -11,12 +12,13 @@
   "stateBills": 132,
   "supremeCourtCases": 25
  },
- "generatedAt": "2026-11-21T17:39:31Z",
+ "generatedAt": "2026-11-21T22:26:44Z",
  "reviewQueue": {
   "byKind": {
+   "case_left_selection": 1,
    "text_version_note": 1
   },
-  "items": 1
+  "items": 2
  },
  "schemaVersion": 1,
  "sources": {
@@ -51,9 +53,9 @@
    "processingStatus": "ok"
   },
   "courtlistener-api": {
-   "lastAttempt": "2026-11-20T22:05:28Z",
-   "lastSuccessfulCheck": null,
-   "processingStatus": "credential_missing"
+   "lastAttempt": "2026-11-21T22:25:27Z",
+   "lastSuccessfulCheck": "2026-11-21T22:25:27Z",
+   "processingStatus": "ok"
   },
   "govinfo-bills": {
    "lastAttempt": "2026-11-21T17:18:40Z",
@@ -86,9 +88,9 @@
    "processingStatus": "ok"
   },
   "openstates-api": {
-   "lastAttempt": "2026-11-20T22:05:28Z",
-   "lastSuccessfulCheck": null,
-   "processingStatus": "credential_missing"
+   "lastAttempt": "2026-11-21T22:26:44Z",
+   "lastSuccessfulCheck": "2026-11-21T22:26:44Z",
+   "processingStatus": "ok"
   },
   "openstates-people": {
    "lastAttempt": "2026-11-21T17:39:31Z",

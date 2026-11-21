@@ -34,6 +34,7 @@ def test_a_full_stop_after_an_abbreviation_does_not_end_a_sentence():
     "168 Cong. Rec. S1234 records the debate on the amendment",
     "Mt. Healthy City Sch. Dist. Bd. of Educ. v. Doyle governs the claim",
     "Am. Civ. Liberties Union v. Synthetic County decided the same point",
+    "the complaint (Compl. ¶ 4, ECF. No. 1) says the board met in secret",
 ])
 def test_the_abbreviations_of_a_citation_do_not_end_a_sentence(citation):
     # A quotation cut at such a full stop would stop inside a sentence without saying so.

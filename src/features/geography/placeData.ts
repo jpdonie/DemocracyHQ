@@ -7,6 +7,7 @@ import { loadCountyCd, loadPopulation, RELATIONSHIPS_PATH, type DataError } from
 import { entityNamer, packForPlace, UNAVAILABLE_NOTICES, type SourcePack } from '../../lib/export';
 import { NO_COUNTS_FOR_UNIT, datasetFor, populationFor, type PopulationResult } from '../../lib/population';
 import { billsForPlace, casesForPlace, eventsForPlace, type LinkedRecord } from '../../lib/relations';
+import { buildHash } from '../../lib/router';
 import { allOf, dataOf, mapLoadable, useLoad, type Loadable } from '../../lib/useLoad';
 import { NATION_KEY, type GeoIndex, type GeoUnit } from '../../lib/geo';
 import type { PopulationFile } from '../../types/schemas';
@@ -37,6 +38,12 @@ export interface PlaceData {
    * Empty for every other kind of unit.
    */
   appealsFrom: Loadable<LegalCaseSummary[]>;
+  /**
+   * For a state or territory: the cases of the federal district courts and of the state courts that sit there, read
+   * from CourtListener (rule court-state-1). Where a court sits is not what a case concerns, and the views say so.
+   * Empty for every other kind of unit.
+   */
+  courtCases: Loadable<LegalCaseSummary[]>;
   /** For a unit inside a state or territory: the court of appeals of its circuit, or null where the statute places it in none. */
   appealsCourt: Loadable<Court | null>;
   legislation: Loadable<PlaceLegislation>;
@@ -78,6 +85,16 @@ export function usePlaceData(key: string): PlaceState {
       const listed = new Set(linked.map((item) => item.record.id));
       return all
         .filter((c) => c.courtId !== SCOTUS_ID && c.origin?.stateFips === unit.stateFips && !listed.has(c.id))
+        .sort((a, b) => (b.sourceLastActivity ?? '').localeCompare(a.sourceLastActivity ?? '') || a.id.localeCompare(b.id));
+    }) : { status: 'loading' }),
+    [unit, core.cases, linkedOrNone],
+  );
+  const courtCases = useMemo<Loadable<LegalCaseSummary[]>>(
+    () => (unit ? mapLoadable(allOf(core.cases, linkedOrNone), ([all, linked]) => {
+      if (unit.layer !== 'state') return [];
+      const listed = new Set(linked.map((item) => item.record.id));
+      return all
+        .filter((c) => c.court?.stateFips === unit.stateFips && !listed.has(c.id))
         .sort((a, b) => (b.sourceLastActivity ?? '').localeCompare(a.sourceLastActivity ?? '') || a.id.localeCompare(b.id));
     }) : { status: 'loading' }),
     [unit, core.cases, linkedOrNone],
@@ -129,10 +146,10 @@ export function usePlaceData(key: string): PlaceState {
     const data: PlaceData = {
       unit, geo, vintage: info.vintage, geoSourceId: info.sourceId, population,
       populationFile: populationFile.status === 'ready' ? populationFile.data : null,
-      cases, appealsFrom, appealsCourt, legislation, events, overlaps,
+      cases, appealsFrom, courtCases, appealsCourt, legislation, events, overlaps,
     };
     return { status: 'ready', data };
-  }, [core.geo, unit, geo, dataset, populationFile, pairs, redistricting, cases, appealsFrom, appealsCourt, legislation, events]);
+  }, [core.geo, unit, geo, dataset, populationFile, pairs, redistricting, cases, appealsFrom, courtCases, appealsCourt, legislation, events]);
 }
 
 /** The note a pack carries for a place whose state's legislation is not covered. */
@@ -145,15 +162,16 @@ export function billCoverageNote(data: PlaceData): string | null {
 
 /** Said in the pack of the United States, which lists the measures of Congress and the dated events but no court cases. */
 export const NATION_CASES_NOTICE =
-  'Court cases are not listed in this pack. The cases of the Supreme Court and of the courts of appeals are listed on the pages of those courts, and each case has a source pack of its own.';
+  'Court cases are not listed in this pack. The cases of the Supreme Court and of the courts of appeals are listed on the pages of those courts, the cases of the district courts and the state courts in the list of court cases, and each case has a source pack of its own.';
 
 /**
  * The place's source pack, or null while a file it lists is still loading. A file that failed is named in the pack's
  * notices, so the pack never leaves records out silently. `sources` is null when sources.json could not be loaded.
  */
 export function buildPlacePack(data: PlaceData, base: { manifest: Manifest | null; sources: readonly SourceRecord[] | null; now: string; link: (hash: string) => string }): SourcePack | null {
-  if ([data.cases, data.appealsFrom, data.legislation, data.events, data.population].some((part) => part.status === 'loading')) return null;
+  if ([data.cases, data.appealsFrom, data.courtCases, data.legislation, data.events, data.population].some((part) => part.status === 'loading')) return null;
   const nation = data.unit.key === NATION_KEY;
+  const courtCases = dataOf(data.courtCases) ?? [];
   return packForPlace({
     ...base,
     unit: data.unit, vintage: data.vintage, geoSourceId: data.geoSourceId,
@@ -164,8 +182,20 @@ export function buildPlacePack(data: PlaceData, base: { manifest: Manifest | nul
     // The country has no count here to report as missing: the counts are published for the units below it.
     population: nation ? null : dataOf(data.population),
     billCoverageNote: billCoverageNote(data),
-    extraNotices: [...(nation ? [NATION_CASES_NOTICE] : []), ...(data.population.status === 'error' ? [UNAVAILABLE_NOTICES.population] : [])],
+    extraNotices: [
+      ...(nation ? [NATION_CASES_NOTICE] : []),
+      ...(courtCases.length > 0 ? [courtCasesNotice(courtCases.length, data.unit.name, base.link(buildHash(['litigation'], { state: data.unit.stateFips })))] : []),
+      ...(data.population.status === 'error' ? [UNAVAILABLE_NOTICES.population] : []),
+    ],
   });
+}
+
+/**
+ * Said in the pack of a state: the cases of the courts that sit there are many and are tied to the state only by
+ * where the court sits, so the pack names how many there are and where they are listed instead of listing each.
+ */
+export function courtCasesNotice(count: number, place: string, url: string): string {
+  return `${count === 1 ? 'One case' : `${count.toLocaleString('en-US')} cases`} of the federal district courts and the state courts that sit in ${place}, read from CourtListener, ${count === 1 ? 'is' : 'are'} not listed in this pack. Where a court sits does not say what a case concerns. The list: ${url}`;
 }
 
 /** A short qualifier for a county-district part that is water only or very small, from the Bureau's own areas. */

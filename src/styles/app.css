@@ -291,6 +291,11 @@ a.row-title:hover { text-decoration-color: currentColor; }
 .row-title.case-name { font-size: 1.125rem; font-weight: 500; }
 .row-meta, .row-foot { color: var(--ink-3); font-size: var(--text-sm); }
 .row-note { font-size: var(--text-sm); color: var(--ink-2); padding-left: var(--s-2); border-left: 2px solid var(--geo); }
+/* Federal or state, as a word on a small plate. The federal plate is filled and the state plate outlined, so the two
+   differ by the word and by the form, never by a hue: red and blue stay with the parties. */
+.sysmark { display: inline-block; margin-right: 0.15rem; padding: 0 0.34rem; border: 1px solid var(--ink-3); border-radius: 2px; font-size: 0.6875rem; font-weight: 700; font-stretch: 90%; letter-spacing: 0.06em; line-height: 1.45; text-transform: uppercase; vertical-align: 0.06em; color: var(--ink-2); }
+.sysmark-federal { background: var(--ink-2); border-color: var(--ink-2); color: var(--surface); }
+.rows-more { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2) var(--s-3); margin-top: var(--s-3); font-size: var(--text-sm); }
 .row-line { font-size: var(--text-sm); color: var(--ink-2); }
 .row-line q { font-family: var(--font-text); font-size: 1.04em; color: var(--ink); }
 .row-date { font-variant-numeric: tabular-nums; font-weight: 550; color: var(--ink); }

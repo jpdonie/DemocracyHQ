@@ -225,6 +225,13 @@ function Overview({ data, route }: { data: PlaceData; route: Route }) {
               </Async>
             </li>
           ) : null}
+          {isState ? (
+            <li>
+              <Async of={data.courtCases} what="the cases of the courts that sit here">
+                {(heard) => <><a href={tabHash('litigation')}>{plural(heard.length, 'case')}</a> of the federal district courts and the state courts that sit here, read from CourtListener</>}
+              </Async>
+            </li>
+          ) : null}
           <li>
             <Async of={data.legislation} what="the tracked legislation">
               {(legislation) => <><a href={tabHash('legislation')}>{legislation.covered ? plural(legislation.bills.length, 'tracked measure') : `Legislation not covered for this ${kind} yet`}</a>{legislation.covered ? ` (listed for the whole ${kind})` : ''}</>}
@@ -285,7 +292,10 @@ function FederalPointer() {
   );
 }
 
-function LitigationTab({ data, cases, appeals }: { data: PlaceData; cases: LinkedRecord<LegalCaseSummary>[]; appeals: LegalCaseSummary[] }) {
+/** How many of the cases of the courts that sit in a state its page shows; the list of court cases holds them all. */
+const PLACE_COURT_CASES_SHOWN = 25;
+
+function LitigationTab({ data, cases, appeals, heard }: { data: PlaceData; cases: LinkedRecord<LegalCaseSummary>[]; appeals: LegalCaseSummary[]; heard: LegalCaseSummary[] }) {
   const labels = useTagLabels();
   const { unit } = data;
   const kind = stateKind(unit.stateFips).toLowerCase();
@@ -296,12 +306,12 @@ function LitigationTab({ data, cases, appeals }: { data: PlaceData; cases: Linke
     { via: 'statewide', title: kind === 'state' ? `Statewide records for ${stateName}` : `Records for the whole of ${stateName}` },
     { via: 'within', title: `Linked to a district or county inside this ${kind}` },
   ];
-  if (cases.length === 0 && appeals.length === 0) {
+  if (cases.length === 0 && appeals.length === 0 && heard.length === 0) {
     return (
       <Empty title="No court case in this dataset is linked to this place.">
         <GapNotice>
-          DemocracyHQ holds a hand-picked set of Supreme Court dockets and the court of appeals cases a keyword rule finds. It links a case to a place only where a court document supports it.
-          Cases concerning this place may exist, in these courts and in courts that are not covered.
+          DemocracyHQ holds a hand-picked set of Supreme Court dockets and the cases of the other courts that a keyword rule finds among the decisions its sources hold. It links a case to a place only where a court document supports it.
+          Cases concerning this place may exist, in these courts and in courts whose decisions the sources do not hold.
         </GapNotice>
         <p>
           <A to={buildHash(['litigation'])}>Browse all cases</A>
@@ -332,7 +342,20 @@ function LitigationTab({ data, cases, appeals }: { data: PlaceData; cases: Linke
           {court ? <p><A to={courtHash(court.id)}>All cases of the {courtShortName(court, court.id)} in this dataset</A></p> : null}
         </Section>
       ) : null}
-      <GapNotice>A Supreme Court docket appears here only where a maintainer has linked it with supporting text, and an appeal only where its opinion names a district court in this {kind}.</GapNotice>
+      {heard.length > 0 ? (
+        <Section
+          title={`Cases in the courts that sit in ${stateName}`}
+          note={`The federal district courts and the state courts of ${stateName}, as far as CourtListener holds their decisions. CourtListener is a collection of the Free Law Project, not a court. A case is listed here by where its court sits, which does not say what the case concerns.`}
+        >
+          <CaseRows cases={heard} labels={labels} limit={PLACE_COURT_CASES_SHOWN} />
+          <p>
+            <A to={buildHash(['litigation'], { state: unit.stateFips })}>
+              {heard.length > PLACE_COURT_CASES_SHOWN ? `All ${heard.length.toLocaleString('en-US')} of these cases, with filters by court, level and issue` : 'These cases in the list of court cases, with filters by court, level and issue'}
+            </A>
+          </p>
+        </Section>
+      ) : null}
+      <GapNotice>A Supreme Court docket appears here only where a maintainer has linked it with supporting text, an appeal only where its opinion names a district court in this {kind}, and a case of a district court or a state court only where CourtListener holds a decision in it.</GapNotice>
     </>
   );
 }
@@ -431,6 +454,7 @@ export function SourcesTab({ data, also = [] }: { data: PlaceData; also?: readon
   if (population?.status === 'available') ids.add(population.dataset.sourceId);
   for (const linked of dataOf(data.cases) ?? []) ids.add(linked.record.sourceId);
   for (const record of dataOf(data.appealsFrom) ?? []) ids.add(record.sourceId);
+  for (const record of dataOf(data.courtCases) ?? []) ids.add(record.sourceId);
   // The circuit a state is in is read from the United States Code.
   const statuteSource = dataOf(core.courts)?.statute.sourceId;
   if (data.unit.layer === 'state' && statuteSource) ids.add(statuteSource);
@@ -529,7 +553,7 @@ export function PlaceWorkspace({ placeKey, route }: { placeKey: string; route: R
   const { unit } = data;
   const tabs = [
     { id: 'overview', label: 'Overview' },
-    { id: 'litigation', label: data.cases.status === 'ready' && data.appealsFrom.status === 'ready' ? `Litigation (${data.cases.data.length + data.appealsFrom.data.length})` : 'Litigation' },
+    { id: 'litigation', label: data.cases.status === 'ready' && data.appealsFrom.status === 'ready' && data.courtCases.status === 'ready' ? `Litigation (${data.cases.data.length + data.appealsFrom.data.length + data.courtCases.data.length})` : 'Litigation' },
     { id: 'legislation', label: data.legislation.status === 'ready' && data.legislation.data.covered ? `Legislation (${data.legislation.data.bills.length})` : 'Legislation' },
     { id: 'timeline', label: data.events.status === 'ready' ? `Timeline (${data.events.data.length})` : 'Timeline' },
     { id: 'sources', label: 'Sources' },
@@ -553,7 +577,7 @@ export function PlaceWorkspace({ placeKey, route }: { placeKey: string; route: R
       <TabPanel idBase="place" id={tab}>
         {tab === 'overview' ? <Overview data={data} route={route} /> : null}
         {/* Each tab waits only for the files it uses, and shows an error if one of them failed. */}
-        {tab === 'litigation' ? <Async of={allOf(data.cases, data.appealsFrom)} what="court cases">{([cases, appeals]) => <LitigationTab data={data} cases={cases} appeals={appeals} />}</Async> : null}
+        {tab === 'litigation' ? <Async of={allOf(data.cases, data.appealsFrom, data.courtCases)} what="court cases">{([cases, appeals, heard]) => <LitigationTab data={data} cases={cases} appeals={appeals} heard={heard} />}</Async> : null}
         {tab === 'legislation' ? <Async of={data.legislation} what="legislation">{(legislation) => <LegislationTab data={data} legislation={legislation} />}</Async> : null}
         {tab === 'timeline' ? <Async of={data.events} what="the timeline">{(events) => <TimelineTab data={data} events={events} route={route} />}</Async> : null}
         {tab === 'sources' ? <SourcesTab data={data} /> : null}

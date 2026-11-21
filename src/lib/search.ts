@@ -5,7 +5,7 @@
 import type { LegalCaseSummary, LegislativeInstrumentSummary } from '../types/schemas';
 import { billLabel, identifierVariants, isFederalBill } from './bills';
 import {
-  FEDERAL_CIRCUIT_ID, SCOTUS_ID, courtCitation, courtFullName, courtHash, courtShortName, fixedFullName, type CourtDirectory,
+  FEDERAL_CIRCUIT_ID, SCOTUS_ID, caseCourtListName, courtCitation, courtFullName, courtHash, courtShortName, fixedFullName, type CourtDirectory,
 } from './courts';
 import { normalizeText } from './filters';
 import { NATION_KEY, STATE_ABBR, stateKind, type GeoIndex, type GeoUnit } from './geo';
@@ -91,7 +91,7 @@ export function buildSearchIndex(
   }
   if (courts) entries.push(...courtEntries(courts, geo));
   for (const c of cases) {
-    const court = c.courtId === SCOTUS_ID ? fixedFullName(SCOTUS_ID)! : courtShortName(courts?.get(c.courtId), c.courtId);
+    const court = caseCourtListName(c, courts?.get(c.courtId));
     entries.push({
       kind: 'case', id: c.id, label: c.caseName, detail: `No. ${c.docketNumber}, ${court}`,
       hash: buildHash(['litigation', c.id]),

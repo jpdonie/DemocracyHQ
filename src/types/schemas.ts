@@ -250,6 +250,24 @@ export const CaseSelectionSchema = z.object({
 });
 export type CaseSelection = z.infer<typeof CaseSelectionSchema>;
 
+/** The kinds of court a case of a federal district court or of a state court can be in. */
+export const OTHER_COURT_TYPES = ['federal_district', 'state_supreme', 'state_appellate', 'state_trial'] as const;
+
+/**
+ * The court of a case of a federal district court or of a state court. The Supreme Court and the courts of appeals are
+ * fixed in number and listed by the site itself; these courts are named on each of their cases.
+ */
+export const CaseCourtSchema = z.object({
+  name: z.string().min(1),
+  courtType: z.enum(OTHER_COURT_TYPES),
+  /** The state, district or territory the court belongs to, read from its name (rule court-state-1). */
+  stateFips: z.string().length(2).nullable().optional(),
+  /** The court as a citation names it ("N.D. Tex."), as the source gives it. */
+  citation: z.string().nullable().optional(),
+  ruleId: z.string(),
+});
+export type CaseCourt = z.infer<typeof CaseCourtSchema>;
+
 export const LegalCaseSummarySchema = z.object({
   id: z.string(),
   externalIds: z.record(z.string(), z.string()),
@@ -258,6 +276,8 @@ export const LegalCaseSummarySchema = z.object({
   respondentTitle: z.string(),
   docketNumber: z.string().min(1),
   courtId: z.string(),
+  /** Cases of federal district courts and of state courts only: the court, which the site does not list itself. */
+  court: CaseCourtSchema.nullable().optional(),
   jurisdiction: z.string(),
   docketType: z.string().nullable().optional(),
   dateDocketed: isoDate.nullable().optional(),
@@ -686,6 +706,8 @@ export const ManifestSchema = z.object({
     /** The parts of `cases` and `bills`. Releases made before the federal level existed do not carry them. */
     supremeCourtCases: z.number().int().optional(),
     appealsCourtCases: z.number().int().optional(),
+    /** Cases of federal district courts and of state courts (decisions/). Releases made before they were read do not carry it. */
+    districtAndStateCourtCases: z.number().int().optional(),
     stateBills: z.number().int().optional(),
     federalBills: z.number().int().optional(),
   }),
@@ -843,6 +865,85 @@ export const CircuitScanSchema = z.object({
   fields: z.array(z.string()),
   outcomes: z.record(z.string(), z.string()),
   packages: z.record(z.string(), z.record(z.string(), z.tuple([z.string(), z.number().int(), z.number().int(), z.number().int(), z.number().int()]))),
+});
+
+/** A case id of a federal district court or state court case: "cl-" and CourtListener's number of the docket. */
+export const DECISION_CASE_ID_PATTERN = /^cl-[0-9]{1,12}$/;
+
+/** What was read for one federal district court or state court, and what came of it. */
+export const DecisionCoverageSchema = z.object({
+  name: z.string().min(1),
+  courtType: z.enum(OTHER_COURT_TYPES),
+  stateFips: z.string().length(2).nullable().optional(),
+  cases: z.number().int().nonnegative(),
+  documents: z.number().int().nonnegative(),
+  unreadableDocuments: z.number().int().nonnegative(),
+  selected: z.number().int().nonnegative(),
+});
+export type DecisionCoverage = z.infer<typeof DecisionCoverageSchema>;
+
+/**
+ * The index of the cases of federal district courts and of state courts (decisions/index.json), with the selection
+ * rule and what was read for each court. The records are made from the decisions CourtListener holds.
+ */
+export const DecisionIndexSchema = z.object({
+  cases: z.array(LegalCaseSummarySchema),
+  coverage: z.record(z.string(), DecisionCoverageSchema),
+  scannedAt: isoDateTime,
+  selection: z.object({
+    ruleId: z.string(),
+    courtStateRuleId: z.string(),
+    /** The rule whose text tests are applied to a decision: the rule for the courts of appeals. */
+    textRuleId: z.string(),
+    appliedTo: z.string(),
+    since: isoDate,
+    /** The words and phrases CourtListener's search is asked for; a decision with any one of them is a candidate. */
+    searchTerms: z.array(z.string()),
+    /** The kinds of court read, by the code CourtListener gives a court's jurisdiction. */
+    courtTypes: z.record(z.string(), z.string()),
+    /** How many decisions the search returned, and how many of them were not read, by reason. */
+    candidates: z.number().int(),
+    skipped: z.record(z.string(), z.number().int()),
+    totalCasesRead: z.number().int(),
+    totalDocumentsRead: z.number().int(),
+    /**
+     * CourtListener allows few requests an hour, so the list of candidates is kept month by month and the months are
+     * read again in turn: how many months there are, how many have been read at all, and when the list that was read
+     * longest ago was read.
+     */
+    months: z.number().int().positive(),
+    monthsListed: z.number().int().nonnegative(),
+    oldestListingAt: isoDateTime.nullable(),
+    wordPattern: z.string(),
+    phrasePattern: z.string(),
+    authorityPattern: z.string(),
+    laborPattern: z.string(),
+    laborMinMatches: z.number().int(),
+    laborRatio: z.number(),
+    textTests: z.record(z.string(), z.record(z.string(), z.number())),
+  }),
+});
+export type DecisionIndex = z.infer<typeof DecisionIndexSchema>;
+
+/** The ledger of that scan (decisions/scan.json): every case read, by CourtListener's docket number. Not displayed. */
+export const DecisionScanSchema = z.object({
+  ruleId: z.string(),
+  scannedAt: isoDateTime,
+  since: isoDate,
+  query: z.string(),
+  fields: z.array(z.string()),
+  outcomes: z.record(z.string(), z.string()),
+  candidates: z.number().int(),
+  skipped: z.record(z.string(), z.number().int()),
+  courts: z.record(z.string(), z.object({ name: z.string(), courtType: z.enum(OTHER_COURT_TYPES), stateFips: z.string().nullable().optional() })),
+  cases: z.record(z.string(), z.tuple([z.string(), z.string(), z.number().int(), z.number().int(), z.number().int()])),
+  /** The list of candidates, month by month: the next run reads only some months anew and takes the rest from here. */
+  listing: z.object({
+    months: z.record(z.string().regex(/^\d{4}-\d{2}$/), z.object({ listedAt: isoDateTime, candidates: z.number().int().nonnegative(), skipped: z.record(z.string(), z.number().int()) })),
+    entryFields: z.array(z.string()),
+    documentFields: z.array(z.string()),
+    entries: z.array(z.array(z.unknown())),
+  }),
 });
 
 /** The judicial circuits and the statute they are drawn from (geo/circuits.json). */

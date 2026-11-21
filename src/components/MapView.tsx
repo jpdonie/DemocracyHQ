@@ -456,7 +456,7 @@ export function MapView(props: MapViewProps) {
       map.setLayoutProperty(line.casing, 'visibility', cased ? 'visible' : 'none');
     }
     // A new colouring comes up out of the dark; the same colouring drawn again (more data arrived) does not flicker.
-    const shading = `${activeLayer}|${theme && theme.layer === activeLayer ? theme.id : ''}`;
+    const shading = `${activeLayer}|${theme && theme.layer === activeLayer ? theme.family ?? theme.id : ''}`;
     if (shading !== lastShading.current) {
       const first = lastShading.current === null;
       lastShading.current = shading;

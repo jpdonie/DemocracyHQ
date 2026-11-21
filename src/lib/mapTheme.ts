@@ -9,7 +9,7 @@ import type { Government, GovernmentControl, Layer, PopulationFile, Redistrictin
 import { courtGeoKey } from './courts';
 import type { GeoIndex } from './geo';
 import { ISLAND_AREAS, isDistrictLayer, parseGeoKey } from './geo';
-import { formatNumber } from './format';
+import { formatNumber, plural } from './format';
 import { controlSummary, whyUndetermined } from './government';
 
 export interface ThemeClass { token: string; label: string }
@@ -34,6 +34,11 @@ export interface MapTheme {
    * a state's government a party holds, or why none is shown. GEOID -> text.
    */
   detailOf?: ReadonlyMap<string, string>;
+  /**
+   * Themes of one family are the same colouring over another set of units, as when a filter of a list changes. The
+   * map then redraws without the fade it gives a new colouring, so that it does not flicker while a reader types.
+   */
+  family?: string;
 }
 
 export function linkedRecordsTheme(counts: ReadonlyMap<string, number>, what: 'cases' | 'records'): MapTheme {
@@ -54,22 +59,31 @@ export function linkedRecordsTheme(counts: ReadonlyMap<string, number>, what: 'c
 
 /**
  * The litigation list's map: the states its cases are listed under. A Supreme Court docket is listed under the states
- * its record links it to, an appeal under the state of the district court it came from, so the map and the list's
- * state filter always agree.
+ * its record links it to, an appeal under the state of the district court it came from, and a case of a district court
+ * or a state court under the state that court sits in, so the map and the list's state filter always agree. With
+ * `filtered`, the counts are those of the cases the list's other filters keep, and the legend says so. The shading
+ * marks that a case is listed; how many are is in the tooltip of the state, never in the depth of a colour.
  */
-export function caseStatesTheme(counts: ReadonlyMap<string, number>): MapTheme {
+export function caseStatesTheme(counts: ReadonlyMap<string, number>, filtered = false): MapTheme {
   const classOf = new Map<string, number>();
-  for (const [stateFips, count] of counts) if (count > 0) classOf.set(stateFips, 0);
+  const detailOf = new Map<string, string>();
+  for (const [stateFips, count] of counts) {
+    if (count <= 0) continue;
+    classOf.set(stateFips, 0);
+    detailOf.set(stateFips, filtered ? `${plural(count, 'case')} ${count === 1 ? 'matches' : 'match'} the filters` : `${plural(count, 'case')} in this dataset`);
+  }
   return {
-    id: `case-states:${[...classOf.keys()].sort().join(',')}`,
+    id: `case-states:${filtered ? 'filtered' : 'all'}:${[...classOf.keys()].sort().join(',')}`,
     layer: 'state',
-    title: 'Court cases by state',
-    classes: [{ token: '--case-tint', label: 'At least one case in this dataset' }],
+    title: filtered ? 'Court cases that match the filters, by state' : 'Court cases by state',
+    classes: [{ token: '--case-tint', label: filtered ? 'At least one case matches the filters' : 'At least one case in this dataset' }],
     classOf,
-    hatch: { geoids: 'rest', label: 'No case in this dataset. Not evidence that none exists.' },
+    hatch: { geoids: 'rest', label: filtered ? 'No case in this dataset matches the filters. Not evidence that none exists.' : 'No case in this dataset. Not evidence that none exists.' },
     plain: null,
-    note: 'A state is shaded when the record links a Supreme Court docket to it, or when an appeal in this dataset came from a federal district court there. Where an appeal came from says where it began, not what it concerns.',
+    note: 'A state is shaded when the record links a Supreme Court docket to it, when an appeal in this dataset came from a federal district court there, or when a case of a federal district court or of a state court that sits there is in this dataset. Where a case began or is heard does not say what it concerns. The shading shows that a case is listed, not how many are.',
     sourceId: null,
+    detailOf,
+    family: filtered ? 'case-states:filtered' : undefined,
   };
 }
 

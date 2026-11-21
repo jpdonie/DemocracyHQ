@@ -306,6 +306,19 @@ class CaseSelection(Model):
     party: Optional[str] = None
 
 
+class CaseCourt(Model):
+    """The court of a case of a federal district court or of a state court. The Supreme Court and the courts of
+    appeals are fixed in number and listed by the site itself; these courts are named on each of their cases."""
+
+    name: NonEmpty
+    courtType: Literal["federal_district", "state_supreme", "state_appellate", "state_trial"]
+    #: The state, district or territory the court belongs to, read from its name (rule ``court-state-1``).
+    stateFips: Optional[str] = None
+    #: The court as a citation names it ("N.D. Tex."), as the source gives it.
+    citation: Optional[str] = None
+    ruleId: str
+
+
 class LegalCaseSummary(Model):
     id: str
     externalIds: Dict[str, str]
@@ -314,6 +327,8 @@ class LegalCaseSummary(Model):
     respondentTitle: str
     docketNumber: NonEmpty
     courtId: str
+    #: Cases of federal district courts and of state courts only: the court, which the site does not list itself.
+    court: Optional[CaseCourt] = None
     jurisdiction: str
     docketType: Optional[str] = None
     dateDocketed: Optional[IsoDate] = None

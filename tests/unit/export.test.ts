@@ -309,6 +309,7 @@ describe('a pack never leaves records out silently when a file could not be load
       events: { status: 'ready', data: [] },
       overlaps: null,
       appealsFrom: { status: 'ready', data: [] },
+      courtCases: { status: 'ready', data: [] },
       appealsCourt: { status: 'ready', data: null },
     });
     const links = buildPlacePack(data('relationships.json'), base)!;

@@ -14,10 +14,15 @@ What the rule does, in order:
 
 1. Every page loses its running head, its page number, its footnotes (from the first line that begins with a footnote
    mark to the foot of the page) and every line set in smaller type than the body.
-2. The opinion begins after the line that names its author ("SMITH, Circuit Judge." or "PER CURIAM:") or, where there
-   is none, after the line that names the panel ("Before A, B, and C, Circuit Judges.").
+2. The opinion begins after the line that names its author ("SMITH, Circuit Judge.", "PER CURIAM:", the forms of the
+   courts of the states such as "ROWAN, PRESIDING JUSTICE, FOR THE COURT:" or "ROWAN, J.—Voters in ...") or, where
+   there is none, after the line that names the panel ("Before A, B, and C, Circuit Judges.", "(By: A, C.J., ...)"),
+   or else after the heading of the opinion near the head of the file ("MEMORANDUM OPINION", "O P I N I O N"). A
+   judge's name that signs an order, or names the judge of the court appealed from, is not the author's line, and a
+   panel named at the foot of the opinion is not its beginning.
 3. Headings are passed over, and so are the words that every order begins with ("This appeal was considered on the
-   record ..."). The first paragraph of prose after them is taken, across a page break if it continues there. A
+   record ..."), the list of counsel, the caption set again above the text, the line that names who joined the opinion
+   and the disposition alone ("Affirmed."). The number a court sets before each paragraph ("¶1", "{¶ 1}") is left out. The first paragraph of prose after them is taken, across a page break if it continues there. A
    passage the court sets in from the margin (a statute, a clause of the Constitution) ends the paragraph and is not
    quoted: it carries no quotation marks, so it would read as the court's words.
 4. Footnote marks are left out. A word that the page broke across two lines is joined again.
@@ -28,7 +33,8 @@ What the rule does, in order:
    a page, because the plain text runs the footnotes and the page head in there.
 7. A paragraph that fails a check (too short, not a sentence, a remnant of a page head in it, not found in the plain
    text) is not quoted. The next paragraph is then tried, up to the first heading and the fourth paragraph, and the
-   quotation says which paragraph of the opinion it is. Where none passes, the case has no quotation.
+   quotation says which paragraph of the opinion it is. Where none passes, the case has no quotation. An opinion that
+   begins "I respectfully dissent" or "I concur" is a separate opinion: it has none either.
 """
 from __future__ import annotations
 
@@ -38,11 +44,11 @@ import subprocess
 import tempfile
 import unicodedata
 from collections import Counter
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
-from .about import MAX_CHARS, MIN_CHARS, join_lines, quotation
+from .about import MAX_CHARS, MIN_CHARS, join_lines, quotation, sentence_ends
 
 RULE_ID = "about-opinion-1"
 #: How many pages of an opinion are laid out. The opinion proper can start several pages in (a syllabus, the list of
@@ -264,12 +270,18 @@ def body_pages(layout: str) -> List[List[Line]]:
 
 # --- finding the opening paragraphs -----------------------------------------------------------------------
 
-_BEFORE_RE = re.compile(r"^(?:Before|BEFORE|Present|PRESENT)\b:?")
-_PANEL_END_RE = re.compile(r"\bJudges?\b\.?[\s*]*$|\bJudges?\b\.")
+_BEFORE_RE = re.compile(r"^(?:Before|BEFORE|Present|PRESENT)\b:?|^\(By:")
+_PANEL_END_RE = re.compile(r"\b(?:Judges?|Justices?)\b\.?[\s*]*$|\bJudges?\b\.|\bJJ\.[\s*]*$")
 #: The line that opens the opinion by naming its author. A concurrence or dissent is named differently
-#: ("..., Circuit Judge, concurring:") and does not match.
+#: ("..., Circuit Judge, concurring:", "Smith, J., dissenting") and does not match. The federal courts write
+#: "SMITH, Circuit Judge:"; the courts of the states write "ISHEE, JUSTICE, FOR THE COURT:", "HUDSON, Chief Justice.",
+#: "F O S T E R, Judge:" or "GORDON MCCLOUD, J.—Voters in Benton County ...", with the opinion on the same line; the
+#: Court of Chancery of Delaware writes "McCORMICK, C." for its Chancellor and "LASTER, V.C." for a Vice Chancellor.
+_NAME = r"(?!Before\b|BEFORE\b|The Honorable\b|THE HONORABLE\b|Hon\.|HON\.)[A-ZÀ-Þ][A-Za-zÀ-ÿ.'’\- ]{1,48}"
 _AUTHOR_RE = re.compile(
-r"^(?:(?!Before\b|BEFORE\b)[A-Z][A-Za-z.'’\- ]{1,48}, (?:(?:Chief|Senior|Circuit|District) ){1,2}Judge|P(?:ER|er) C(?:URIAM|uriam))\s*[.:]?\s*"
+    r"^(?:" + _NAME + r", (?:(?:Chief|Senior|Circuit|District) ){1,2}Judge|P(?:ER|er) C(?:URIAM|uriam)"
+    r"|" + _NAME + r", (?:(?i:chief|presiding|associate|senior|acting) )?(?i:justice|judge)(?:, (?i:for the court))?(?=\s*[.:—–])"
+    r"|" + _NAME + r", (?:(?:Vice )?Chancellor|C\. ?J|P\. ?J|V\. ?C|C|J)\.(?=\s*(?:[:—–]|--|$)))\s*[.:]?\s*"
 )
 _BYLINE_RE = re.compile(r"\b(?:Opinion|Dissent|Concurrence|Memorandum|Order|Statement)\b.*\bby\b", re.I)
 _SENTENCE_STOP_RE = re.compile(r"[.?!:][\"”’)\]]*$")
@@ -398,21 +410,89 @@ def _starts_prose(text: str) -> bool:
     return bool(re.match(r"^[\"“‘'\[(]?[A-Z0-9]", text)) and len(text.split()) >= 4
 
 
+#: The number some courts set before each paragraph ("¶1.", "[¶ 2]", "{¶ 3}"). It is not part of the court's sentence, and,
+#: like a footnote mark, it is left out of a quotation.
+_PARAGRAPH_NUMBER_RE = re.compile(r"^[\[{]?¶\s*\d{1,3}[\]}]?\.?\s+")
+
+
+def _without_number(line: Line) -> Line:
+    match = _PARAGRAPH_NUMBER_RE.match(line.text)
+    return replace(line, text=line.text[match.end():]) if match else line
+
+
 #: The heading above the text of an order or opinion.
 _TITLE_RE = re.compile(r"^(?:O ?R ?D ?E ?R|J ?U ?D ?G ?M ?E ?N ?T|OPINION(?: OF THE COURT)?|MEMORANDUM(?: OPINION)?|ORDER AND JUDGMENT|SUMMARY ORDER)[\s*]*$")
+#: The heading of an opinion of a court that names no panel above it, as a district court's opinion or many a state
+#: court's: "MEMORANDUM OPINION", "OPINION AND ORDER", "O P I N I O N", "OPINION OF THE COURT BY GINOZA, J., IN WHICH",
+#: or the words above an order of the Court of Appeals of Georgia. It is looked for near the head of the document.
+_OPENING_TITLE_RE = re.compile(
+    r"^(?:(?:MEMORANDUM )?OPINION(?: OF THE COURT)?(?: AND (?:ORDER|JUDGMENT))?|MEMORANDUM(?: DECISION)?(?: AND ORDER)?|DECISION AND ORDER"
+    r"|OPINION ON (?:REHEARING|MOTION)[A-Z ]{0,40}|(?i:OPINION OF THE COURT BY) .{3,60}|(?:The )?Court of Appeals hereby passes the following order:?)[\s*]*$")
+_TITLE_SEARCH_LINES = 90
+#: A panel named below such a heading and this many lines of prose is named at the end of the opinion, not above it.
+_PANEL_AFTER_TITLE = 8
 _SIGNATURE_RE = re.compile(r"^(?:Entered for the Court|FOR THE COURT)\b", re.I)
+#: The line above the signature of an order in some courts of the states: "PANEL: Jj. Maxa, Lee, Che".
+_PANEL_LINE_RE = re.compile(r"^PANEL:")
+#: The line that names the court appealed from, whose judge is named on the next line: "An Appeal from the Circuit
+#: Court for Miami-Dade County, Christopher" above "Green, Judge.".
+_LOWER_COURT_RE = re.compile(r"^(?:An? )?(?:Appeals?|Petition|Writ|Review|Certiorari|Original Proceeding)\b.*\b(?:from|for|of|to)\b")
 #: How far below the line naming the panel a heading such as "ORDER" is still looked for (a caption may lie between).
 _TITLE_WINDOW = 45
+
+
+def _unspaced(text: str) -> str:
+    """A heading set in spaced letters read as a word: "O P I N I O N" as "OPINION"."""
+    return re.sub(r"(?<=\b[A-Z]) (?=[A-Z]\b)", "", text)
+
+
+#: The small words a judge's name may hold. Any other word in small letters shows that the line names something else
+#: ("Court of Appeals Hudson, C.J." names the court appealed from and, beside it, the author).
+_PARTICLES = {"de", "la", "le", "del", "della", "van", "von", "der", "den", "du", "di", "da", "dos", "das", "y", "e", "st.", "mc", "mac"}
+
+
+def _author_match(text: str) -> Optional["re.Match[str]"]:
+    """The match of the line that names the opinion's author, where the name is a person's."""
+    match = _AUTHOR_RE.match(text)
+    if not match:
+        return None
+    name = text[:match.end()].split(",")[0]
+    if any(word[:1].islower() and word.lower() not in _PARTICLES for word in name.split()):
+        return None
+    return match
+
+
+def _bare_author(text: str) -> bool:
+    match = _author_match(text)
+    return bool(match) and not text[match.end():].strip()
+
+
+def _signs(flat: List[Line], index: int) -> bool:
+    """Whether the line naming a judge at ``index`` signs a document instead of opening an opinion: it stands among
+    other judges' names ("Danner, J." above "Greenwood, P. J."), or under "FOR THE COURT" or the list of the panel."""
+    if any(0 <= other < len(flat) and _bare_author(flat[other].text) for other in (index - 1, index + 1)):
+        return True
+    return any(_SIGNATURE_RE.match(flat[other].text) or _PANEL_LINE_RE.match(flat[other].text) for other in range(max(0, index - 3), index))
+
+
+def _names_court_below(flat: List[Line], index: int) -> bool:
+    """Whether the judge named at ``index`` is the judge of the court appealed from: the line above names that court
+    and runs on into the judge's name ("Appeal from the District Court for Synthetic County: Jane" above "Roe, Judge.")."""
+    return index > 0 and bool(_LOWER_COURT_RE.match(flat[index - 1].text)) and not re.search(r"\.[\"”’)\]]*$", flat[index - 1].text)
 
 
 def _body_start(flat: List[Line]) -> Tuple[Optional[int], Optional[str]]:
     """``(index, rest)``: the line the opinion's text begins on, and the text that follows the author's name where
     both stand on one line. ``(None, None)`` when neither the author nor the panel is named."""
     panel_end: Optional[int] = None
+    title = next((index for index in range(min(_TITLE_SEARCH_LINES, len(flat))) if _OPENING_TITLE_RE.match(_unspaced(flat[index].text))), None)
     for index, line in enumerate(flat):
         if _BEFORE_RE.match(line.text):
+            if title is not None and sum(1 for other in flat[title + 1:index] if len(other.text) >= 60) >= _PANEL_AFTER_TITLE:
+                break  # a court that names the panel below its opinion ("Before Golemon, C.J., ..." under "PER CURIAM")
             for end in range(index, min(index + 5, len(flat))):
-                if _PANEL_END_RE.search(flat[end].text):
+                # "(By: Devens, C.J., McKenna, ..., JJ., and ... Judge Gluck, assigned by reason of vacancy)"
+                if _PANEL_END_RE.search(flat[end].text) if not line.text.startswith("(") else flat[end].text.rstrip().endswith(")"):
                     panel_end = end
                     # A court that sets each judge on a line of their own: the panel ends with the last of them.
                     while panel_end + 1 < len(flat) and re.search(r"\bJudge\.?$", flat[panel_end + 1].text):
@@ -422,13 +502,17 @@ def _body_start(flat: List[Line]) -> Tuple[Optional[int], Optional[str]]:
     first = (panel_end + 1) if panel_end is not None else 0
     for index in range(first, len(flat)):
         text = flat[index].text
-        match = _AUTHOR_RE.match(text)
+        match = _author_match(text)
         if not match:
             continue
         before = flat[index - 1].text if index else ""
         if _SIGNATURE_RE.match(before):
             break  # "Per Curiam" under "Entered for the Court" signs an order; it does not open one
-        rest = text[match.end():].strip()
+        rest = text[match.end():].strip().lstrip("—–-").strip()
+        if (not rest and _signs(flat, index)) or _names_court_below(flat, index):
+            continue  # the judges who sign an order, or the judge of the court appealed from
+        if rest and not re.match(r"^[\"“‘'\[(]?[A-Z0-9]", rest):
+            continue  # "Smith, J., filed a dissenting opinion": the author of another opinion is named
         if not re.search(r"[.:]\s*$", match.group(0)):
             # A name without a full stop or colon opens the opinion only where it stands alone under the heading
             # "OPINION", or, for "PER CURIAM", directly under the panel.
@@ -437,7 +521,8 @@ def _body_start(flat: List[Line]) -> Tuple[Optional[int], Optional[str]]:
                 continue
         return (index, rest) if rest else (index + 1, None)
     if panel_end is None:
-        return None, None
+        # No panel and no author: the opinion begins below its heading, where one stands near the head of the document.
+        return (title + 1, None) if title is not None else (None, None)
     start = panel_end + 1
     for index in range(start, min(start + _TITLE_WINDOW, len(flat))):
         if _TITLE_RE.match(flat[index].text):
@@ -474,6 +559,10 @@ def opening_paragraphs(pages: List[List[Line]]) -> List[List[Line]]:
     def close() -> None:
         """End the paragraph being read: it is kept when it is the court's own prose."""
         nonlocal current, after_set_in
+        joined = " ".join(line.text for line in current)
+        if _not_prose(joined, joined):
+            current = []  # the list of counsel, the caption, the names of the judges: passed over like a heading
+            return
         if len(current) >= 2 and set_in(current):
             after_set_in = True
         elif after_set_in and not frames[current[0].page].indented(current[0]):
@@ -485,6 +574,7 @@ def opening_paragraphs(pages: List[List[Line]]) -> List[List[Line]]:
 
     index = start
     if rest_of_first:
+        rest_of_first = _PARAGRAPH_NUMBER_RE.sub("", rest_of_first)
         first = flat[index]
         current.append(Line(page=first.page, top=first.top, bottom=first.bottom, text=rest_of_first, left=first.left,
                             right=first.right, size=first.size))
@@ -496,6 +586,7 @@ def opening_paragraphs(pages: List[List[Line]]) -> List[List[Line]]:
         index += 1
         read += 1
         if not current:
+            line = _without_number(line)
             if _is_heading(line, frame) or not _starts_prose(line.text):
                 if paragraphs:
                     break  # the first heading after the opening paragraphs ends them
@@ -578,6 +669,56 @@ def passes(text: str) -> bool:
     return letters / len(text) >= 0.8 and len(text.split()) >= 10
 
 
+#: The list of counsel at the head of a state court's opinion: "Jane Roe, of Roe LLP, Miami, for Appellant." It ends
+#: by naming the party, or it names a law firm or a public office and, anywhere, the party it acts for.
+_PARTY = (r"(?:the )?(?:appellants?|appellees?|petitioners?|respondents?|plaintiffs?|defendants?|relators?|intervenors?|real part(?:y|ies)"
+          r"|amic(?:us|i)\b")
+_COUNSEL_RE = re.compile(r"\bfor " + _PARTY + r"[^.]*|(?:the )?(?:state|people|commonwealth)\b[^.]*)\.?$|^(?:Attorneys?|Counsel)(?: for\b|:)", re.I)
+_FIRM_RE = re.compile(r"\b(?:L\.?L\.?P|P\.?L\.?L\.?C|L\.?L\.?C|P\.A|P\.C|PL|Law (?:Firms?|Offices?|Group)|Attorneys? General|Solicitor General"
+                      r"|Public Defender|County Counsel|District Attorney|Esq)\b")
+_FOR_PARTY_RE = re.compile(r"\b(?:Counsel )?for " + _PARTY + r")", re.I)
+#: The caption of the case, set again above the text in some files: "Holtz et al. v. Moreles, as Registrar of Voters".
+_CAPTION_RE = re.compile(r"^(?P<first>.*?)\sv(?:s)?\.\s.*?(?P<last>\bet al\.|\betc\.)?$")
+_CAPTION_WORDS = 20
+#: The line that names who wrote the opinion and who joined it: "Presiding Judge Vásquez authored the opinion of the
+#: Court, in which Chief Judge Staring ... concurred."
+_JOINED_RE = re.compile(r"^[^.]{0,120}?\b(?:authored|delivered|wrote|announced)\b (?:the )?(?:majority |plurality |unanimous )?"
+                        r"(?:opinion|judgment|decision)\b", re.I)
+
+
+#: The end of a list of the judges of a panel.
+_JUDGES_RE = re.compile(r"\b(?:JJ|Judges?|Justices?)\.$")
+#: Words of the court's prose that a list of counsel does not hold.
+_PROSE_WORDS_RE = re.compile(r"\b(?:is|are|was|were|has|have|had|held|holds|hold|we|our|us|court|granted|denied|entered|affirm|affirmed|"
+                             r"reverse|reversed|appeals|appealed|sued|seeks|sought|claims|contends|argues|developed|concluded|decide)\b", re.I)
+
+
+def _is_counsel(paragraph: str) -> bool:
+    """Whether a paragraph is a list of counsel: one sentence, without the words of the court's prose, that ends by
+    naming the party, or that names a law firm or a public office and the party it acts for."""
+    if not (_COUNSEL_RE.search(paragraph) or (_FIRM_RE.search(paragraph) and _FOR_PARTY_RE.search(paragraph))):
+        return False
+    return not sentence_ends(paragraph) and not _PROSE_WORDS_RE.search(paragraph)
+
+
+def _not_prose(paragraph: str, text: str) -> bool:
+    """Whether a paragraph is matter set above an opinion instead of the court's prose: the list of counsel, the
+    caption of the case, or the line that names the author and the judges who joined."""
+    if _is_counsel(paragraph):
+        return True
+    caption = _CAPTION_RE.match(paragraph)
+    if caption and len(paragraph.split()) < _CAPTION_WORDS and (
+            caption.group("last") or not re.search(r"\b(?!et\b|al\b)[a-z]{2,}", caption.group("first"))):
+        return True  # "Holtz et al. v. Moreles, as Registrar of Voters, etc., et al.", not "The judgment ... in light of Watson v. RNC"
+    if _JUDGES_RE.search(paragraph) and not sentence_ends(paragraph) and not _PROSE_WORDS_RE.search(paragraph):
+        return True  # the panel: "Alpha, C.J., Beta, Gamma, and Delta, JJ."
+    return bool(_JOINED_RE.match(text))
+#: The first words of a separate opinion. Where the opinion read begins so, it is a dissent or a concurrence, and no
+#: passage of it is quoted.
+_SEPARATE_RE = re.compile(r"^I (?:respectfully )?(?:dissent|concur)\b|^I (?:write|agree)\b.{0,60}\b(?:separately|majority)\b")
+#: The disposition set above an opinion ("Vacated and remanded for entry of judgment."): the court's words, but not
+#: on what the case is about.
+_DISPOSITION_RE = re.compile(r"^(?:Affirmed|Reversed|Vacated|Remanded|Dismissed|Modified|Writ (?:granted|denied))\b[^.]{0,100}\.$", re.I)
 #: Openings that every order of a court shares: they say how the case was heard, not what it is about.
 _FORMULA_RE = re.compile(
     r"^(?:This (?:appeal|case|cause|matter) (?:was|is|came|comes) (?:considered|submitted|before|on)\b|After examining the briefs\b|"
@@ -721,8 +862,12 @@ def opening_passage(layout: str, document_text: str = "") -> Optional[Opening]:
     for lines in opening_paragraphs(pages):
         paragraph = join_lines([line.text for line in lines], document_text)
         text, cut = quotation(paragraph)
-        if _FORMULA_RE.match(text):
-            continue  # the words every order begins with: not a paragraph on the case
+        if _SEPARATE_RE.match(text):
+            return None  # a dissent or a concurrence: not the court's opinion
+        if _FORMULA_RE.match(text) or _DISPOSITION_RE.match(paragraph):
+            continue  # the words every order begins with, or the disposition alone: not a paragraph on the case
+        if _not_prose(paragraph, text):
+            continue  # the list of counsel, the caption, the names of the judges: not the court's prose
         number += 1
         if not cut and not re.search(r"[.?!][\"”’)\]]*$", text):
             continue  # the paragraph could not be followed to the end of a sentence

@@ -12,7 +12,7 @@ import pytest
 import requests
 
 import dhq.run as pipeline
-from dhq.adapters import courtlistener, openstates, scotus
+from dhq.adapters import openstates, scotus
 from dhq.http import Fetcher
 from dhq.util import read_json, write_json
 
@@ -44,7 +44,6 @@ def env(tmp_path, monkeypatch, session):
     seeds = tmp_path / "seeds"
     write_json(seeds / "cases.json", CASE_SEEDS)
     write_json(seeds / "relationships.json", {"relationships": []})
-    write_json(seeds / "courtlistener_queries.json", {"queries": ["synthetic query"]})
     monkeypatch.setattr(pipeline, "SEEDS_DIR", seeds)
     monkeypatch.setattr(scotus, "extract_pdf_text", lambda data: data.decode("utf-8") or None)
     write_json(tmp_path / "public" / "geo" / "index.json", GEO_INDEX)
@@ -95,7 +94,7 @@ def test_first_run_publishes_validated_records(env):
     assert [t["tag"] for t in case["issueTags"]] == ["redistricting"]
     assert case["issueTags"][0]["matchedField"] == "questions presented"
     assert env.read("manifest.json")["counts"] == {
-        "cases": 2, "bills": 0, "supremeCourtCases": 2, "appealsCourtCases": 0, "stateBills": 0, "federalBills": 0,
+        "cases": 2, "bills": 0, "supremeCourtCases": 2, "appealsCourtCases": 0, "districtAndStateCourtCases": 0, "stateBills": 0, "federalBills": 0,
         "relationships": 1, "events": 4, "geographicUnits": 2}
 
 
@@ -1087,29 +1086,23 @@ def test_missing_credentials_are_reported_and_break_nothing(env, session):
         assert record["processingStatus"] == "credential_missing"
         assert name in record["statusDetail"] and record["credentialEnv"] == name
         assert record["lastSuccessfulCheck"] is None
-    assert not (env.public / "litigation_secondary.json").exists()
+    assert not (env.public / "decisions").exists()
     assert not (env.public / "legislation_secondary.json").exists()
     assert len(env.read("litigation/index.json")["cases"]) == 2
     assert not any("courtlistener.com" in u or "openstates.org" in u for u in session.urls())
 
 
-def test_a_configured_credential_is_used_but_never_written_anywhere(env, session, monkeypatch, tmp_path, caplog):
-    monkeypatch.setenv("COURTLISTENER_API_TOKEN", "synthetic-secret-token-123")
+def test_a_configured_key_is_used_but_never_written_anywhere(env, session, monkeypatch, tmp_path, caplog):
+    """Open States. The same is tested for CourtListener's token with its stage, in test_cl_opinions.py."""
     monkeypatch.setenv("OPENSTATES_API_KEY", "synthetic-secret-key-456")
-    session.on(courtlistener.SEARCH_URL, FakeResponse(200, {"results": [
-        {"docket_id": 7, "caseName": "Synthetic Voters v. Synthetic County", "docketNumber": "1:26-cv-7", "court_id": "synd", "recap_documents": []}], "next": None}))
     session.on(openstates.BILLS_URL, FakeResponse(200, {"results": [], "pagination": {"max_page": 1}}))
     with caplog.at_level("DEBUG"):
-        code, ctx = env.run(["courtlistener", "openstates", *COURT])
+        code, ctx = env.run(["openstates", *COURT])
     assert code == 0
-    imported = env.read("litigation_secondary.json")["cases"]
-    assert [c["verification"]["status"] for c in imported] == ["imported_secondary"]
-    assert ("secondary_import", "cl-7") in [(r["kind"], r["entity"]) for r in ctx.review]
-    assert env.source("courtlistener-api")["processingStatus"] == "ok"
-    # The imported docket is kept apart from the primary-source index.
-    assert "cl-7" not in json.dumps(env.read("litigation/index.json"))
+    assert env.source("openstates-api")["processingStatus"] == "ok"
+    assert any(call["url"] == openstates.BILLS_URL for call in session.calls)
     written = b"".join(tree(tmp_path).values()).decode("utf-8", errors="replace") + caplog.text
-    assert "synthetic-secret-token-123" not in written and "synthetic-secret-key-456" not in written
+    assert "synthetic-secret-key-456" not in written
 
 
 def test_unknown_stage_names_are_rejected_with_exit_code_4():
@@ -1487,18 +1480,3 @@ def test_an_official_file_that_changes_under_the_same_version_id_is_flagged(env,
     flagged = [r for r in ctx.review if r["kind"] == "version_source_changed"]
     assert [r["entity"] for r in flagged] == ["ca-20252026-ab5"]
     assert "20250AB599INT" in flagged[0]["detail"] and flagged[0]["detail"].endswith("the extracted text is unchanged")
-
-
-# --- CourtListener ------------------------------------------------------------------------
-
-def test_a_foreign_next_page_fails_the_courtlistener_stage_and_gets_no_token(env, session, monkeypatch):
-    monkeypatch.setenv("COURTLISTENER_API_TOKEN", "synthetic-secret-token-123")
-    session.on(courtlistener.SEARCH_URL, FakeResponse(200, {"results": [
-        {"docket_id": 7, "caseName": "Synthetic Voters v. Synthetic County", "docketNumber": "1:26-cv-7", "court_id": "synd", "recap_documents": []}],
-        "next": "https://elsewhere.example.test/collect"}))
-    code, _ = env.run(["courtlistener"], now=T1)
-    assert code == 1
-    assert env.source("courtlistener-api")["processingStatus"] == "failed"
-    assert "outside the CourtListener API" in env.source("courtlistener-api")["statusDetail"]
-    assert not (env.public / "litigation_secondary.json").exists()
-    assert not any("elsewhere.example.test" in url for url in session.urls())

@@ -1,6 +1,6 @@
 import { isFederalBill, shortSession } from '../../lib/bills';
 import { useCore, useEvents, useGovernment } from '../../lib/core';
-import { SCOTUS_ID, casesByCourt } from '../../lib/courts';
+import { casesByKind, stateCourtCases } from '../../lib/courts';
 import { formatDate, plural } from '../../lib/format';
 import { NATION_KEY } from '../../lib/geo';
 import { latestEvents, linkedStates } from '../../lib/relations';
@@ -30,14 +30,16 @@ export function HomePanel() {
   const federal = bills?.bills.filter(isFederalBill) ?? [];
   const california = bills?.bills.filter((b) => !isFederalBill(b)) ?? [];
   const congress = [...new Set(federal.map((b) => shortSession(b.session)))].join(' and ');
-  const byCourt = cases ? casesByCourt(cases) : null;
-  const supreme = byCourt?.get(SCOTUS_ID) ?? 0;
-  const appealsCourts = byCourt ? [...byCourt.keys()].filter((id) => id !== SCOTUS_ID).length : 0;
+  const byKind = cases ? casesByKind(cases) : null;
+  const supreme = byKind?.get('federal_supreme')?.cases ?? 0;
+  const appeals = byKind?.get('federal_appellate') ?? { cases: 0, courts: 0 };
+  const district = byKind?.get('federal_district') ?? { cases: 0, courts: 0 };
+  const stateCourts = byKind ? stateCourtCases(byKind) : { cases: 0, courts: 0 };
   return (
     <article className="view view-home">
       <header className="view-head">
         <h1 tabIndex={-1} className="display">Election litigation, voting laws and district boundaries, linked to their sources</h1>
-        <p className="lede">Election measures of Congress and the California Legislature, election cases in the Supreme Court and the federal courts of appeals, and Census Bureau boundaries for states, counties and congressional districts.</p>
+        <p className="lede">Election measures of Congress and the California Legislature, election cases in federal and state courts, and Census Bureau boundaries for states, counties and congressional districts.</p>
       </header>
 
       <Section title="Who governs">
@@ -81,13 +83,13 @@ export function HomePanel() {
             <a href={buildHash(['litigation'])}>Election litigation</a>
             <p>
               {cases
-                ? `${plural(supreme, 'Supreme Court docket')} with every entry and linked filings, and ${plural(cases.length - supreme, 'election case')} from ${plural(appealsCourts, 'federal court of appeals', 'federal courts of appeals')}, each from the documents GovInfo holds for it.`
-                : 'Supreme Court dockets with every entry and linked filings, and election cases from the federal courts of appeals.'}
+                ? `${plural(supreme, 'Supreme Court docket')} with every entry and linked filings; ${plural(appeals.cases, 'election case')} from ${plural(appeals.courts, 'federal court of appeals', 'federal courts of appeals')}, each from the documents GovInfo holds for it; and ${plural(district.cases, 'case')} of federal district courts and ${plural(stateCourts.cases, 'case')} of state courts, each from the decisions CourtListener holds for it.`
+                : 'Supreme Court dockets with every entry and linked filings, and election cases from the federal courts of appeals, the federal district courts and the courts of the states.'}
             </p>
           </li>
           <li className="module module-case">
             <a href={buildHash(['courts'])}>Courts</a>
-            <p>The Supreme Court and the thirteen federal courts of appeals, with the states and territories of each circuit as the statute lists them.</p>
+            <p>The Supreme Court and the thirteen federal courts of appeals, with the states and territories of each circuit as the statute lists them, and what was read for the district courts and the state courts.</p>
           </li>
           <li className="module module-place">
             <a href={buildHash(['redistricting'])}>Redistricting</a>
@@ -95,7 +97,7 @@ export function HomePanel() {
           </li>
         </ul>
         <GapNotice>
-          Coverage is narrow on purpose while the method is proven: Congress and one state legislature, the Supreme Court and the federal courts of appeals. Federal district courts, state courts and the other state legislatures are not covered.{' '}
+          Coverage is uneven on purpose while the method is proven: Congress and one state legislature; the Supreme Court and the federal courts of appeals from official records; federal district courts and state courts only as far as CourtListener, a collection that is not a court, holds their decisions. The other state legislatures are not covered.{' '}
           <A to={buildHash(['sources'], { section: 'coverage' })}>See exactly what is and is not covered.</A>
         </GapNotice>
       </Section>

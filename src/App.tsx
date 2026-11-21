@@ -6,8 +6,8 @@ import { CoreProvider, useCore, useGovernment } from './lib/core';
 import {
   SCOTUS_ID, casesByCourt, circuitCourtId, circuitViewBbox, courtFullName, courtGeoKey, courtHash, courtIdOfCase, isCourtId,
 } from './lib/courts';
-import { isAppealsCaseId, isFederalBillId, loadPopulation } from './lib/data';
-import { caseStateCounts } from './lib/filters';
+import { isAppealsCaseId, isDecisionCaseId, isFederalBillId, loadPopulation } from './lib/data';
+import { caseStateCounts, filterCases, knownCaseFilters, type CaseFilters } from './lib/filters';
 import { NATION_KEY, isCensusLayer, isDistrictLayer, isLayer, parseGeoKey, unionBbox, type Bbox } from './lib/geo';
 import { caseStatesTheme, circuitTheme, coverageTheme, linkedRecordsTheme, partyControlTheme, populationTheme, redrawnTheme, type MapTheme } from './lib/mapTheme';
 import { linkedStates, relationshipsForRecord } from './lib/relations';
@@ -35,7 +35,7 @@ import { BillDetail } from './features/legislation/BillDetail';
 import { BillDirectory } from './features/legislation/BillDirectory';
 import { VersionCompare } from './features/legislation/VersionCompare';
 import { CaseDetail } from './features/litigation/CaseDetail';
-import { CaseDirectory } from './features/litigation/CaseDirectory';
+import { CaseDirectory, caseFiltersFromQuery } from './features/litigation/CaseDirectory';
 import { RedistrictingPanel } from './features/redistricting/RedistrictingPanel';
 import { SourcesPage } from './features/sources/SourcesPage';
 import { WatchlistPage } from './features/watchlist/WatchlistPage';
@@ -256,6 +256,11 @@ function Shell() {
     if (view.name === 'court') return known([view.id === SCOTUS_ID ? NATION_KEY : courtGeoKey(view.id)]);
     if (view.name === 'case') {
       if (isAppealsCaseId(view.id)) return known([courtGeoKey(courtIdOfCase(view.id) ?? '')]);
+      // A case of a district court or a state court is shown over the state its court sits in.
+      if (isDecisionCaseId(view.id)) {
+        const seat = cases?.find((record) => record.id === view.id)?.court?.stateFips;
+        return seat ? known([`state:${seat}`]) : [];
+      }
       if (!relationships) return [];
       return known(relationshipsForRecord('case', view.id, relationships).filter((r) => r.target.type === 'geography').map((r) => r.target.id));
     }
@@ -270,7 +275,7 @@ function Shell() {
     }
     if (view.name === 'laws' && route.query.jur === 'us') return known([NATION_KEY]);
     return [];
-  }, [geo, view, relationships, bills, route.query.state, route.query.court, route.query.jur]);
+  }, [geo, view, relationships, bills, cases, route.query.state, route.query.court, route.query.jur]);
 
   // Outline the most specific linked unit (a district or county before its state).
   const selectedKey = useMemo(() => {
@@ -314,6 +319,14 @@ function Shell() {
   const partyShading = activeLayer === 'state' && shade === 'party';
   const government = useGovernment(partyShading);
 
+  // The filters of the litigation list other than the state, when any is set: the map's shading follows them.
+  const litigationQuery = view.name === 'litigation' ? route.query : null;
+  const litigationFilters = useMemo<CaseFilters | null>(() => {
+    if (!litigationQuery || !cases) return null;
+    const { state: _state, sort: _sort, ...others } = knownCaseFilters(caseFiltersFromQuery(litigationQuery), cases);
+    return Object.values(others).some(Boolean) ? others : null;
+  }, [litigationQuery, cases]);
+
   const theme = useMemo<MapTheme | null>(() => {
     if (!geo) return null;
     if (activeLayer === 'circuit') return cases ? circuitTheme(casesByCourt(cases)) : null;
@@ -329,12 +342,17 @@ function Shell() {
       if (!bills) return null;
       return coverageTheme(new Set(bills.bills.filter((b) => !isFederalBill(b)).map((b) => b.state)), bills.bills.some(isFederalBill));
     }
-    if (module === 'litigation') return cases ? caseStatesTheme(caseStateCounts(cases)) : null;
+    if (module === 'litigation') {
+      if (!cases) return null;
+      if (!litigationFilters) return caseStatesTheme(caseStateCounts(cases));
+      // On the list the map follows the filters, the state apart: a state is shaded when one of its cases passes the others.
+      return caseStatesTheme(caseStateCounts(filterCases(cases, litigationFilters)), true);
+    }
     if (module === 'redistricting') return null;
     // The Supreme Court's page: the states its dockets are linked to.
     if (view.name === 'court') return relationships ? linkedRecordsTheme(linkedStates(relationships, 'case'), 'cases') : null;
     return relationships ? linkedRecordsTheme(linkedStates(relationships, 'any'), 'records') : null;
-  }, [geo, shade, populationFile, partyShading, government, activeLayer, redistricting, module, bills, relationships, cases, federalRecord, view.name]);
+  }, [geo, shade, populationFile, partyShading, government, activeLayer, redistricting, module, bills, relationships, cases, federalRecord, view.name, litigationFilters]);
 
   const onSelect = useCallback((key: string) => {
     const current = routeRef.current;

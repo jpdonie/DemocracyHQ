@@ -2,7 +2,7 @@
 import type { EntityRelationship, LegalCaseSummary, LegislativeInstrument } from '../../types/schemas';
 import { billLabel, billLabelFromId, isFederalBill } from '../../lib/bills';
 import { useCore } from '../../lib/core';
-import { SCOTUS_ID } from '../../lib/courts';
+import { recordBasis } from '../../lib/courts';
 import { formatDate, formatNumber } from '../../lib/format';
 import { eventLabel, relationshipLabel, reverseRelationshipLabel, useTagLabels } from '../../lib/labels';
 import { buildHash } from '../../lib/router';
@@ -46,17 +46,20 @@ export function CourtsCell({ bill, links }: { bill: LegislativeInstrument; links
             const c = courts.data[1].find((x) => x.id === (r.source.type === 'case' ? r.source.id : r.target.id));
             if (!c) return null;
             const ruling = c.latestDispositiveEntry;
-            const appeal = c.courtId !== SCOTUS_ID;
+            const basis = recordBasis(c);
             return (
               <li key={r.id}>
                 <a className="case-name" href={buildHash(['litigation', c.id])}>{c.caseName}</a>, No. {c.docketNumber}
                 {ruling ? (
                   <p className="row-line">
-                    {appeal ? 'Latest decision among the documents GovInfo holds' : 'Latest ruling entry on the docket'}: <span className="row-date">{formatDate(ruling.date)}</span> {eventLabel(ruling.eventType, ruling.ruleId)}: <q>{ruling.text}</q>
+                    {basis === 'docket' ? 'Latest ruling entry on the docket' : basis === 'govinfo' ? 'Latest decision among the documents GovInfo holds' : 'Latest opinion of the court among the decisions CourtListener holds'}: <span className="row-date">{formatDate(ruling.date)}</span>{' '}
+                    {basis === 'courtlistener' ? ruling.text : <>{eventLabel(ruling.eventType, ruling.ruleId)}: <q>{ruling.text}</q></>}
                   </p>
                 ) : (
                   <p className="row-line quiet">
-                    {appeal ? 'No decision identified among the documents GovInfo holds for the case.' : 'No ruling entry identified on the docket by DemocracyHQ’s rules; see the docket.'}
+                    {basis === 'docket' ? 'No ruling entry identified on the docket by DemocracyHQ’s rules; see the docket.'
+                      : basis === 'govinfo' ? 'No decision identified among the documents GovInfo holds for the case.'
+                      : 'No opinion of the court among the documents CourtListener holds for the case.'}
                   </p>
                 )}
                 {r.scope.note ? <p className="link-scope">{r.scope.note}</p> : null}

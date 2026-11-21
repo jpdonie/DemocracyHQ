@@ -1,8 +1,0 @@
-{
-  "_readme": "RECAP docket searches run only when COURTLISTENER_API_TOKEN is set. Results are imported as secondary-source records without geographic scope.",
-  "queries": [
-    "\"Voting Rights Act\" congressional redistricting",
-    "\"National Voter Registration Act\" voter registration list maintenance",
-    "\"mail ballot\" receipt deadline \"election day\""
-  ]
-}

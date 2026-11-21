@@ -10,7 +10,7 @@ import type { FeatureCollection, Geometry } from 'geojson';
 import type { z } from 'zod';
 import {
   BillIndexSchema, CaseIndexSchema, CIRCUIT_CASE_ID_PATTERN, CircuitIndexSchema, CircuitsFileSchema, ClassificationFileSchema, CountyCdSchema,
-  CourtsFileSchema, EventsFileSchema, FederalBillIndexSchema, GeoIndexSchema, GovernmentFileSchema, LegalCaseSchema, LegislativeInstrumentSchema, ManifestSchema,
+  CourtsFileSchema, DECISION_CASE_ID_PATTERN, DecisionIndexSchema, EventsFileSchema, FederalBillIndexSchema, GeoIndexSchema, GovernmentFileSchema, LegalCaseSchema, LegislativeInstrumentSchema, ManifestSchema,
   PopulationFileSchema, RedistrictingFileSchema, RelationshipFileSchema, SourcesFileSchema, US_BILL_ID_PATTERN, VersionTextSchema,
   type Layer, type Manifest,
 } from '../types/schemas';
@@ -124,6 +124,8 @@ export const loadRedistricting = loader('redistricting.json', RedistrictingFileS
 export const loadCaseIndex = loader('litigation/index.json', CaseIndexSchema);
 /** The court of appeals cases, with the selection rule and what was read for each court. */
 export const loadCircuitIndex = loader('circuits/index.json', CircuitIndexSchema);
+/** The cases of federal district courts and of state courts, with the selection rule and what was read for each court. */
+export const loadDecisionIndex = loader('decisions/index.json', DecisionIndexSchema);
 /** California's election measures. */
 export const loadBillIndex = loader('legislation/index.json', BillIndexSchema);
 /** The election measures of Congress. */
@@ -151,10 +153,19 @@ export function isFederalBillId(id: string): boolean {
   return US_BILL_ID_PATTERN.test(id);
 }
 
-/** A case's own file. The id says which folder it is in: court of appeals cases are under circuits/, the others under litigation/. */
+/** Whether a case id is a case of a federal district court or of a state court (cl-68495334). */
+export function isDecisionCaseId(id: string): boolean {
+  return DECISION_CASE_ID_PATTERN.test(id);
+}
+
+/**
+ * A case's own file. The id says which folder it is in: court of appeals cases are under circuits/, the cases of
+ * district and state courts under decisions/, the Supreme Court's dockets under litigation/.
+ */
 export function loadCase(id: string) {
   if (!SAFE_ID.test(id)) return Promise.reject(new DataError('not_found', id, 'That case identifier is not valid.'));
-  return loader(`${isAppealsCaseId(id) ? 'circuits' : 'litigation'}/cases/${id}.json`, LegalCaseSchema)();
+  const folder = isAppealsCaseId(id) ? 'circuits' : isDecisionCaseId(id) ? 'decisions' : 'litigation';
+  return loader(`${folder}/cases/${id}.json`, LegalCaseSchema)();
 }
 
 /** A measure's own file: measures of Congress are under congress/, state bills under legislation/. */

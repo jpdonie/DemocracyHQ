@@ -6,7 +6,7 @@ import { useMemo } from 'react';
 import type { EventCategory, LegislativeInstrumentSummary } from '../../types/schemas';
 import { PASSED_IN_EACH_LIST_NOTE, PASSED_IN_EACH_STAGES, shortSession, stageRank } from '../../lib/bills';
 import { useCore, useGovernment, type BillCatalog } from '../../lib/core';
-import { SCOTUS_ID, casesByCourt } from '../../lib/courts';
+import { SCOTUS_ID, casesByCourt, casesByKind } from '../../lib/courts';
 import { countBy } from '../../lib/filters';
 import { plural } from '../../lib/format';
 import { NATION_KEY } from '../../lib/geo';
@@ -76,13 +76,15 @@ function Overview({ data, route }: { data: PlaceData; route: Route }) {
       <Section title="Federal courts">
         <Async of={core.cases} what="the court cases">
           {(cases) => {
-            const counts = casesByCourt(cases);
-            const supreme = counts.get(SCOTUS_ID) ?? 0;
-            const courts = [...counts.keys()].filter((id) => id !== SCOTUS_ID).length;
+            const counts = casesByKind(cases);
+            const supreme = counts.get('federal_supreme')?.cases ?? 0;
+            const appeals = counts.get('federal_appellate') ?? { cases: 0, courts: 0 };
+            const district = counts.get('federal_district') ?? { cases: 0, courts: 0 };
             return (
               <ul className="plain-list">
                 <li><a href={buildHash(['court', SCOTUS_ID])}>Supreme Court</a>: {plural(supreme, 'docket')} in election-law matters, chosen by maintainers</li>
-                <li><a href={tabHash('courts')}>Courts of appeals</a>: {plural(cases.length - supreme, 'election case')} from {plural(courts, 'court')}, selected by a published rule</li>
+                <li><a href={tabHash('courts')}>Courts of appeals</a>: {plural(appeals.cases, 'election case')} from {plural(appeals.courts, 'court')}, selected by a published rule</li>
+                <li><a href={buildHash(['litigation'], { system: 'federal', level: 'trial' })}>District courts</a>: {plural(district.cases, 'election case')} from {plural(district.courts, 'court')}, selected by a published rule from the decisions CourtListener holds</li>
               </ul>
             );
           }}
@@ -168,7 +170,8 @@ function CourtsTab() {
               <AppealsCourtRows courts={courts} geo={geo} counts={counts} appeals={dataOf(core.appeals)} />
               <p><A to={buildHash(['courts'])}>The circuits on the map, and how they are drawn</A></p>
             </Section>
-            <GapNotice>Federal district courts and state courts are not covered.</GapNotice>
+            <p><A to={buildHash(['litigation'], { system: 'federal', level: 'trial' })}>Cases of the federal district courts</A>, read from the decisions CourtListener holds</p>
+            <GapNotice>Only the Supreme Court&rsquo;s dockets are read. For every other court the dataset holds decisions, not dockets, so a case without a written decision is not listed.</GapNotice>
           </>
         );
       }}

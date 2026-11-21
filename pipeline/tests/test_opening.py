@@ -276,3 +276,129 @@ def test_the_usual_line_distance_is_the_median_of_the_page_and_a_short_page_take
 def test_bytes_that_are_not_a_pdf_are_refused():
     with pytest.raises(opening.LayoutError, match="not a PDF"):
         opening.pdf_layout(b"<html><body>Service unavailable</body></html>")
+
+
+# --- the courts of the states -----------------------------------------------------------------------------------------
+
+STATE_CAPTION = [
+    piece(100, 330, "IN THE SUPREME COURT OF SYNTHETIA"), piece(140, 300, "SYNTHETIC VOTERS LEAGUE, Appellant,"),
+    piece(162, 430, "v."), piece(184, 300, "SYNTHETIC COUNTY BOARD OF ELECTIONS, Appellee."),
+]
+CANDIDATE = ["Synthetic Smith appeals the judgment that he failed to qualify as a candidate", "for the city council because the check for his qualifying fee was not his own."]
+CANDIDATE_TEXT = ("Synthetic Smith appeals the judgment that he failed to qualify as a candidate for the city council because the "
+                  "check for his qualifying fee was not his own.")
+
+
+def test_a_state_court_that_names_the_judge_appealed_from_and_counsel_above_its_panel():
+    page = [*STATE_CAPTION,
+            piece(220, INDENT, "An Appeal from the Circuit Court for Synthetic County, Synthetic", right=EDGE), piece(242, MARGIN, "Rowan, Judge."),
+            *paragraph(280, ["Synthetic Roe, P.A., and Synthetic Roe, for appellant Synthetic Smith; Doe &", "Doe, PLLC, and Synthetic Doe, for appellee Synthetic County."]),
+            piece(340, MARGIN, "Before ALPHA, C.J., and BETA and GAMMA, JJ."), piece(370, INDENT, "PER CURIAM."),
+            *paragraph(400, CANDIDATE), piece(460, 300, "I. BACKGROUND"), *paragraph(490, BACKGROUND)]
+    found = opening.opening_passage(layout(page))
+    assert found.text == CANDIDATE_TEXT and found.paragraph == 1
+
+
+@pytest.mark.parametrize("above", ["ROWAN, C.", "INTRODUCTION"])
+def test_counsel_named_with_their_firm_and_the_party_they_act_for_are_not_quoted(above):
+    # Above the text stands the Chancellor's name ("ROWAN, C.") or a heading: the list of counsel above it is passed
+    # over and does not count as a paragraph of the opinion.
+    page = [*STATE_CAPTION, piece(220, 360, "MEMORANDUM OPINION"),
+            *paragraph(250, ["Synthetic Roe, Synthetic Doe, ROE + DOE LLP, Synthetia City; Counsel for Plaintiff", "Synthetic Voters League."], indent=False),
+            *paragraph(300, ["Synthetic Poe, HALL POE LLP, Synthetia City; Counsel for Defendant Synthetic", "County Board of Elections."], indent=False),
+            piece(350, MARGIN, above), *paragraph(380, CANDIDATE), *paragraph(440, BACKGROUND)]
+    found = opening.opening_passage(layout(page))
+    assert found.text == CANDIDATE_TEXT and found.paragraph == 1
+
+
+def test_paragraph_numbers_and_the_line_that_names_who_joined_the_opinion_are_left_out():
+    for number in ("{¶ 1}", "¶1", "[¶ 1]"):
+        page = [*STATE_CAPTION,
+                *paragraph(220, ["ROWAN, J., authored the opinion of the court, which ALPHA and BETA, JJ.,", "joined. GAMMA, J., dissented, with an opinion."]),
+                piece(290, INDENT, "ROWAN, J."),
+                *paragraph(320, [f"{number} {CANDIDATE[0]}", CANDIDATE[1]]), piece(380, 300, "BACKGROUND"),
+                *paragraph(410, [f"{number[:-2]}2{number[-1] if number[-1] in ']}' else ''} {BACKGROUND[0]}", BACKGROUND[1]])]
+        found = opening.opening_passage(layout(page))
+        assert found is not None and found.text == CANDIDATE_TEXT, number
+
+
+def test_a_state_court_names_its_author_in_its_own_forms():
+    for author in ("ROWAN, PRESIDING JUSTICE, FOR THE COURT:", "R O W Á N, Presiding Judge:", "ROWAN, Chief Justice."):
+        page = [*STATE_CAPTION, piece(220, 400, "OPINION"),
+                *paragraph(250, ["Presiding Judge Rowan authored the opinion of the Court, in which Chief", "Judge Alpha and Judge Beta concurred."]),
+                piece(310, MARGIN, author), *paragraph(340, CANDIDATE), piece(400, 300, "BACKGROUND"), *paragraph(430, BACKGROUND)]
+        found = opening.opening_passage(layout(page))
+        assert found is not None and found.text == CANDIDATE_TEXT, author
+
+
+def test_the_court_appealed_from_on_the_line_of_the_author_is_not_taken_for_the_author():
+    page = [*STATE_CAPTION, piece(220, MARGIN, "Court of Appeals Rowan, C.J."), piece(242, 400, "Took no part, Alpha, J."),
+            *paragraph(280, ["The district court held that the witness rule for absentee ballots", "violates federal law, and the court of appeals reversed."]),
+            piece(340, 380, "O P I N I O N"), piece(370, MARGIN, "ROWAN, Chief Justice."),
+            *paragraph(400, CANDIDATE), piece(460, 300, "FACTS"), *paragraph(490, BACKGROUND)]
+    assert opening.opening_passage(layout(page)).text == CANDIDATE_TEXT
+
+
+def test_the_judges_who_sign_an_order_set_before_the_opinion_do_not_open_it():
+    order = [*STATE_CAPTION, *paragraph(220, ["Respondents moved to publish the opinion of this court. After consideration, the", "court grants the motion."]),
+             piece(280, INDENT, "FOR THE COURT"), piece(302, INDENT, "PANEL: Jj. Rowan, Alpha, Beta"), piece(324, 400, "ROWAN, P.J.")]
+    opinion = [*STATE_CAPTION, piece(220, 380, "UNPUBLISHED OPINION"),
+               piece(250, INDENT, "ROWAN, P.J. – " + CANDIDATE[0], right=EDGE), piece(272, MARGIN, CANDIDATE[1]),
+               piece(320, 300, "FACTS"), *paragraph(350, BACKGROUND)]
+    assert opening.opening_passage(layout(order, opinion)).text == CANDIDATE_TEXT
+    # Judges who sign one under another, and the caption set again under them: no passage rather than a wrong one.
+    signed = [*STATE_CAPTION, *paragraph(220, ["There is no change in the judgment. The petition for rehearing is", "denied."]),
+              piece(280, 400, "Alpha, J."), piece(302, 400, "Rowan, P. J."), piece(324, 400, "Beta, J."),
+              piece(360, MARGIN, "Synthetic Voters League et al. v. Synthetic County Board of Elections, etc., et al.")]
+    assert opening.opening_passage(layout(signed)) is None
+
+
+def test_a_panel_named_at_the_end_of_the_opinion_does_not_move_its_beginning_to_the_dissent():
+    filler = ["The county board of elections met in public and voted on each of the", "challenges in turn, and the record shows the votes of every member."]
+    page = [*STATE_CAPTION, piece(220, 360, "MEMORANDUM OPINION"), *paragraph(250, CANDIDATE), *paragraph(310, filler),
+            *paragraph(370, filler), *paragraph(430, filler), *paragraph(490, filler),
+            piece(560, 400, "PER CURIAM"), piece(590, MARGIN, "Before Alpha, C.J., Beta and Gamma, JJ.")]
+    dissent = [piece(100, 360, "DISSENTING OPINION"),
+               *paragraph(130, ["I respectfully dissent. I would hold that the check was the candidate's own", "and that he qualified for the ballot."])]
+    assert opening.opening_passage(layout(page, dissent)).text == CANDIDATE_TEXT
+    alone = [*STATE_CAPTION, piece(220, 360, "MEMORANDUM OPINION"),
+             *paragraph(250, ["I respectfully dissent. I would hold that the check was the candidate's own", "and that he qualified for the ballot."])]
+    assert opening.opening_passage(layout(alone)) is None
+
+
+def test_a_panel_in_brackets_and_a_disposition_above_the_text():
+    page = [*STATE_CAPTION, piece(220, 340, "ORDER DISMISSING COMPLAINT"),
+            piece(250, 200, "(By: Alpha, C.J., Beta, and Gamma, JJ.,"), piece(272, 220, "and Circuit Judge Delta, assigned by reason of vacancy)"),
+            piece(310, INDENT, "Vacated and remanded for entry of judgment."), *paragraph(340, CANDIDATE), *paragraph(400, BACKGROUND)]
+    found = opening.opening_passage(layout(page))
+    assert found.text == CANDIDATE_TEXT and found.paragraph == 1
+
+
+def test_the_judge_appealed_from_the_counsel_and_the_panel_above_the_opinion_are_passed_over():
+    page = [*STATE_CAPTION,
+            piece(220, INDENT, "Appeal from the District Court for Synthetic County:", right=EDGE), piece(242, MARGIN, "Jane Q. Rowan, Judge. Affirmed."),
+            *paragraph(280, ["Synthetic Roe, of Roe Law Group, L.L.C., for appellant Synthetic Voters", "League."]),
+            *paragraph(330, ["Alpha, C.J., Beta, Gamma, Delta, Epsilon, Zeta, and Eta,", "JJ."]),
+            piece(380, INDENT, "Per Curiam."), *paragraph(410, CANDIDATE), *paragraph(470, BACKGROUND)]
+    found = opening.opening_passage(layout(page))
+    assert found.text == CANDIDATE_TEXT and found.paragraph == 1
+
+
+def test_prose_that_ends_with_a_party_or_names_a_case_is_not_taken_for_counsel_or_a_caption():
+    state = ["Most judges of the county court are elected by the voters, but the governor", "appoints them in three counties. This is known as the Synthetic Plan,",
+             "named for the state that developed it."]
+    order = ["The judgment of the district court is AFFIRMED in light of Synthetic League", "v. Synthetic County, 1 F.5th 1 (2026)."]
+    for lines in (state, order):
+        page = [stamp(1), *CAPTION, PANEL, AUTHOR, *paragraph(360, lines), piece(450, 300, "I. BACKGROUND"), *paragraph(480, BACKGROUND)]
+        found = opening.opening_passage(layout(page))
+        assert found is not None and found.text.startswith(lines[0][:30]) and found.paragraph == 1, lines[0]
+
+
+def test_an_author_whose_line_is_too_narrow_for_four_words_still_opens_the_opinion():
+    page = [stamp(1), *CAPTION, piece(300, MARGIN, "Before: ALPHA and BETA, Circuit Judges, and"), piece(322, MARGIN, "GAMMA, Senior Circuit Judge."),
+            piece(344, MARGIN, "Opinion for the court filed by Senior Circuit Judge GAMMA."),
+            piece(380, INDENT, "GAMMA, Senior Circuit Judge: The Synthetic", right=EDGE),
+            *paragraph(402, ["Voters League appeals the district court's dismissal of its challenge to the county's rule on late",
+                             "absentee ballots. We hold that the League has standing and reverse the judgment of the district court."], indent=False),
+            piece(470, 300, "I."), *paragraph(500, BACKGROUND)]
+    assert opening.opening_passage(layout(page)).text == OPENING

@@ -4,8 +4,8 @@
  */
 import { Fragment } from 'react';
 import type { Court } from '../../types/schemas';
-import { useCore, type AppealsCoverage } from '../../lib/core';
-import { FEDERAL_CIRCUIT_ID, SCOTUS_ID, casesByCourt, courtHash, courtShortName, type CourtDirectory } from '../../lib/courts';
+import { useCore, type AppealsCoverage, type DecisionsCoverage } from '../../lib/core';
+import { FEDERAL_CIRCUIT_ID, SCOTUS_ID, casesByCourt, casesByKind, courtHash, courtShortName, levelName, levelOfKind, systemOfKind, type CourtDirectory, type CourtKind } from '../../lib/courts';
 import { formatDate, plural } from '../../lib/format';
 import type { GeoIndex } from '../../lib/geo';
 import { buildHash } from '../../lib/router';
@@ -103,16 +103,16 @@ export function CourtsOverview() {
       <BackLink to={buildHash([])}>Overview</BackLink>
       <header className="view-head">
         <TypeMark type="court" label="Courts" />
-        <h1 tabIndex={-1}>Federal courts</h1>
+        <h1 tabIndex={-1}>Courts</h1>
         <p className="lede">
-          The Supreme Court and the thirteen federal courts of appeals. Twelve sit over a circuit, a group of states and territories set by statute. The Federal Circuit takes cases by subject from the whole country.
+          The Supreme Court and the thirteen federal courts of appeals, each with a page of its own, and the federal district courts and state courts whose decisions are read. Twelve courts of appeals sit over a circuit, a group of states and territories set by statute. The Federal Circuit takes cases by subject from the whole country.
         </p>
       </header>
       <Async of={allOf(core.courts, core.geo, core.cases)} what="the list of courts">
         {([courts, geo, cases]) => {
           const counts = casesByCourt(cases);
           const withCases = courts.appeals.filter((court) => (counts.get(court.id) ?? 0) > 0).length;
-          const inAppeals = cases.length - (counts.get(SCOTUS_ID) ?? 0);
+          const inAppeals = casesByKind(cases).get('federal_appellate')?.cases ?? 0;
           return (
             <>
               <Section title="Supreme Court">
@@ -131,6 +131,7 @@ export function CourtsOverview() {
                   </p>
                 ) : null}
               </Section>
+              <OtherCourts kinds={casesByKind(cases)} decisions={dataOf(core.decisions)} />
               <Section title="How the circuits are drawn">
                 <CircuitBasis courts={courts} />
                 {courts.withoutCircuit.length > 0 ? (
@@ -150,12 +151,48 @@ export function CourtsOverview() {
                   Some election cases never pass through a court of appeals: a constitutional challenge to the apportionment of congressional districts or of a statewide legislative body is heard by a district court of three judges
                   (<Ext href={USC_28_2284}>28 U.S.C. § 2284</Ext>), and an appeal from such a court goes directly to the Supreme Court (<Ext href={USC_28_1253}>28 U.S.C. § 1253</Ext>).
                 </p>
-                <GapNotice>Federal district courts and state courts are not covered.</GapNotice>
+                <GapNotice>Only the Supreme Court&rsquo;s dockets are read. For every other court the dataset holds decisions, not dockets, so a case without a written decision is not listed.</GapNotice>
               </Section>
             </>
           );
         }}
       </Async>
     </article>
+  );
+}
+
+const OTHER_KINDS: readonly CourtKind[] = ['federal_district', 'state_supreme', 'state_appellate', 'state_trial'];
+
+/**
+ * The federal district courts and the state courts: several hundred courts, which have no page of their own here.
+ * The section counts their cases by kind of court and leads to the list of court cases, where each court can be chosen.
+ */
+export function OtherCourts({ kinds, decisions }: { kinds: ReadonlyMap<CourtKind, { cases: number; courts: number }>; decisions: DecisionsCoverage | null }) {
+  return (
+    <Section
+      title="District courts and state courts"
+      note="Read from CourtListener, the collection of court decisions of the Free Law Project. It is not a court, and it does not hold every decision."
+    >
+      <ul className="rows">
+        {OTHER_KINDS.map((kind) => {
+          const count = kinds.get(kind) ?? { cases: 0, courts: 0 };
+          const system = systemOfKind(kind);
+          const level = levelOfKind(kind);
+          return (
+            <li key={kind} className="row">
+              <a className="row-title" href={buildHash(['litigation'], { system, level })}>{kind === 'federal_district' ? 'Federal district courts' : levelName(level, system)}</a>
+              <p className="row-meta">{count.cases > 0 ? `${plural(count.cases, 'election case')} from ${plural(count.courts, 'court')}` : 'No case in this dataset. Not evidence that none exists.'}</p>
+            </li>
+          );
+        })}
+      </ul>
+      {decisions ? (
+        <p className="quiet">
+          Read: {decisions.selection.totalCasesRead.toLocaleString('en-US')} cases with a decision since {formatDate(decisions.selection.since)} that CourtListener returns for a list of election terms.
+          A published rule picks the election cases among them by counting words in each decision (<A to={buildHash(['sources'], { section: 'coverage' })}>rule {decisions.selection.ruleId}</A>), so it can miss an election case and can include a case that only discusses elections.
+          A state&rsquo;s highest court is counted with the state supreme courts whatever its name.
+        </p>
+      ) : null}
+    </Section>
   );
 }

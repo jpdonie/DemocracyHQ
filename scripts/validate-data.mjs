@@ -93,6 +93,8 @@ const government = parse(S.GovernmentFileSchema, 'government.json', read('govern
 const caseIndex = parse(S.CaseIndexSchema, 'litigation/index.json', read('litigation/index.json'));
 const circuitIndex = parse(S.CircuitIndexSchema, 'circuits/index.json', read('circuits/index.json'));
 const circuitScan = parse(S.CircuitScanSchema, 'circuits/scan.json', read('circuits/scan.json'));
+const decisionIndex = parse(S.DecisionIndexSchema, 'decisions/index.json', read('decisions/index.json'));
+const decisionScan = parse(S.DecisionScanSchema, 'decisions/scan.json', read('decisions/scan.json'));
 const billIndex = parse(S.BillIndexSchema, 'legislation/index.json', read('legislation/index.json'));
 const federalIndex = parse(S.FederalBillIndexSchema, 'congress/index.json', read('congress/index.json'));
 const population = {};
@@ -100,16 +102,17 @@ for (const dataset of ['state', 'county', 'cd119']) {
   population[dataset] = parse(S.PopulationFileSchema, `population/${dataset}.json`, read(`population/${dataset}.json`));
 }
 
-// The site finds a record's file from its id alone (src/lib/data.ts): a court of appeals case is under circuits/, any
-// other case under litigation/; a measure of Congress under congress/, any other bill under legislation/. So an id in
-// one index must never have the form of the other.
+// The site finds a record's file from its id alone (src/lib/data.ts): a court of appeals case is under circuits/, a
+// case of a district court or a state court under decisions/, any other case under litigation/; a measure of Congress
+// under congress/, any other bill under legislation/. So an id in one index must never have the form of another.
 const cases = new Map();
 /** Case id -> the index entry, to compare with the record's own file. */
 const caseSummaries = new Map();
-for (const [index, folder, appeals] of [[caseIndex, 'litigation', false], [circuitIndex, 'circuits', true]]) {
+const folderOfCase = (id) => (S.CIRCUIT_CASE_ID_PATTERN.test(id) ? 'circuits' : S.DECISION_CASE_ID_PATTERN.test(id) ? 'decisions' : 'litigation');
+for (const [index, folder] of [[caseIndex, 'litigation'], [circuitIndex, 'circuits'], [decisionIndex, 'decisions']]) {
   for (const summary of index?.cases ?? []) {
-    if (S.CIRCUIT_CASE_ID_PATTERN.test(summary.id) !== appeals) {
-      fail(`${folder}/index.json: case id ${summary.id} ${appeals ? 'is not a court of appeals case id' : 'has the form of a court of appeals case id'}; the site would look for its file in the wrong folder`);
+    if (folderOfCase(summary.id) !== folder) {
+      fail(`${folder}/index.json: case id ${summary.id} has the form of an id of ${folderOfCase(summary.id)}/; the site would look for its file in the wrong folder`);
       continue;
     }
     if (caseSummaries.has(summary.id)) fail(`${folder}/index.json: case ${summary.id} is listed twice`);
@@ -177,10 +180,12 @@ for (const [index, folder, federal] of [[billIndex, 'legislation', false], [fede
   }
   if (errors.length === before) pass('Index entries', `${compared} index entries say the same as the record files they point to`);
 }
-// Optional files written only when an API credential is configured. The site does not display
-// them yet; they are still held to the same schemas so a bad import can never be published.
+// The file the first import from CourtListener wrote, of dockets the site never showed. The cases read from
+// CourtListener are now records of their own under decisions/, so the old file must not be published beside them.
+if (existsSync(join(dataDir, 'litigation_secondary.json'))) fail('litigation_secondary.json: this file is retired (the cases read from CourtListener are under decisions/) and must not be published');
+// An optional file written only when an API credential is configured. The site does not display
+// it yet; it is still held to the same schema so a bad import can never be published.
 for (const [rel, key, schema] of [
-  ['litigation_secondary.json', 'cases', S.LegalCaseSummarySchema],
   ['legislation_secondary.json', 'bills', S.LegislativeInstrumentSummarySchema],
 ]) {
   if (!existsSync(join(dataDir, rel))) continue;
@@ -197,6 +202,7 @@ for (const [rel, key, schema] of [
   warn(`${rel}: ${rows.length} record(s) imported from a secondary source are present; the site does not display them yet`);
 }
 const appealsCases = [...cases.values()].filter((record) => S.CIRCUIT_CASE_ID_PATTERN.test(record.id));
+const decisionCases = [...cases.values()].filter((record) => S.DECISION_CASE_ID_PATTERN.test(record.id));
 const federalBills = [...bills.values()].filter((record) => S.US_BILL_ID_PATTERN.test(record.id));
 if (errors.length === 0) {
   pass('Schemas', `every published file matches its runtime schema (${cases.size} cases, of which ${appealsCases.length} in the courts of appeals; ${bills.size} bills, of which ${federalBills.length} measures of Congress; ${textFiles} text versions)`);
@@ -365,10 +371,37 @@ const tagNames = new Set((classification?.issueRules ?? []).map((r) => r.tag));
 if (circuitsFile && !ruleIds.has(circuitsFile.statute.ruleId)) fail(`geo/circuits.json: cites unknown rule ${circuitsFile.statute.ruleId}`);
 const exists = (ref) => (ref.type === 'case' ? cases.has(ref.id) : ref.type === 'bill' ? bills.has(ref.id) : geoKeys.has(ref.id));
 
+const COURTLISTENER_FILE = 'https://storage.courtlistener.com/';
+const COURTLISTENER_SITE = 'https://www.courtlistener.com/';
 for (const record of cases.values()) {
   if (!sourceIds.has(record.sourceId)) fail(`case ${record.id}: unknown source ${record.sourceId}`);
-  if (!courtIds.has(record.courtId)) fail(`case ${record.id}: unknown court ${record.courtId}`);
-  if (S.CIRCUIT_CASE_ID_PATTERN.test(record.id)) {
+  const decision = S.DECISION_CASE_ID_PATTERN.test(record.id);
+  // The fourteen federal courts the site lists are known by their ids. Any other court is named by the record itself.
+  if (decision ? courtIds.has(record.courtId) : !courtIds.has(record.courtId)) fail(`case ${record.id}: ${decision ? `its court id ${record.courtId} is the id of one of the fourteen courts the site lists itself` : `unknown court ${record.courtId}`}`);
+  if (Boolean(record.court) !== decision) fail(`case ${record.id}: ${decision ? 'does not name its court' : 'names a court of its own, which only a case read from CourtListener may'}`);
+  if (decision) {
+    // A case of a federal district court or of a state court: everything is CourtListener's, and labelled as such.
+    if (record.sourceId !== 'courtlistener-api') fail(`case ${record.id}: its source is ${record.sourceId}, not CourtListener`);
+    if (record.verification.status !== 'imported_secondary') fail(`case ${record.id}: read from CourtListener but labelled ${record.verification.status}, not imported_secondary`);
+    // One case may be filed under two dockets of CourtListener (rule cl-same-docket): the id is the lowest of them.
+    const docketIds = String(record.externalIds.courtlistenerDocketId ?? '').split(',');
+    if (!docketIds.every((id) => /^\d+$/.test(id)) || docketIds.some((id, i) => i > 0 && Number(id) <= Number(docketIds[i - 1]))) fail(`case ${record.id}: its CourtListener dockets are not a rising list of ids (${record.externalIds.courtlistenerDocketId})`);
+    if (record.id !== `cl-${docketIds[0]}`) fail(`case ${record.id}: the id is not CourtListener's docket number (${record.externalIds.courtlistenerDocketId})`);
+    if (!record.sourceUrl.startsWith(COURTLISTENER_SITE)) fail(`case ${record.id}: sourceUrl is not a page of CourtListener`);
+    for (const doc of record.documents) if (doc.url != null && !doc.url.startsWith(COURTLISTENER_FILE) && !doc.url.startsWith(COURTLISTENER_SITE)) fail(`case ${record.id}: document ${doc.id} is not a file or a page of CourtListener`);
+    if (!record.selection) fail(`case ${record.id}: published without the record of why the selection rule picked it`);
+    else {
+      if (!ruleIds.has(record.selection.ruleId)) fail(`case ${record.id}: selection cites unknown rule ${record.selection.ruleId}`);
+      if (!record.documents.some((doc) => doc.id === record.selection.documentId && doc.url === record.selection.documentUrl)) fail(`case ${record.id}: the decision the selection rests on is not one of its documents`);
+    }
+    if (record.court) {
+      if (!ruleIds.has(record.court.ruleId)) fail(`case ${record.id}: its court cites unknown rule ${record.court.ruleId}`);
+      if (!record.court.stateFips || !geoKeys.has(`state:${record.court.stateFips}`)) fail(`case ${record.id}: its court is placed in unknown state ${record.court.stateFips}`);
+      const federal = record.court.courtType === 'federal_district';
+      if (record.jurisdiction !== (federal ? 'Federal' : 'State')) fail(`case ${record.id}: a ${record.court.courtType} court, but its jurisdiction is given as ${record.jurisdiction}`);
+    }
+    if (record.stateFips.length > 0) fail(`case ${record.id}: linked to a state by the record, which no rule does for a case read from CourtListener`);
+  } else if (S.CIRCUIT_CASE_ID_PATTERN.test(record.id)) {
     // A court of appeals case: the id names the court and GovInfo's package, and every link is to GovInfo.
     if (!record.id.startsWith(`${record.courtId}-`)) fail(`case ${record.id}: the id does not start with its court, ${record.courtId}`);
     if (!appealsCourts.some((c) => c.id === record.courtId)) fail(`case ${record.id}: ${record.courtId} is not a court of appeals`);
@@ -476,11 +509,12 @@ for (const record of bills.values()) {
     if (problem) fail(`${kind} ${id}: the line on what it is about (${about.source}) ${problem}`);
   };
   for (const record of cases.values()) {
-    const appeals = S.CIRCUIT_CASE_ID_PATTERN.test(record.id);
+    // The opening of an opinion is quoted for the cases that are read from their opinions: all but the Supreme Court's.
+    const appeals = S.CIRCUIT_CASE_ID_PATTERN.test(record.id) || S.DECISION_CASE_ID_PATTERN.test(record.id);
     const summary = caseSummaries.get(record.id);
     checkAbout('case', record.id, record, summary, (about) => {
       if (about.source === 'opinion') {
-        if (!appeals) return 'is said to be from an opinion, which only a court of appeals case can have';
+        if (!appeals) return 'is said to be from an opinion, which a Supreme Court docket never has here';
         return about.url === record.selection?.documentUrl && record.documents.some((doc) => doc.url === about.url) ? null : 'does not point at the opinion the selection rests on';
       }
       if (appeals) return 'is not from the opinion of the case';
@@ -579,6 +613,48 @@ if (circuitIndex) {
     }
   }
   if (errors.length === before) pass('Courts of appeals', `${appealsCases.length} of ${selection.totalCasesRead.toLocaleString('en-US')} cases read are published and ${circuitIndex.exclusions.length} are on the list of exclusions; the counts for each of the ${courtsWithCoverage.length} courts match the ledger of the scan`);
+}
+if (decisionIndex) {
+  const before = errors.length;
+  const selection = decisionIndex.selection;
+  for (const id of [selection.ruleId, selection.courtStateRuleId, selection.textRuleId]) if (!ruleIds.has(id)) fail(`decisions/index.json: cites unknown rule ${id}`);
+  const courtsRead = Object.keys(decisionIndex.coverage);
+  const sum = (field) => courtsRead.reduce((total, id) => total + decisionIndex.coverage[id][field], 0);
+  if (sum('cases') !== selection.totalCasesRead) fail(`decisions/index.json: the courts' counts add up to ${sum('cases')} cases read, the total says ${selection.totalCasesRead}`);
+  if (sum('documents') !== selection.totalDocumentsRead) fail(`decisions/index.json: the courts' counts add up to ${sum('documents')} documents read, the total says ${selection.totalDocumentsRead}`);
+  for (const id of courtsRead) {
+    const counts = decisionIndex.coverage[id];
+    if (courtIds.has(id)) fail(`decisions/index.json: counts for ${id}, one of the fourteen courts read from another source`);
+    if (counts.stateFips && !geoKeys.has(`state:${counts.stateFips}`)) fail(`decisions/index.json: ${id} is placed in unknown state ${counts.stateFips}`);
+    // A case that could not be read in a run keeps its published record, so more can be published than the scan selected, never fewer.
+    const published = decisionCases.filter((record) => record.courtId === id).length;
+    if (published < counts.selected) fail(`decisions/index.json: says ${counts.selected} case(s) of ${id} were selected, only ${published} are published`);
+  }
+  for (const record of decisionCases) {
+    const counts = decisionIndex.coverage[record.courtId];
+    if (!counts) fail(`case ${record.id}: published, but decisions/index.json has no count of what was read for its court ${record.courtId}`);
+    else if (counts.name !== record.court?.name || counts.courtType !== record.court?.courtType || (counts.stateFips ?? null) !== (record.court?.stateFips ?? null)) fail(`case ${record.id}: names its court differently from decisions/index.json`);
+  }
+  // The ledger of the scan names every case read. Its counts are the ones the index and the site state.
+  if (decisionScan) {
+    const at = Object.fromEntries(decisionScan.fields.map((name, i) => [name, i]));
+    const fieldsOk = ['court', 'documents', 'unreadableDocuments', 'outcome'].every((name) => name in at);
+    if (!fieldsOk) fail('decisions/scan.json: one of the fields court, documents, unreadableDocuments and outcome is missing');
+    if (decisionScan.ruleId !== selection.ruleId || decisionScan.since !== selection.since || decisionScan.scannedAt !== decisionIndex.scannedAt) fail('decisions/scan.json: the rule, start date or time of the scan differ from decisions/index.json');
+    if (decisionScan.candidates !== selection.candidates) fail('decisions/scan.json: the number of decisions the search returned differs from decisions/index.json');
+    if (fieldsOk) {
+      const rows = Object.values(decisionScan.cases);
+      for (const id of courtsRead) {
+        const own = rows.filter((row) => row[at.court] === id);
+        const counts = decisionIndex.coverage[id];
+        const total = (name) => own.reduce((n, row) => n + row[at[name]], 0);
+        const actual = { cases: own.length, documents: total('documents'), unreadableDocuments: total('unreadableDocuments'), selected: own.filter((row) => row[at.outcome] === 1).length };
+        for (const [field, value] of Object.entries(actual)) if (counts[field] !== value) fail(`decisions/index.json: says ${counts[field]} ${field} for ${id}, the ledger of the scan holds ${value}`);
+      }
+      for (const row of rows) if (!decisionIndex.coverage[row[at.court]]) fail(`decisions/scan.json: lists a case of ${row[at.court]}, for which the index has no counts`);
+    }
+  }
+  if (errors.length === before) pass('District courts and state courts', `${decisionCases.length} of ${selection.totalCasesRead.toLocaleString('en-US')} cases read from CourtListener are published, of ${courtsRead.length} courts; each names its court, the decision it rests on and CourtListener as its source, and the counts match the ledger of the scan`);
 }
 if (relationships) {
   const ids = new Set();
@@ -680,7 +756,9 @@ if (manifest) {
   const actual = { cases: cases.size, bills: bills.size, relationships: relationships?.relationships.length ?? 0, events: events?.events.length ?? 0, geographicUnits: geoKeys.size };
   for (const [key, value] of Object.entries(actual)) if (manifest.counts[key] !== value) fail(`manifest.json: counts.${key} is ${manifest.counts[key]}, the data holds ${value}`);
   // The parts of the two totals, which the overview shows.
-  const parts = { supremeCourtCases: cases.size - appealsCases.length, appealsCourtCases: appealsCases.length, stateBills: bills.size - federalBills.length, federalBills: federalBills.length };
+  const decisionCases = [...cases.values()].filter((record) => S.DECISION_CASE_ID_PATTERN.test(record.id)).length;
+  const parts = { supremeCourtCases: cases.size - appealsCases.length - decisionCases, appealsCourtCases: appealsCases.length, districtAndStateCourtCases: decisionCases,
+    stateBills: bills.size - federalBills.length, federalBills: federalBills.length };
   for (const [key, value] of Object.entries(parts)) if (manifest.counts[key] !== value) fail(`manifest.json: counts.${key} is ${manifest.counts[key]}, the data holds ${value}`);
   for (const id of Object.keys(manifest.sources)) if (!sourceIds.has(id)) fail(`manifest.json: status for unknown source ${id}`);
   for (const id of sourceIds) if (!manifest.sources[id]) fail(`manifest.json: no status for source ${id}`);
