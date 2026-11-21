@@ -15,10 +15,17 @@ export function billLabel(bill: Named): string {
   return isFederalBill(bill) ? bill.identifier : `${bill.stateAbbr} ${bill.identifier}`;
 }
 
+/**
+ * The state of a state bill as a text names it: "California" for the one legislature in the dataset. A bill of any
+ * other state is named by the state's own abbreviation, never as California's.
+ */
+export function stateLabel(bill: Named): string {
+  return bill.stateAbbr === 'CA' ? 'California' : bill.stateAbbr;
+}
+
 /** The measure as a heading names it: "H.R. 22" for a measure of Congress, "California AB 604" for a state bill. */
 export function billHeading(bill: Named): string {
-  if (isFederalBill(bill)) return bill.identifier;
-  return `${bill.stateAbbr === 'CA' ? 'California' : bill.stateAbbr} ${bill.identifier}`;
+  return isFederalBill(bill) ? bill.identifier : `${stateLabel(bill)} ${bill.identifier}`;
 }
 
 /** "119th Congress" from "119th Congress (2025–2026)". A state's session is given as the legislature names it. */

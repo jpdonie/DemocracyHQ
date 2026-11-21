@@ -2,7 +2,8 @@
  * The federal level and the courts: the page for the United States, the courts overview, a court of appeals, a case of
  * a court of appeals with a tag a maintainer removed, a measure of Congress, and the two selectors on the map.
  */
-import { axeViolations, expect, heading, open, test } from './fixtures';
+import type { Route } from '@playwright/test';
+import { axeViolations, dataFile, expect, expectOnly, heading, open, test } from './fixtures';
 
 const POLELLE = 'ca11-22-14031'; // Polelle v. Florida Secretary of State: two tags removed under rule tag-removal-1
 const SAVE_ACT = 'us-119-hr22';
@@ -72,6 +73,46 @@ test.describe('Courts', () => {
     await courts.getByRole('radio', { name: 'Supreme Court', exact: true }).click();
     await expect(page).toHaveURL(/#\/court\/scotus/);
     await expect(heading(page)).toHaveText('Supreme Court of the United States');
+  });
+
+  test('the arrow keys go through all six choices of the map, and focus stays on the control', async ({ page }) => {
+    await open(page, '#/');
+    const control = page.locator('.layer-control');
+    const radio = (name: string) => control.getByRole('radio', { name, exact: true });
+    await radio('States').focus();
+    // Each choice opens its own view; a reader going through them is not taken out of the control.
+    for (const [name, address, title] of [
+      ['Counties', /layer=county/, null],
+      ['Districts', /layer=cd120/, null],
+      ['Supreme Court', /#\/court\/scotus/, 'Supreme Court of the United States'],
+      ['Circuits', /#\/courts/, 'Federal courts'],
+      ['Federal', /#\/place\/nation:US/, 'United States'],
+    ] as const) {
+      await page.keyboard.press('ArrowRight');
+      await expect(radio(name)).toBeChecked();
+      await expect(page).toHaveURL(address);
+      if (title) await expect(heading(page)).toHaveText(title);
+      await expect(radio(name)).toBeFocused();
+    }
+  });
+
+  test('an address that names no case marks no court on the map', async ({ page, problems }) => {
+    await open(page, '#/litigation/bogus');
+    await expect(heading(page)).toHaveText('Court case not found');
+    const control = page.locator('.layer-control');
+    await expect(control.getByRole('radio', { name: 'Supreme Court', exact: true })).not.toBeChecked();
+    await expect(control.getByRole('radio', { name: 'States', exact: true })).toBeChecked();
+    expectOnly(problems, 'litigation/cases/bogus.json', 404);
+  });
+
+  test('a pairing with a Supreme Court docket that could not be loaded is said, not left out', async ({ page, problems }) => {
+    await page.route(dataFile('relationships.json'), (route: Route) => route.fulfill({ status: 503, contentType: 'text/plain', body: 'Service unavailable' }));
+    // Paired with Supreme Court docket 24-1260 by rule case-below-1 when the file loads.
+    await open(page, '#/litigation/ca5-24-60395');
+    await expect(page.locator('main')).toContainText('In the Supreme Court');
+    await expect(page.locator('main')).toContainText('Could not be loaded: the file of links between records failed to load');
+    await expect(page.locator('main')).not.toContainText('Whether a decision was later reheard, vacated or reviewed is not recorded here.');
+    expectOnly(problems, 'relationships.json', 503);
   });
 
   test('a court of appeals page names its states from the statute and says what was read', async ({ page }) => {

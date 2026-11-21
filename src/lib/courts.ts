@@ -38,9 +38,13 @@ export function isCourtId(value: string | undefined): boolean {
   return value === SCOTUS_ID || isAppealsCourtId(value);
 }
 
-/** The court a case is in, from its id: "ca5" for ca5-25-30725. Every other published case is a Supreme Court docket. */
-export function courtIdOfCase(caseId: string): string {
-  return CIRCUIT_CASE_ID_PATTERN.test(caseId) ? caseId.slice(0, caseId.indexOf('-')) : SCOTUS_ID;
+/**
+ * The court a case is in, from its id: "ca5" for ca5-25-30725, the Supreme Court for scotus-24-109. An id of neither
+ * form (a mistyped address) names no court.
+ */
+export function courtIdOfCase(caseId: string): string | null {
+  if (CIRCUIT_CASE_ID_PATTERN.test(caseId)) return caseId.slice(0, caseId.indexOf('-'));
+  return caseId.startsWith(`${SCOTUS_ID}-`) ? SCOTUS_ID : null;
 }
 
 /** Whether a case's court passes the court filter: one court by its id, or "appeals" for any court of appeals. */

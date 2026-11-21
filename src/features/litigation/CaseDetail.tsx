@@ -210,11 +210,17 @@ function IssueTags({ record }: { record: LegalCase }) {
   );
 }
 
-/** The pairings of rule case-below-1 that this case is one side of. */
-function useCaseLinks(caseId: string): CaseLink[] {
+/** The pairings of rule case-below-1 that this case is one side of, and whether the file that holds them failed to load. */
+function useCaseLinks(caseId: string): { pairs: CaseLink[]; failed: boolean } {
   const core = useCore();
-  return (dataOf(core.caseLinks) ?? []).filter((link) => link.review.caseId === caseId || link.below.caseId === caseId);
+  return {
+    pairs: (dataOf(core.caseLinks) ?? []).filter((link) => link.review.caseId === caseId || link.below.caseId === caseId),
+    failed: core.caseLinks.status === 'error',
+  };
 }
+
+/** What a page says in place of a pairing when the file of pairings failed to load: a missing row would read as "none". */
+const PAIRING_NOT_LOADED = 'Could not be loaded: the file of links between records failed to load, so this page cannot say whether there is one.';
 
 function CaseBody(props: { record: LegalCase; route: Route; links: Loadable<EntityRelationship[]> }) {
   return props.record.courtId === SCOTUS_ID ? <SupremeBody {...props} /> : <AppealBody {...props} />;
@@ -222,7 +228,7 @@ function CaseBody(props: { record: LegalCase; route: Route; links: Loadable<Enti
 
 function SupremeBody({ record, route, links }: { record: LegalCase; route: Route; links: Loadable<EntityRelationship[]> }) {
   const core = useCore();
-  const below = useCaseLinks(record.id);
+  const { pairs: below, failed: pairsFailed } = useCaseLinks(record.id);
   const sources = dataOf(core.sources) ?? [];
   const source = sources.find((s) => s.id === record.sourceId);
   const showAll = route.query.entries === 'all';
@@ -292,9 +298,10 @@ function SupremeBody({ record, route, links }: { record: LegalCase; route: Route
               : 'Not recorded on the docket'],
           ]}
         />
-        {below.length > 0 || record.linkedNote || record.relatedDockets.length > 0 || record.sameLowerCourt.length > 0 ? (
+        {below.length > 0 || pairsFailed || record.linkedNote || record.relatedDockets.length > 0 || record.sameLowerCourt.length > 0 ? (
           <Facts
             items={[
+              ...(pairsFailed ? [['The case below, in this dataset', PAIRING_NOT_LOADED] as [string, ReactNode]] : []),
               ...(below.length ? [['The case below, in this dataset', (
                 <span key="below">{below.map((link, i) => (
                   <span key={link.id}>
@@ -480,7 +487,7 @@ function WhyListed({ record, documents }: { record: LegalCase; documents: Readon
 
 function AppealBody({ record, route, links }: { record: LegalCase; route: Route; links: Loadable<EntityRelationship[]> }) {
   const core = useCore();
-  const reviews = useCaseLinks(record.id);
+  const { pairs: reviews, failed: pairsFailed } = useCaseLinks(record.id);
   const geo = dataOf(core.geo);
   const court = dataOf(core.courts)?.get(record.courtId);
   const sources = dataOf(core.sources) ?? [];
@@ -549,6 +556,7 @@ function AppealBody({ record, route, links }: { record: LegalCase; route: Route;
                 </span>
               ))}. Found by comparing the texts of the opinions (rule <A to={buildHash(['sources'], { section: 'rules' })}>same-opinion-1</A>).</span>
             )] as [string, ReactNode]] : []),
+            ...(pairsFailed ? [['In the Supreme Court', PAIRING_NOT_LOADED] as [string, ReactNode]] : []),
             ...(reviews.length > 0 ? [['In the Supreme Court', (
               <span key="review">{reviews.map((link, i) => (
                 <span key={link.id}>
@@ -560,7 +568,9 @@ function AppealBody({ record, route, links }: { record: LegalCase; route: Route;
         />
         <GapNotice>
           This is not the court&rsquo;s full docket. GovInfo holds the documents a court sends to the Government Publishing Office, mostly opinions.
-          {reviews.length > 0 ? ' What happened to the case after its latest document is recorded here only as far as the linked Supreme Court docket shows it.' : ' Whether a decision was later reheard, vacated or reviewed is not recorded here.'}
+          {reviews.length > 0 ? ' What happened to the case after its latest document is recorded here only as far as the linked Supreme Court docket shows it.'
+            : pairsFailed ? ' Whether a Supreme Court docket in this dataset names this case could not be loaded. Whether a decision was later reheard or vacated is not recorded here.'
+            : ' Whether a decision was later reheard, vacated or reviewed is not recorded here.'}
         </GapNotice>
       </Section>
 

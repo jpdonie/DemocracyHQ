@@ -1,7 +1,7 @@
 /** The federal level: the names and ids of the courts, the labels and stages of measures of Congress, and removed tags. */
 import { describe, expect, it } from 'vitest';
 import {
-  FEDERAL_STAGES, PASSED_IN_EACH_STAGES, billHeading, billJurisdiction, billLabel, billLabelFromId, billLabelWithSession, identifierVariants, isAdoptedMeasure,
+  FEDERAL_STAGES, PASSED_IN_EACH_STAGES, stateLabel, billHeading, billJurisdiction, billLabel, billLabelFromId, billLabelWithSession, identifierVariants, isAdoptedMeasure,
   isFederalBill, shortSession, stageRank, statusNoun,
 } from '../../src/lib/bills';
 import {
@@ -24,8 +24,9 @@ describe('the courts', () => {
     expect(isAppealsCourtId('scotus')).toBe(false);
   });
 
-  it('reads the court from a case id, and takes every other case for a Supreme Court docket', () => {
-    expect([courtIdOfCase('ca5-25-30725'), courtIdOfCase('cadc-24-07050'), courtIdOfCase('scotus-24-109')]).toEqual(['ca5', 'cadc', 'scotus']);
+  it('reads the court from a case id, and names no court for an id of neither form', () => {
+    expect([courtIdOfCase('ca5-25-30725'), courtIdOfCase('cadc-24-07050'), courtIdOfCase('scotus-24-109'), courtIdOfCase('scotus-23a449')]).toEqual(['ca5', 'cadc', 'scotus', 'scotus']);
+    expect([courtIdOfCase('bogus'), courtIdOfCase('scotus'), courtIdOfCase('')]).toEqual([null, null, null]);
     expect(matchesCourt('ca9', 'appeals') && matchesCourt('ca9', 'ca9') && !matchesCourt('scotus', 'appeals') && !matchesCourt('ca9', 'ca5')).toBe(true);
   });
 
@@ -58,6 +59,8 @@ describe('measures of Congress', () => {
     expect([isFederalBill(federal), isFederalBill(state)]).toEqual([true, false]);
     expect([billLabel(federal), billLabel(state)]).toEqual(['H.R. 9001', 'CA AB 604']);
     expect([billHeading(federal), billHeading(state)]).toEqual(['H.R. 9001', 'California AB 604']);
+    // A bill of another state is named by that state's abbreviation, never as California's.
+    expect([stateLabel(state), stateLabel({ ...state, stateAbbr: 'NY' }), billHeading({ ...state, stateAbbr: 'NY' })]).toEqual(['California', 'NY', 'NY AB 604']);
     expect([billJurisdiction(federal), billJurisdiction(state)]).toEqual(['us', 'ca']);
     expect(billLabelWithSession(federal)).toBe('H.R. 9001, 119th Congress');
     expect(shortSession('2025-2026 Regular Session')).toBe('2025-2026 Regular Session');
