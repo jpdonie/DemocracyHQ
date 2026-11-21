@@ -1,5 +1,5 @@
 {
- "contentHash": "3744148c52dcd051867162e694779f5d50538eaf1b691d9294c5daf8d49525b1",
+ "contentHash": "6c09dc3a16cab51b810fedfceb661843f51b4098768033fac19bd945bc0aed36",
  "counts": {
   "appealsCourtCases": 128,
   "bills": 405,
@@ -11,19 +11,19 @@
   "stateBills": 132,
   "supremeCourtCases": 25
  },
- "generatedAt": "2026-11-21T12:46:07Z",
+ "generatedAt": "2026-11-21T17:38:34Z",
  "reviewQueue": {
   "byKind": {
-   "new_selection": 1,
+   "secondary_import": 150,
    "text_version_note": 1
   },
-  "items": 2
+  "items": 151
  },
  "schemaVersion": 1,
  "sources": {
   "ca-leginfo-bulk": {
-   "lastAttempt": "2026-11-21T12:46:07Z",
-   "lastSuccessfulCheck": "2026-11-21T12:46:07Z",
+   "lastAttempt": "2026-11-21T17:38:34Z",
+   "lastSuccessfulCheck": "2026-11-21T17:38:34Z",
    "processingStatus": "ok"
   },
   "census-cb-2025": {
@@ -52,18 +52,18 @@
    "processingStatus": "ok"
   },
   "courtlistener-api": {
-   "lastAttempt": "2026-11-20T22:05:28Z",
-   "lastSuccessfulCheck": null,
-   "processingStatus": "credential_missing"
+   "lastAttempt": "2026-11-21T17:38:34Z",
+   "lastSuccessfulCheck": "2026-11-21T17:38:34Z",
+   "processingStatus": "ok"
   },
   "govinfo-bills": {
-   "lastAttempt": "2026-11-21T12:46:07Z",
-   "lastSuccessfulCheck": "2026-11-21T12:46:07Z",
+   "lastAttempt": "2026-11-21T17:38:34Z",
+   "lastSuccessfulCheck": "2026-11-21T17:38:34Z",
    "processingStatus": "ok"
   },
   "govinfo-billstatus": {
-   "lastAttempt": "2026-11-21T12:46:07Z",
-   "lastSuccessfulCheck": "2026-11-21T12:46:07Z",
+   "lastAttempt": "2026-11-21T17:38:34Z",
+   "lastSuccessfulCheck": "2026-11-21T17:38:34Z",
    "processingStatus": "ok"
   },
   "govinfo-uscode": {
@@ -72,18 +72,18 @@
    "processingStatus": "ok"
   },
   "govinfo-uscourts": {
-   "lastAttempt": "2026-11-21T12:46:07Z",
-   "lastSuccessfulCheck": "2026-11-21T12:46:07Z",
+   "lastAttempt": "2026-11-21T17:38:34Z",
+   "lastSuccessfulCheck": "2026-11-21T17:38:34Z",
    "processingStatus": "ok"
   },
   "openstates-api": {
-   "lastAttempt": "2026-11-20T22:05:28Z",
-   "lastSuccessfulCheck": null,
-   "processingStatus": "credential_missing"
+   "lastAttempt": "2026-11-21T17:38:34Z",
+   "lastSuccessfulCheck": "2026-11-21T17:38:34Z",
+   "processingStatus": "ok"
   },
   "scotus-docket": {
-   "lastAttempt": "2026-11-21T12:46:07Z",
-   "lastSuccessfulCheck": "2026-11-21T12:46:07Z",
+   "lastAttempt": "2026-11-21T17:38:34Z",
+   "lastSuccessfulCheck": "2026-11-21T17:38:34Z",
    "processingStatus": "ok"
   }
  }
