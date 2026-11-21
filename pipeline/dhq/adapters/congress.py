@@ -645,6 +645,16 @@ def listed_versions(record: dict) -> tuple[List[dict], List[str]]:
         listed.append({**version, "package": package})
     code = lambda v: _PACKAGE_RE.match(v["package"])["version"]  # noqa: E731
     listed.sort(key=lambda v: (v["date"], _VERSION_ORDER.index(code(v)) if code(v) in _VERSION_ORDER else len(_VERSION_ORDER), v["package"]))
+    # A version whose code the order above does not hold is placed after the others of its day. That place is a guess
+    # when it shares the day with another version, and the latest version names the stage of the text and is the one
+    # the earlier text is compared with: a maintainer is told.
+    per_day: Dict[str, int] = {}
+    for version in listed:
+        per_day[version["date"]] = per_day.get(version["date"], 0) + 1
+    for version in listed:
+        if code(version) not in _VERSION_ORDER and per_day[version["date"]] > 1:
+            notes.append(f"text version {version['label'] or 'without a name'!r} ({version['package']}) has a version code the order of "
+                         "versions does not hold and shares its date with another version; its place among the versions of that day is not certain")
     return listed, notes
 
 

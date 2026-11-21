@@ -40,6 +40,12 @@ appeals that began in a federal district court there.
   fails when the site's own list differs from it.
 - **Issue tags** come from the same keyword rules as for California, applied to the
   titles and the CRS summary.
+- **Order of text versions.** Versions are ordered by their date, and those of one
+  day by the step their code stands for (introduced, reported, engrossed, ...). A
+  version whose code that order does not hold is placed last among those of its
+  day, and when it shares the day with another version the run flags it for a
+  maintainer, because the latest version names the stage of the text and is the one
+  earlier texts are compared with. No published version has such a code today.
 
 ## Court of appeals cases
 

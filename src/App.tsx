@@ -252,7 +252,7 @@ function Shell() {
     // The Supreme Court sits over the whole country; a court of appeals over its circuit; the Federal Circuit has no area.
     if (view.name === 'court') return known([view.id === SCOTUS_ID ? NATION_KEY : courtGeoKey(view.id)]);
     if (view.name === 'case') {
-      if (isAppealsCaseId(view.id)) return known([courtGeoKey(courtIdOfCase(view.id))]);
+      if (isAppealsCaseId(view.id)) return known([courtGeoKey(courtIdOfCase(view.id) ?? '')]);
       if (!relationships) return [];
       return known(relationshipsForRecord('case', view.id, relationships).filter((r) => r.target.type === 'geography').map((r) => r.target.id));
     }
@@ -408,7 +408,11 @@ function Shell() {
     panel.scrollTo({ top: 0 });
     // On a very short screen the page itself scrolls.
     if (window.scrollY > 0) window.scrollTo({ top: 0 });
-    return focusHeadingWhenShown(panel, moveStartedOn());
+    // A move made with the map's own control leaves focus on it, so a reader going through its choices with the
+    // arrow keys can keep going. The choice itself says what is shown now.
+    const startedOn = moveStartedOn();
+    if (startedOn?.closest('.layer-control')) return undefined;
+    return focusHeadingWhenShown(panel, startedOn);
     // Only the path matters here; filter changes must not move focus.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathKey]);

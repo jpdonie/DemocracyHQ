@@ -1,6 +1,6 @@
 import { useId, useMemo, useRef } from 'react';
 import type { LegislativeInstrumentSummary } from '../../types/schemas';
-import { PASSED_IN_EACH_LIST_NOTE, PASSED_IN_EACH_SHORT, PASSED_IN_EACH_STAGES, billJurisdiction, billLabel, isFederalBill, shortSession, statusNoun } from '../../lib/bills';
+import { PASSED_IN_EACH_LIST_NOTE, PASSED_IN_EACH_SHORT, PASSED_IN_EACH_STAGES, billJurisdiction, billLabel, isFederalBill, shortSession, stateLabel, statusNoun } from '../../lib/bills';
 import { passageDeadlineNote, pendingAfterDeadline } from '../../lib/caSession';
 import { useCore, type BillCatalog } from '../../lib/core';
 import { countBy, filterBills, knownBillFilters, type BillFilters } from '../../lib/filters';
@@ -40,7 +40,7 @@ export function BillRow({ bill, labels }: { bill: LegislativeInstrumentSummary; 
       <a className="row-title" href={buildHash(['laws', bill.id])}>
         <span className="bill-id">{billLabel(bill)}</span> {bill.subject ?? bill.title ?? 'No subject recorded'}
       </a>
-      <p className="row-meta">{bill.measureType}, {isFederalBill(bill) ? shortSession(bill.session) : `California, ${bill.session}`}</p>
+      <p className="row-meta">{bill.measureType}, {isFederalBill(bill) ? shortSession(bill.session) : `${stateLabel(bill)}, ${bill.session}`}</p>
       <p className="row-line">
         {statusNoun(bill)}: {statusLine(bill)}
         {isFederalBill(bill) && PASSED_IN_EACH_STAGES.has(currentStatus(bill)) ? <span className="quiet"> ({PASSED_IN_EACH_SHORT})</span> : null}

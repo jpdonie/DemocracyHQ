@@ -342,6 +342,19 @@ def test_a_version_the_record_lists_without_a_text_address_is_left_out_and_noted
     assert notes == ["text version 'Enrolled Bill' has no usable XML address or date in the status record; it is not listed"]
 
 
+def test_a_version_with_an_unknown_code_that_shares_its_day_is_noted():
+    shared = fed.status_record("hr", 22, title="Synthetic Voter Eligibility Act", official=OFFICIAL,
+                               versions=[("Public Print", "2025-04-10", "pp"), ("Engrossed in House", "2025-04-10", "eh"),
+                                         ("Introduced in House", "2025-01-03", "ih")])
+    listed, notes = congress.listed_versions(_entry(shared)["record"])
+    assert [version["package"] for version in listed] == ["BILLS-119hr22ih", "BILLS-119hr22eh", "BILLS-119hr22pp"]
+    assert len(notes) == 1 and "BILLS-119hr22pp" in notes[0] and "is not certain" in notes[0]
+    # On a day of its own its place is known from the date, and nothing is noted.
+    alone = fed.status_record("hr", 22, title="Synthetic Voter Eligibility Act", official=OFFICIAL,
+                              versions=[("Public Print", "2025-04-11", "pp"), ("Engrossed in House", "2025-04-10", "eh")])
+    assert congress.listed_versions(_entry(alone)["record"])[1] == []
+
+
 def test_a_text_address_of_another_measure_is_never_followed():
     data = fed.status_record("hr", 22, title="Synthetic Voter Eligibility Act", official=OFFICIAL,
                              versions=[("Introduced in House", "2025-01-03", "ih")]).replace(b"BILLS-119hr22ih", b"BILLS-119hr23ih")
