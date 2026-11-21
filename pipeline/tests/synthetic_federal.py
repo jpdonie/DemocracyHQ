@@ -120,6 +120,46 @@ def other_opinion(heading: str = "", sentences: int = 30) -> str:
     return heading + OTHER_SENTENCE * sentences
 
 
+#: The paragraph a synthetic opinion opens with, as the rule for opening passages should quote it.
+OPENING = ("The Synthetic Voters League appeals the district court's dismissal of its challenge to the county's rule on "
+           "late absentee ballots. We hold that the League has standing and reverse the judgment of the district court.")
+
+
+def opinion_with_opening(body: str, opening: str = OPENING) -> str:
+    """An opinion set as a court sets one: the panel, the author, the opening paragraph, a heading, then ``body``.
+
+    Lines are short, as on a page, and a paragraph begins with a tab (an indented line in :func:`layout_of`).
+    """
+    def wrapped(paragraph: str) -> str:
+        words, lines, line = paragraph.split(), [], ""
+        for word in words:
+            if line and len(line) + 1 + len(word) > 72:
+                lines.append(line)
+                line = word
+            else:
+                line = f"{line} {word}".strip()
+        return "\t" + "\n".join([*lines, line])
+
+    return "\n".join(["Before ALPHA, BETA, and GAMMA, Circuit Judges.", "ALPHA, Circuit Judge:", wrapped(opening), "I. BACKGROUND", wrapped(body)]) + "\n"
+
+
+def layout_of(data: bytes) -> str:
+    """The layout of a synthetic "PDF" that is plain text, in the form of poppler's ``pdftohtml -xml``: a page for each
+    form feed, a piece of text for each line, and a line that starts with a tab indented."""
+    pages = []
+    for number, page in enumerate(data.decode("utf-8").split("\f"), start=1):
+        rows, top = [], 100
+        for line in page.split("\n"):
+            text = line.strip()
+            if text:
+                left = 130 if line.startswith("\t") else 100
+                rows.append(f'<text top="{top}" left="{left}" width="{len(text) * 7}" height="18" font="0">{escape(text)}</text>')
+            top += 22
+        pages.append(f'<page number="{number}" position="absolute" top="0" left="0" height="1188" width="918">\n'
+                     '<fontspec id="0" size="16" family="Times" color="#000000"/>\n' + "\n".join(rows) + "\n</page>")
+    return '<?xml version="1.0" encoding="UTF-8"?>\n<pdf2xml>\n' + "\n".join(pages) + "\n</pdf2xml>\n"
+
+
 def document(sequence: int, date: str, entry: str, *, url: bool = True) -> dict:
     return {"sequence": sequence, "date": date, "entry": entry, "url": url}
 

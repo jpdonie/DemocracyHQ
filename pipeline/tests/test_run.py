@@ -87,6 +87,11 @@ def test_first_run_publishes_validated_records(env):
     case = env.read("litigation/cases/scotus-99-0001.json")
     assert case["entryCount"] == 4 and case["stateFips"] == ["06"]
     assert case["questionsPresented"]["text"] == QP_1
+    # What the case is about: the Court's question, quoted, in the list and in the record.
+    assert case["about"] == index[1]["about"] == {
+        "text": "Whether the State of California's congressional districting plan, enacted as Synthetic Bill 9, is lawful.",
+        "source": "question-presented", "url": case["questionsPresented"]["url"], "date": None, "cut": False, "of": None, "document": None,
+        "ruleId": "about-question-1"}
     assert [t["tag"] for t in case["issueTags"]] == ["redistricting"]
     assert case["issueTags"][0]["matchedField"] == "questions presented"
     assert env.read("manifest.json")["counts"] == {
@@ -310,8 +315,8 @@ def test_published_rule_ids_cover_every_rule_cited_by_the_data(env):
     known = {r["ruleId"] for group in ("issueRules", "docketEntryRules", "legislativeActionRules", "otherRules") for r in rules[group]} | {"sc-other"}
     cited = {e["ruleId"] for e in env.read("events.json")["events"]} | {r["ruleId"] for r in env.read("relationships.json")["relationships"]}
     for case in env.read("litigation/index.json")["cases"]:
-        cited |= {t["ruleId"] for t in case["issueTags"]}
-    assert cited <= known
+        cited |= {t["ruleId"] for t in case["issueTags"]} | {case["about"]["ruleId"]}
+    assert cited <= known and "about-question-1" in cited
 
 
 # --- idempotence and timestamps -------------------------------------------------------
@@ -835,6 +840,11 @@ def test_legislation_run_publishes_selected_bills_with_mirrored_text(env, sessio
     assert index["selection"]["ruleId"] == "ca-select-2" and index["selection"]["totalBillsInSession"] == 5
     bill = env.read("legislation/bills/ca-20252026-ab1.json")
     assert bill["selection"] == {"ruleId": "ca-select-2", "matchedText": "Elections", "matchedField": "official subject line (latest version)"}
+    # The list carries the words the rule matched and what the bill would do, quoted from the Legislative Counsel's Digest.
+    listed = next(b for b in index["bills"] if b["id"] == bill["id"])
+    assert listed["selection"] == bill["selection"] and listed["about"] == bill["about"]
+    assert (bill["about"]["source"], bill["about"]["ruleId"], bill["about"]["url"]) == ("digest", "about-digest-1", bill["officialUrl"])
+    assert bill["about"]["text"] in " ".join(bill["digest"].split())
     assert all(t["ruleId"] and t["matchedField"] and t["matchedText"] for t in bill["issueTags"])
     for version in bill["versions"]:
         text = env.read(version["textPath"])

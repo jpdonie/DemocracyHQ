@@ -119,7 +119,9 @@ installs and runs packages.
    for, without keeping the token, and records which commit that is.
 2. It installs the npm packages without their install scripts, the pipeline's
    Python packages from the hash-locked `pipeline/requirements-lock.txt`
-   (`pip install --require-hashes --only-binary=:all:`), and `pdftotext`.
+   (`pip install --require-hashes --only-binary=:all:`), and poppler-utils
+   (`pdftotext` for the text of court documents, `pdftohtml` for the layout of
+   an opinion's first pages).
 3. It restores this week's cache of downloaded source files and the review queue
    of the last committed run (see below), and prints a warning if no earlier
    review queue was found.

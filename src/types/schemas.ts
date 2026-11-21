@@ -195,6 +195,29 @@ export type CaseOrigin = z.infer<typeof CaseOriginSchema>;
 /** Another case in the dataset that the court decided in the same opinion (rule same-opinion-1). */
 export const DecidedWithSchema = z.object({ caseId: z.string(), caseName: z.string(), docket: z.string() });
 
+/** The official texts a record's "about" line may be quoted from. */
+export const ABOUT_SOURCES = ['crs-summary', 'official-title', 'digest', 'question-presented', 'cited-passage', 'docket-entry', 'opinion'] as const;
+/**
+ * What a record is about, in the words of an official text. It is a quotation taken by a published rule (about-*),
+ * never a summary written for this site: `source` says which text is quoted and `url` where it is published.
+ */
+export const AboutTextSchema = z.object({
+  text: z.string().min(20).max(700),
+  source: z.enum(ABOUT_SOURCES),
+  url: httpsUrl.nullable().optional(),
+  /** The date of the quoted text, where it has one of its own (a summary, a docket entry, an opinion). */
+  date: isoDate.nullable().optional(),
+  /** True when the quotation stops inside a sentence; it is then shown with an ellipsis. */
+  cut: z.boolean().default(false),
+  /** For a Question Presented quoted as the first of several: how many there are. */
+  of: z.number().int().min(2).nullable().optional(),
+  /** For a cited passage: which document of the docket it is from, and whose words it is. */
+  document: z.string().nullable().optional(),
+  ruleId: z.string(),
+});
+export type AboutText = z.infer<typeof AboutTextSchema>;
+export const TermCountSchema = z.object({ term: z.string(), count: z.number().int() });
+
 /**
  * Why a court of appeals case is in the dataset: the selection rule, the tests of it that the case met ("record",
  * "long", "dense", "party") and what the rule counted in the opinion it rests on.
@@ -211,7 +234,7 @@ export const CaseSelectionSchema = z.object({
   phraseMatches: z.number().int().nullable().optional(),
   /** Election words per 1,000 words of the document. */
   density: z.number().nullable().optional(),
-  phrases: z.array(z.object({ term: z.string(), count: z.number().int() })).default([]),
+  phrases: z.array(TermCountSchema).default([]),
   /** For the "party" test: the party, or the case title, that names an election authority. */
   party: z.string().nullable().optional(),
 });
@@ -249,6 +272,13 @@ export const LegalCaseSummarySchema = z.object({
   natureOfSuit: z.string().nullable().optional(),
   /** Court of appeals decisions only: other cases in the dataset decided in the same opinion. */
   decidedWith: z.array(DecidedWithSchema).default([]),
+  /** What the case is about, quoted from the Question Presented, a document of the docket or the opening of the opinion. */
+  about: AboutTextSchema.nullable().optional(),
+  /**
+   * Court of appeals decisions only: the election phrases the selection rule found most often in the opinion it rests
+   * on (at most four). They show why the case is listed.
+   */
+  matchedTerms: z.array(TermCountSchema).optional(),
   sourceUrl: httpsUrl,
   sourceId: z.string(),
   sourcePublishedAt: z.string().nullable().optional(),
@@ -354,6 +384,18 @@ export const ChapterSchema = z.object({
   citation: z.string().nullable().optional(),
 });
 
+/**
+ * Why a measure is in the dataset: the selection rule and the words it matched. A measure of Congress also says which
+ * test of the rule it met ("named", "general" or "other") and the title the words stand in.
+ */
+export const BillSelectionSchema = z.object({
+  ruleId: z.string(),
+  matchedText: z.string(),
+  matchedField: z.string(),
+  test: z.string().optional(),
+  matchedTitle: z.string().optional(),
+});
+
 export const LegislativeInstrumentSummarySchema = z.object({
   id: z.string(),
   state: z.string().length(2),
@@ -371,6 +413,10 @@ export const LegislativeInstrumentSummarySchema = z.object({
   lastActionText: z.string().nullable().optional(),
   versionCount: z.number().int().nonnegative(),
   issueTags: z.array(IssueTagSchema),
+  /** What the measure would do, quoted from its official summary, digest or title. */
+  about: AboutTextSchema.nullable().optional(),
+  /** Why the measure is listed: the words of its title or subject line that the selection rule matched. */
+  selection: BillSelectionSchema.optional(),
   officialUrl: httpsUrl,
   sourceId: z.string(),
   firstObservedAt: isoDateTime,
@@ -433,18 +479,6 @@ export const RelatedMeasureSchema = z.object({
   officialUrl: httpsUrl.nullable().optional(),
 });
 export type RelatedMeasure = z.infer<typeof RelatedMeasureSchema>;
-
-/**
- * Why a measure is in the dataset: the selection rule and the words it matched. A measure of Congress also says which
- * test of the rule it met ("named", "general" or "other") and the title the words stand in.
- */
-export const BillSelectionSchema = z.object({
-  ruleId: z.string(),
-  matchedText: z.string(),
-  matchedField: z.string(),
-  test: z.string().optional(),
-  matchedTitle: z.string().optional(),
-});
 
 export const LegislativeInstrumentSchema = PublishedBillSummarySchema.extend({
   digest: z.string().nullable().optional(),

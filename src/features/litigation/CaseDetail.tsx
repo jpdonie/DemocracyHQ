@@ -11,6 +11,7 @@ import { relationshipsForRecord } from '../../lib/relations';
 import { buildHash, patchQuery, shareUrl, type Route } from '../../lib/router';
 import { isPlainClick, revealElement, useRaiseSheet } from '../../lib/sheet';
 import { dataOf, mapLoadable, useLoad, type Loadable } from '../../lib/useLoad';
+import { AboutBlock } from '../../components/About';
 import {
   A, Async, BackLink, CopyLinkButton, ErrorNote, ExportMenu, Ext, Facts, GapNotice, LinkVerification, Loading, Section, Segmented, SourceLine, TableScroll, TypeMark, WatchButton,
 } from '../../components/ui';
@@ -267,6 +268,7 @@ function SupremeBody({ record, route, links }: { record: LegalCase; route: Route
         <TypeMark type="case" />
         <h1 tabIndex={-1} className={caseNameClass(record.caseName)}>{record.caseName}</h1>
         <p className="lede">No. {record.docketNumber}, Supreme Court of the United States</p>
+        <AboutBlock about={record.about} type="case" />
         <div className="btn-row">
           <WatchButton item={{ type: 'case', id: record.id, label: `${record.caseName}, No. ${record.docketNumber}` }} />
           <CopyLinkButton hash={buildHash(['litigation', record.id], route.query)} />
@@ -516,6 +518,7 @@ function AppealBody({ record, route, links }: { record: LegalCase; route: Route;
         <TypeMark type="case" />
         <h1 tabIndex={-1} className={caseNameClass(record.caseName)}>{record.caseName}</h1>
         <p className="lede">No. {record.docketNumber}, <a href={courtHash(record.courtId)}>{courtFullName(court, record.courtId)}</a></p>
+        <AboutBlock about={record.about} terms={(record.selection?.phrases ?? []).map((item) => item.term)} type="case" />
         <div className="btn-row">
           <WatchButton item={{ type: 'case', id: record.id, label: `${record.caseName}, No. ${record.docketNumber} (${courtShortName(court, record.courtId)})` }} />
           <CopyLinkButton hash={buildHash(['litigation', record.id], route.query)} />

@@ -14,6 +14,7 @@ import { eventLabel } from '../../lib/labels';
 import { NATION_KEY } from '../../lib/geo';
 import { buildHash, patchQuery, shareUrl, type Route } from '../../lib/router';
 import { dataOf, type Loadable } from '../../lib/useLoad';
+import { AboutBlock } from '../../components/About';
 import { A, CopyLinkButton, ExportMenu, Ext, Facts, Section, Segmented, SourceLine, TypeMark, WatchButton } from '../../components/ui';
 import { latestTextLine, statusLine } from './BillDirectory';
 import { CourtsCell, LinkedMeasuresAndPlaces, ListedAndTags, TextVersions, linkedCasesOf } from './billParts';
@@ -93,6 +94,8 @@ export function FederalBillBody({ bill, route, links }: { bill: LegislativeInstr
           {sponsors.length > 0 ? `. Sponsor: ${sponsors.join('; ')}` : ''}
           {bill.cosponsorCount ? `, with ${plural(bill.cosponsorCount, 'cosponsor')}` : ''}
         </p>
+        {/* The official title already stands above; only the summary of the Congressional Research Service adds to it. */}
+        {bill.about?.source === 'crs-summary' ? <AboutBlock about={bill.about} terms={bill.selection?.matchedText ? [bill.selection.matchedText] : []} type="bill" /> : null}
         <div className="btn-row">
           <WatchButton item={{ type: 'bill', id: bill.id, label: `${label}: ${bill.subject ?? bill.title ?? ''}` }} />
           <CopyLinkButton hash={buildHash(['laws', bill.id], route.query)} />

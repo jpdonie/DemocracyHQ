@@ -56,7 +56,8 @@ test.describe('Links within a page', () => {
 test.describe('Court case wording', () => {
   test('the judgment is named apart from later orders', async ({ page }) => {
     await open(page, `#/litigation/${CASE.id}`);
-    const caption = page.locator('figcaption');
+    // The page of a case has two figures: the quotation at its head, and the ruling entry quoted from the docket.
+    const caption = page.locator('figure.quote-block figcaption');
     await expect(caption).toContainText('2 later orders appear in the docket entries, and the judgment was issued on May 4, 2026.');
 
     // A case whose only later entry is the judgment does not call it an order.

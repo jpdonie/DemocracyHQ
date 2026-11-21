@@ -82,6 +82,28 @@ def test_the_congress_stage_publishes_the_selected_measures_with_their_texts(law
     assert not (laws.public / "congress" / "bills" / "us-119-hr40.json").exists()
 
 
+def test_each_measure_says_in_official_words_what_it_would_do_and_which_words_the_rule_matched(laws):
+    laws.run(LAWS)
+    listed = {b["id"]: b for b in laws.read("congress/index.json")["bills"]}
+    bill = listed["us-119-hr22"]
+    # The Congressional Research Service's summary, where it has published one.
+    assert bill["about"] == {"text": "This bill requires synthetic proof of eligibility for voter registration.", "source": "crs-summary",
+                             "url": bill["officialUrl"], "date": "2025-01-03", "cut": False, "of": None, "document": None, "ruleId": "about-crs-1"}
+    assert bill["selection"] == laws.read("congress/bills/us-119-hr22.json")["selection"]
+    assert laws.read("congress/bills/us-119-hr22.json")["about"] == bill["about"]
+    # No summary yet, and the list already shows the measure under its official title: no second line repeats it.
+    assert listed["us-119-sres5"]["about"] is None and listed["us-119-sres5"]["selection"]["ruleId"] == "us-select-1"
+
+
+def test_a_measure_without_a_summary_that_is_listed_under_a_short_title_quotes_its_official_title(env, session):  # noqa: F811
+    records = measures()
+    records["hr"][22] = fed.status_record("hr", 22, title="Synthetic Voter Eligibility Act", official=OFFICIAL, versions=[("Introduced in House", "2025-01-03", "ih")])
+    fed.serve_congress(session, records, TEXTS)
+    env.run(LAWS)
+    bill = next(b for b in env.read("congress/index.json")["bills"] if b["id"] == "us-119-hr22")
+    assert (bill["about"]["source"], bill["about"]["ruleId"], bill["about"]["text"]) == ("official-title", "about-title-1", OFFICIAL)
+
+
 def test_a_measure_of_congress_is_listed_under_the_nation_and_under_no_state(laws):
     laws.run(LAWS)
     events = [e for e in laws.read("events.json")["events"] if e["entityId"] == "us-119-hr22"]
@@ -109,10 +131,12 @@ def test_every_rule_a_federal_record_cites_is_published(laws, courts):
     for bill in laws.read("congress/index.json")["bills"]:
         record = laws.read(f"congress/bills/{bill['id']}.json")
         cited |= {t["ruleId"] for t in record["issueTags"]} | {a["classificationRule"] for a in record["actions"]} | {record["selection"]["ruleId"]}
+        cited |= {record["about"]["ruleId"]} if record["about"] else set()
     for summary in laws.read("circuits/index.json")["cases"]:
         case = laws.read(f"circuits/cases/{summary['id']}.json")
         cited |= {t["ruleId"] for t in case["issueTags"]} | {e["classificationRule"] for e in case["events"]} | {case["selection"]["ruleId"]}
         cited |= {case["origin"]["ruleId"]} if case["origin"] else set()
+        cited |= {case["about"]["ruleId"]} if case["about"] else set()
     cited |= {entry["ruleId"] for entry in laws.read("circuits/index.json")["exclusions"]}
     assert cited <= known | {"diff-meta-1"} and {"us-select-1", "us-status-1", "circuit-select-1", "circuit-exclusion-1", "cover-letter-1",
                                                "origin-court-1", "publication-1", "same-opinion-1", "circuit-composition-1"} <= known
@@ -268,6 +292,7 @@ ORIGIN = "Appeal from the United States District Court for the Western District 
 @pytest.fixture
 def courts(env, session, monkeypatch):  # noqa: F811
     monkeypatch.setattr(uscourts, "extract_pdf_text", lambda data: data.decode("utf-8") or None)
+    monkeypatch.setattr(uscourts.opening, "pdf_layout", fed.layout_of)
     write_json(env.seeds_dir / "circuit_exclusions.json", {"exclusions": [fed.exclusion(SCHOOL, SCHOOL_QUOTE, name="Synthetic Pupil v. Synthetic School")]})
     listed = fed.Courts(session)
     listed.add(LEAGUE, "Synthetic Voters League v. Synthetic County", [ORIGIN + fed.election_opinion()],
@@ -298,6 +323,72 @@ def test_the_circuits_stage_publishes_the_selected_cases_and_how_they_were_selec
     source = courts.source("govinfo-uscourts")
     assert (source["processingStatus"], source["recordCount"], source["sourcePublishedAt"], source["statusDetail"]) == ("ok", 1, "2026-05-20T12:00:00Z", None)
     assert courts.read("manifest.json")["counts"]["appealsCourtCases"] == 1
+
+
+OPINION_URL = f"https://www.govinfo.gov/content/pkg/{LEAGUE}/pdf/{LEAGUE}-0.pdf"
+
+
+def with_opening(courts, **changes) -> None:
+    """Replace the League's opinion by one set as a court sets it: panel, author, opening paragraph, heading, body."""
+    courts.courts.add(LEAGUE, "Synthetic Voters League v. Synthetic County", [fed.opinion_with_opening(fed.election_opinion())], **changes)
+    courts.courts.serve()
+
+
+def test_a_case_says_what_it_is_about_in_the_words_its_opinion_opens_with(courts):
+    with_opening(courts)
+    code, ctx = courts.run(COURTS)
+    assert code == 0 and ctx.review == []
+    summary = courts.read("circuits/index.json")["cases"][0]
+    assert summary["about"] == {"text": fed.OPENING, "source": "opinion", "url": OPINION_URL, "date": "2026-03-10", "cut": False,
+                                "of": None, "document": None, "ruleId": "about-opinion-1"}
+    case = courts.read("circuits/cases/ca5-25-30725.json")
+    assert case["about"] == summary["about"]
+    # The list also names the election phrases the selection rule found most often: why the case is listed at all.
+    assert summary["matchedTerms"] == case["selection"]["phrases"][:4] and 1 <= len(summary["matchedTerms"]) <= 4
+    assert "about-opinion-1" in {rule["ruleId"] for rule in courts.read("classification.json")["otherRules"]}
+
+
+def test_an_opinion_without_a_panel_or_an_author_line_has_no_passage_and_nothing_is_queued(courts):
+    code, ctx = courts.run(COURTS)
+    assert code == 0 and ctx.review == []
+    assert courts.read("circuits/index.json")["cases"][0]["about"] is None
+
+
+def test_an_opinion_that_cannot_be_laid_out_keeps_the_passage_published_before_and_is_queued(courts, monkeypatch):
+    with_opening(courts)
+    courts.run(COURTS, now=T1)
+
+    def broken(_data: bytes) -> str:
+        raise uscourts.opening.LayoutError("pdftohtml is not installed")
+
+    monkeypatch.setattr(uscourts.opening, "pdf_layout", broken)
+    # GovInfo gives the package a new change time: its documents are read again, and no layout is held for them yet.
+    with_opening(courts, changed="2026-06-01T08:00:00.000Z")
+    courts.courts.add("USCOURTS-ca9-26-00100", "Synthetic Elector v. Synthetic Registrar", [fed.opinion_with_opening(fed.election_opinion())])
+    courts.courts.serve()
+    code, ctx = courts.run(COURTS, now=T2)
+    assert code == 0
+    queued = {r["entity"]: r["detail"] for r in ctx.review if r["kind"] == "opening_unavailable"}
+    assert sorted(queued) == ["ca5-25-30725", "ca9-26-00100"]
+    assert "pdftohtml is not installed" in queued["ca5-25-30725"] and "the passage published before is kept" in queued["ca5-25-30725"]
+    assert "the case is published without one" in queued["ca9-26-00100"]
+    listed = {c["id"]: c for c in courts.read("circuits/index.json")["cases"]}
+    assert listed["ca5-25-30725"]["about"]["text"] == fed.OPENING and listed["ca5-25-30725"]["lastCheckedAt"] == T2
+    assert listed["ca9-26-00100"]["about"] is None
+
+
+def test_a_passage_is_not_kept_for_another_document_than_the_one_it_was_read_from(courts, monkeypatch):
+    with_opening(courts)
+    courts.run(COURTS, now=T1)
+    monkeypatch.setattr(uscourts.opening, "pdf_layout", lambda _data: (_ for _ in ()).throw(uscourts.opening.LayoutError("pdftohtml timed out")))
+    # A second, longer opinion takes the place of the first as the document the selection rests on.
+    courts.courts.add(LEAGUE, "Synthetic Voters League v. Synthetic County",
+                      [fed.opinion_with_opening(fed.election_opinion()), fed.opinion_with_opening(fed.election_opinion(sentences=9))],
+                      changed="2026-06-01T08:00:00.000Z")
+    courts.courts.serve()
+    courts.run(COURTS, now=T2)
+    case = courts.read("circuits/cases/ca5-25-30725.json")
+    assert case["selection"]["documentId"] == "ca5-25-30725-d1" and case["about"] is None
 
 
 def test_a_case_a_maintainer_removed_is_published_with_the_passage_that_shows_why(courts):
@@ -552,6 +643,7 @@ def test_a_listing_that_cannot_be_read_publishes_nothing_new(courts, session):
 
 def test_a_first_run_in_which_nothing_is_selected_publishes_no_empty_set(env, session, monkeypatch):  # noqa: F811
     monkeypatch.setattr(uscourts, "extract_pdf_text", lambda data: data.decode("utf-8") or None)
+    monkeypatch.setattr(uscourts.opening, "pdf_layout", fed.layout_of)
     write_json(env.seeds_dir / "circuit_exclusions.json", {"exclusions": []})
     listed = fed.Courts(session)
     listed.add(SUPPLIER, "Synthetic Supplier v. Synthetic Buyer", [fed.other_opinion()])

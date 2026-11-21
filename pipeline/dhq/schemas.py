@@ -242,6 +242,28 @@ class TermCount(Model):
     count: int
 
 
+class AboutText(Model):
+    """What a record is about, in the words of an official text. It is a quotation taken by a published rule
+    (:mod:`dhq.about`), never a summary written for this site."""
+
+    text: Annotated[str, StringConstraints(min_length=20, max_length=700)]
+    #: The official text quoted: the Congressional Research Service's summary, the measure's official title, the
+    #: Legislative Counsel's Digest, the Question Presented, a passage cited from a document of the docket, an entry
+    #: of the docket, or the opening of the opinion.
+    source: Literal["crs-summary", "official-title", "digest", "question-presented", "cited-passage", "docket-entry", "opinion"]
+    #: Where the quoted text is published.
+    url: Optional[HttpsUrl] = None
+    #: The date of the quoted text, where it has one of its own (a summary, a docket entry, an opinion).
+    date: Optional[IsoDate] = None
+    #: True when the quotation stops inside a sentence; the reader is shown an ellipsis.
+    cut: bool = False
+    #: For a Question Presented quoted as the first of several: how many there are.
+    of: Optional[int] = Field(default=None, ge=2)
+    #: For a cited passage: which document of the docket it is from, and whose words it is.
+    document: Optional[str] = None
+    ruleId: str
+
+
 class CaseSelection(Model):
     """Why a court of appeals case is in the dataset: the selection rule, the tests of it that the case met, and what
     the rule counted in the opinion it rests on."""
@@ -298,6 +320,11 @@ class LegalCaseSummary(Model):
     #: Court of appeals decisions only: other cases in the dataset that the court decided in the same opinion.
     #: Derived by rule ``same-opinion-1`` from the texts of the opinions; the record does not state it.
     decidedWith: List[Dict[str, str]] = Field(default_factory=list)
+    #: What the case is about, quoted from the Question Presented, the docket or the opening of the opinion.
+    about: Optional[AboutText] = None
+    #: Court of appeals decisions only: the election phrases the selection rule found most often in the opinion it
+    #: rests on (at most four). They show why the case is listed; the full count is in the case's own file.
+    matchedTerms: List[TermCount] = Field(default_factory=list)
     sourceUrl: HttpsUrl
     sourceId: str
     sourcePublishedAt: Optional[str] = None
@@ -448,6 +475,8 @@ class LegislativeInstrumentSummary(Model):
     lastActionText: Optional[str] = None
     versionCount: int = Field(ge=0)
     issueTags: List[IssueTag]
+    #: What the measure would do, quoted from its official summary, digest or title.
+    about: Optional[AboutText] = None
     officialUrl: HttpsUrl
     sourceId: str
     firstObservedAt: IsoDateTime

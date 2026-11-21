@@ -57,6 +57,30 @@ great deal of litigation.
 - **No lawyer has reviewed the data or the wording.** The site was reviewed by
   reviewer agents, including one asked to read it as an election-law attorney
   would. That is not legal review.
+- **The line on what a record is about is a quotation, and a quotation can miss
+  the point.** A rule takes it from the beginning of an official text (rules
+  `about-*`). The Congressional Research Service's summary and the Legislative
+  Counsel's Digest are written to say what a measure does. The opening of an
+  opinion usually says who appeals from what, but a court may open with the
+  history of a statute or with procedure, and the passage then says little about
+  the election question. A passage cited from the filing that opened a Supreme
+  Court docket is the account of the party that filed it; the line says so. A
+  measure of Congress without a published summary shows its official title, which
+  can be as general as "and for other purposes". 12 of the 128 court of appeals
+  cases have no passage: ten have no opinion on GovInfo that a program can read,
+  and two are clerk's orders that name neither a panel nor an author, which the
+  rule needs to find where the text begins.
+- **The opening of an opinion is checked against the file, not against a
+  mirrored text.** The pipeline reads the passage from the layout of the PDF and
+  publishes it only if its letters stand in the same order in the plain text
+  that another program takes from the same file. That check ignores spacing,
+  punctuation, digits and letter case, because footnote marks and line-end
+  hyphens differ between the two readings; a wrong space or a wrongly joined
+  hyphenated word would pass it. The opinions are not mirrored here, so the
+  validator of the published data can only check that the passage points at the
+  opinion the selection rests on. When `pdftohtml` is missing or a file cannot be
+  fetched, a passage already published for the same document is kept, the case is
+  listed in the review queue, and a new case is published without a passage.
 - **"Checked against the official source" has a narrow meaning.** On a record it
   means the record was retrieved from the official publisher by a program, parsed
   without error, links to that source, and matched what the source published at

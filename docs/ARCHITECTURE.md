@@ -350,6 +350,41 @@ also name the place (the state's name, the county's name, or "District N" or
 not check the maintainer's note. [CONTRIBUTING.md](../CONTRIBUTING.md) gives the
 field names.
 
+### What a record is about
+
+A list is useful only if each row says at once what the record is about. No line
+is written for that. [`about.py`](../pipeline/dhq/about.py) quotes an official
+text instead, and each record carries the quotation as `about`, with the text it
+is from (`source`), where that text is published (`url`), the rule that took it
+(`ruleId`) and whether it stops inside a sentence (`cut`):
+
+| Record | Text quoted | Rule |
+| --- | --- | --- |
+| Measure of Congress | The summary of the Congressional Research Service; without one, the official title, if the list shows another title | `about-crs-1`, `about-title-1` |
+| California bill | The Legislative Counsel's Digest, from its first sentence that says what the bill would do | `about-digest-1` |
+| Supreme Court docket | The Question Presented; without one, the passage cited for the docket's first link to a place; failing that, the entry that opens the docket | `about-question-1`, `about-cited-1`, `about-docket-1` |
+| Court of appeals case | The opening of the opinion the selection rests on | `about-opinion-1` |
+
+A quotation runs in whole sentences until it is 220 characters long and never
+beyond 560; a first sentence longer than that is cut at a word.
+
+The opening of an opinion cannot be taken from the plain text of its PDF: at the
+foot of a page the footnotes run into the body, and a footnote number sits in
+the middle of a sentence. [`opening.py`](../pipeline/dhq/opening.py) reads the
+layout instead (poppler's `pdftohtml -xml`, which gives every piece of text its
+place and type size), drops page heads, footnotes and footnote marks, finds
+where the opinion begins (after the line that names its author or its panel),
+and takes the first of its opening paragraphs that speaks of the case. The
+passage is then checked against the plain text of the same file: its letters
+must stand there in the same order. The layout of an opinion's first pages is
+cached beside its text, so the file is fetched once more only for the opinion of
+a selected case.
+
+The index entries also carry what shows why a record is listed: for a measure,
+the words and the title the selection rule matched (`selection`), and for a court
+of appeals case the four election phrases the rule found most often in the
+opinion (`matchedTerms`). The site marks those words where they stand in a row.
+
 ### Classification
 
 Issue tags, docket-entry labels, legislative-action labels, the bill selection

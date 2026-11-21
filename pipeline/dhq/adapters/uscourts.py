@@ -44,10 +44,12 @@ from datetime import date as _date
 from pathlib import Path
 from typing import Callable, Dict, Iterable, List, Optional
 
-from .. import classify, evidence
+from .. import about as about_rules
+from .. import classify, evidence, opening
 from ..circuits import BY_CODE, CIRCUITS, Circuit
 from ..http import FetchError, Fetcher, in_rounds
 from ..schemas import (
+    AboutText,
     CaseOrigin,
     CaseParty,
     CaseSelection,
@@ -544,14 +546,19 @@ def same_opinion_key(text: Optional[str]) -> Optional[str]:
     return letters if len(letters) >= SAME_OPINION_MIN_LETTERS else None
 
 
+#: How many of the phrases the selection rule found a case's entry in the index names.
+MATCHED_TERMS = 4
+
+
 def whole_seconds(changed_at: Optional[str]) -> Optional[str]:
     """GovInfo's change time without its fraction of a second, in the form every other timestamp here has."""
     return re.sub(r"\.[0-9]+Z$", "Z", changed_at) if changed_at else None
 
 
 def build_case(record: dict, texts: Dict[str, Optional[str]], evaluation: dict, *, checked_at: str, changed_at: Optional[str] = None,
-               first_observed: Optional[str] = None) -> LegalCase:
-    """One selected case as a published record. ``changed_at`` is the time GovInfo says the package last changed."""
+               first_observed: Optional[str] = None, about: Optional[dict] = None) -> LegalCase:
+    """One selected case as a published record. ``changed_at`` is the time GovInfo says the package last changed;
+    ``about`` is the opening passage of its opinion (:func:`opinion_about`), where one was found."""
     package = record["package"]
     cid = case_id(package)
     source_url = DETAILS_URL.format(package=package)
@@ -635,6 +642,8 @@ def build_case(record: dict, texts: Dict[str, Optional[str]], evaluation: dict, 
         origin=origin,
         publication=publication,
         natureOfSuit=record["natureOfSuit"],
+        about=AboutText(**about) if about else None,
+        matchedTerms=selection.phrases[:MATCHED_TERMS],
         sourceUrl=source_url,
         sourceId=SOURCE_ID,
         sourcePublishedAt=whole_seconds(changed_at),
@@ -772,6 +781,20 @@ class Reader:
         write_bytes_atomic(path, gzip.compress((text or "").encode("utf-8"), mtime=0), root=self.cache)
         return text
 
+    def layout(self, package: str, granule: str, changed_at: str) -> str:
+        """Where each piece of text stands on a document's first pages (poppler's XML), cached like its plain text.
+
+        The plain text is taken for every document of every case; the layout only for the opinion of a selected case,
+        so the file is fetched once more for those.
+        """
+        path = self.cache / "layout" / f"{granule}.{_stamp(changed_at)}.xml.gz"
+        if path.exists():
+            return gzip.decompress(path.read_bytes()).decode("utf-8")
+        result = self.fetcher.get(DOCUMENT_URL.format(package=package, granule=granule), max_bytes=MAX_PDF_BYTES, attempts=self.attempts)
+        layout = opening.pdf_layout(result.content)
+        write_bytes_atomic(path, gzip.compress(layout.encode("utf-8"), mtime=0), root=self.cache)
+        return layout
+
     def read(self, package: str, changed_at: str, *, live: bool, exclusion: Optional[dict]) -> PackageResult:
         result = PackageResult(package=package, changed_at=changed_at)
         try:
@@ -787,6 +810,28 @@ class Reader:
             result.error = f"{type(exc).__name__}: {exc}"[:300]
             result.failure = exc
         return result
+
+
+def opinion_about(reader: Reader, result: PackageResult, earlier: Optional[dict] = None) -> tuple[Optional[dict], Optional[str]]:
+    """``(about, problem)`` for a selected case: the opening passage of the opinion the selection rests on.
+
+    ``about`` is None where the case has no opinion a program can read, or where rule ``about-opinion-1`` finds no
+    passage it may publish. ``earlier`` is the passage published before. It is kept when the file could not be laid
+    out in this run and is still the same document, and ``problem`` then says what failed.
+    """
+    granule = result.evaluation["document"]
+    doc = next((d for d in result.record["documents"] if d["granule"] == granule), None)
+    text = result.texts.get(granule) if granule else None
+    if not doc or not doc["url"] or not text or granule in result.evaluation["coverLetters"]:
+        return None, None
+    try:
+        layout = reader.layout(result.package, granule, result.changed_at)
+    except Exception as exc:  # noqa: BLE001 - the passage is an addition to the record: the case is published without it
+        same = bool(earlier) and earlier.get("source") == "opinion" and earlier.get("url") == doc["url"]
+        outcome = "the passage published before is kept" if same else "the case is published without one"
+        return (earlier if same else None), f"the opinion could not be laid out for its opening passage ({type(exc).__name__}: {exc}); {outcome}"[:300]
+    found = opening.opening_passage(layout, text)
+    return (about_rules.opinion(found.text, found.cut, url=doc["url"], date=doc["date"]) if found else None), None
 
 
 def packages_of(state: Optional[dict]) -> Dict[str, list]:
