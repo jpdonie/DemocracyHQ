@@ -3,8 +3,8 @@
 DemocracyHQ is a folder of static files. It is designed for GitHub Pages and works
 on any static host, at a domain root or under a sub-path, with no rewrite rules.
 
-> **First runs on GitHub.** The site is published at
-> <https://jpdonie.github.io/DemocracyHQ/>. The CI and deploy workflows have run on
+> **First runs on GitHub.** The site is published at <https://democracy-hq.org/>
+> (GitHub Pages; the github.io address redirects there). The CI and deploy workflows have run on
 > GitHub since 2026-11-21; the scheduled ingestion workflow has not run there yet.
 > Every action the workflows use is pinned to a full commit SHA with its version in
 > a comment. Treat the first ingestion runs as a test and read their logs.
@@ -66,8 +66,30 @@ header.
 
 ### A custom domain
 
-Set the domain in **Settings > Pages**. No code change is needed, because the build
-uses relative paths.
+No code change is needed, because the build uses relative paths. The steps, in this
+order (the public site uses `democracy-hq.org`):
+
+1. At the domain's DNS host, add four `A` records for the domain itself
+   (`185.199.108.153`, `185.199.109.153`, `185.199.110.153`, `185.199.111.153`),
+   optionally four `AAAA` records (`2606:50c0:8000::153` to `2606:50c0:8003::153`),
+   and a `CNAME` record from `www` to `<owner>.github.io`. On Cloudflare, set every
+   one of them to "DNS only": through Cloudflare's proxy, GitHub cannot issue the
+   certificate, and features that add scripts to the pages would be blocked by the
+   Content-Security-Policy and would add requests to a third party.
+2. Verify the domain for the GitHub account (account **Settings > Pages > Add a
+   domain**) with the `TXT` record GitHub shows, and keep that record. A verified
+   domain cannot be attached to another account's repository.
+3. Enter the domain in the repository's **Settings > Pages**, wait for "DNS check
+   successful" and the certificate, then tick **Enforce HTTPS**.
+
+Do not enter a domain in **Settings > Pages** before its DNS records exist: GitHub
+then redirects the github.io address to a domain that does not answer.
+
+A custom domain also gives the site an origin of its own, so the watchlist kept in
+the browser is no longer shared with the account's other github.io sites.
+
+If the domain sends no mail, `TXT` records `v=spf1 -all` (on the domain) and
+`v=DMARC1; p=reject` (on `_dmarc`) stop others from sending mail in its name.
 
 ## Scheduled ingestion
 

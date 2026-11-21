@@ -13,8 +13,8 @@ pipeline retrieves the records from official sources and writes plain JSON; the
 site reads that JSON.
 
 > **Status: an early, working prototype.** It covers one court and one state
-> legislature. It is published at <https://jpdonie.github.io/DemocracyHQ/> by the
-> deploy workflow; the scheduled data update has not yet run on GitHub. Read
+> legislature. It is published at <https://democracy-hq.org/> by the deploy
+> workflow (GitHub Pages); the scheduled data update has not yet run on GitHub. Read
 > [Known limitations](docs/KNOWN_LIMITATIONS.md) before relying on anything here.
 
 > **A data gap is not evidence of absence.** If a case, a bill or a count is not in
