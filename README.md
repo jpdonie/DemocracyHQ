@@ -13,9 +13,9 @@ pipeline retrieves the records from official sources and writes plain JSON; the
 site reads that JSON.
 
 > **Status: an early, working prototype.** It covers one court and one state
-> legislature. It has not been deployed publicly and its GitHub Actions workflows
-> have not yet run on GitHub. Read [Known limitations](docs/KNOWN_LIMITATIONS.md)
-> before relying on anything here.
+> legislature. It is published at <https://jpdonie.github.io/DemocracyHQ/> by the
+> deploy workflow; the scheduled data update has not yet run on GitHub. Read
+> [Known limitations](docs/KNOWN_LIMITATIONS.md) before relying on anything here.
 
 > **A data gap is not evidence of absence.** If a case, a bill or a count is not in
 > DemocracyHQ, that means only that it is not in this dataset.

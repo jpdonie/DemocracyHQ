@@ -184,10 +184,10 @@ great deal of litigation.
 
 ## Not proved
 
-- **Never deployed.** The site has not been published to GitHub Pages or anywhere
-  else. It was tested from a local server that imitates a Pages sub-path.
-- **Workflows never run.** The CI, deployment and scheduled-ingestion workflows
-  have not executed on GitHub.
+- **Scheduled ingestion not yet run.** The site is published on GitHub Pages, and
+  the CI and deploy workflows have run on GitHub, but the scheduled ingestion
+  workflow has not run there yet. Treat its first runs as a test and watch their
+  exit codes and review queue.
 - **Optional sources never run live.** The CourtListener and Open States adapters
   were exercised only with synthetic test responses. Their output would be
   published as separate data files (`litigation_secondary.json` and
