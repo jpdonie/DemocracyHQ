@@ -92,7 +92,7 @@ test.describe('Places that are not states', () => {
     await expect(page.getByText('Legislation not covered for this federal district yet')).toBeVisible();
 
     await open(page, '#/');
-    const search = page.getByRole('combobox', { name: 'Search places, cases and bills' });
+    const search = page.getByRole('combobox', { name: 'Search places, courts, cases and bills' });
     await search.fill('district of columbia');
     await expect(page.getByRole('option', { name: /^District of Columbia/ }).first()).toContainText('Federal district');
     await search.fill('puerto rico');
@@ -173,7 +173,7 @@ test.describe('Bill text', () => {
 test.describe('Search', () => {
   test('a misspelt name offers close matches, without fetching anything', async ({ page }) => {
     await open(page, '#/');
-    const search = page.getByRole('combobox', { name: 'Search places, cases and bills' });
+    const search = page.getByRole('combobox', { name: 'Search places, courts, cases and bills' });
     await page.waitForLoadState('networkidle');
     const requests: string[] = [];
     // The map may still fetch label glyphs; the search itself must not ask the server for anything.

@@ -44,7 +44,7 @@ test.describe('Focus on a record that is still loading', () => {
     await expect(heading(page)).toBeFocused();
 
     await page.getByRole('navigation', { name: 'Modules' }).getByRole('link', { name: 'Legislation' }).click();
-    await expect(heading(page)).toHaveText('California election legislation');
+    await expect(heading(page)).toHaveText('Election legislation');
     await page.locator('.rows').getByRole('link', { name: /^CA AB 604\b/ }).focus();
     await page.keyboard.press('Enter');
     await expect(heading(page)).toHaveText(BILL.heading);
@@ -54,7 +54,7 @@ test.describe('Focus on a record that is still loading', () => {
   test('choosing a bill in the search box puts focus on its heading', async ({ page }) => {
     await open(page, '#/sources');
     await expect(heading(page)).toHaveText('Data sources and methodology');
-    const search = page.getByRole('combobox', { name: 'Search places, cases and bills' });
+    const search = page.getByRole('combobox', { name: 'Search places, courts, cases and bills' });
     await search.fill('AB 808');
     await expect(page.getByRole('option').first()).toContainText('AB 808');
     await page.keyboard.press('Enter');
@@ -71,7 +71,7 @@ test.describe('Focus on a record that is still loading', () => {
     // The new view is drawn and waiting for its record when the reader moves to the search box.
     await expect(page.locator('main').getByRole('status').filter({ hasText: 'Loading this case' })).toBeVisible();
     await page.evaluate(() => new Promise((resolve) => window.requestAnimationFrame(resolve)));
-    const search = page.getByRole('combobox', { name: 'Search places, cases and bills' });
+    const search = page.getByRole('combobox', { name: 'Search places, courts, cases and bills' });
     await search.focus();
     caseFile.release();
     await expect(heading(page)).toHaveText(CASE.name);
@@ -91,7 +91,7 @@ test.describe('Focus on a record that is still loading', () => {
     }, CASE.id);
     caseFile.release();
     await expect(heading(page)).toHaveText(CASE.name);
-    await expect(page.getByRole('combobox', { name: 'Search places, cases and bills' })).toBeFocused();
+    await expect(page.getByRole('combobox', { name: 'Search places, courts, cases and bills' })).toBeFocused();
   });
 
   test('a record that cannot be loaded still has a heading, and focus moves to it', async ({ page, problems }) => {
@@ -195,9 +195,12 @@ test.describe('A place waits only for the files each part uses', () => {
     await expect(heading(page)).toHaveText('California');
     await page.waitForLoadState('networkidle');
     const pack = JSON.parse(await download(page, 'Download JSON'));
-    expect(pack.notices).toContainEqual(expect.stringContaining('The links between records (relationships.json) could not be loaded, so this pack lists no court cases for this place'));
+    expect(pack.notices).toContainEqual(expect.stringContaining('The links between records (relationships.json) could not be loaded, so this pack lists no court cases linked to this place'));
     expect(pack.notices.filter((notice: string) => notice.includes('litigation/index.json'))).toEqual([]);
-    expect(pack.items.filter((item: { section: string }) => item.section === 'court_case' || item.section === 'link')).toEqual([]);
+    // The appeals that began in a federal district court in California come from the case index, not from the links.
+    const listed = pack.items.filter((item: { section: string }) => item.section === 'court_case' || item.section === 'link');
+    expect(listed.length).toBeGreaterThan(0);
+    expect(listed.every((item: { section: string; detail?: string }) => item.section === 'court_case' && (item.detail ?? '').includes('the appeal began in a federal district court in California'))).toBe(true);
     expect(await download(page, 'Download CSV')).toContain('Notice: The links between records (relationships.json) could not be loaded');
 
     await page.getByRole('link', { name: 'Open print summary' }).click();
@@ -242,7 +245,7 @@ test.describe('A place waits only for the files each part uses', () => {
     await expect(heading(page)).toHaveText('Place could not be loaded');
     await expect(page.locator('main')).not.toContainText('Loading this place');
 
-    const search = page.getByRole('combobox', { name: 'Search places, cases and bills' });
+    const search = page.getByRole('combobox', { name: 'Search places, courts, cases and bills' });
     await search.fill('california');
     const results = page.getByRole('listbox', { name: 'Search results' });
     await expect(results).toContainText('The index of places could not be loaded, so it is not searched.');
@@ -345,7 +348,7 @@ test.describe('Data releases and loading', () => {
   test('a date in the address that does not exist is not applied as a filter', async ({ page }) => {
     await open(page, '#/litigation?from=2020-02-31&to=2099-13-45');
     await expect(heading(page)).toHaveText('Election litigation');
-    await expect(page.locator('.filters-status')).toContainText(/^\d+ dockets in this dataset/);
+    await expect(page.locator('.filters-status')).toContainText(/^\d+ cases in this dataset/);
 
     await open(page, '#/place/state:06?tab=timeline&from=2026-02-31');
     await expect(heading(page)).toHaveText('California');
@@ -358,8 +361,8 @@ test.describe('Data releases and loading', () => {
   test('a filter value that is not one of the choices is not applied', async ({ page }) => {
     await open(page, '#/litigation?tag=no-such-issue&ruling=made_up');
     await expect(heading(page)).toHaveText('Election litigation');
-    await expect(page.locator('.filters-status')).toContainText(/^\d+ dockets in this dataset/);
+    await expect(page.locator('.filters-status')).toContainText(/^\d+ cases in this dataset/);
     await expect(page.getByLabel('Issue', { exact: true })).toHaveValue('');
-    await expect(page.getByLabel('Latest ruling entry', { exact: true })).toHaveValue('');
+    await expect(page.getByLabel('Latest ruling', { exact: true })).toHaveValue('');
   });
 });

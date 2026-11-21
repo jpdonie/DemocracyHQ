@@ -728,7 +728,7 @@ ul.pack-items { list-style: disc; }
   .segmented-options span { display: flex; align-items: center; padding: 0 0.75rem; }
   .map-zoom button { width: 2.75rem; height: 2.75rem; }
   /* Fields at 16px or more: iOS Safari zooms the page into any smaller field that takes focus. */
-  input, select, .inset-select select { font-size: max(16px, 1em); }
+  input, select, .inset-select select, .layer-control select { font-size: max(16px, 1em); }
   /* Larger touch targets where it costs no layout: the home link, back links, check rows, the legend and source links. */
   .brand { min-width: 44px; min-height: 44px; justify-content: center; }
   .back-link { min-height: 2.75rem; margin-block: -0.5rem; }
@@ -769,4 +769,11 @@ ul.pack-items { list-style: disc; }
   .pack h2, .pack .pack-section-note { break-after: avoid; }
   .pack .section > h2 + ol > li:first-child, .pack .section > .pack-section-note + ol > li:first-child { break-before: avoid; }
   .ext .icon { display: none; }
+}
+
+/* A table of several number columns on a phone: smaller figures, and headings that may break. */
+@media (max-width: 899px) {
+  .table-dense { font-size: var(--text-xs); }
+  .table-dense th, .table-dense td { padding-left: var(--s-1); padding-right: var(--s-1); }
+  .table-dense thead th { white-space: normal; hyphens: auto; overflow-wrap: anywhere; vertical-align: bottom; }
 }

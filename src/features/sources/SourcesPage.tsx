@@ -127,13 +127,14 @@ function AppealsSelection({ appeals, courts, published }: { appeals: AppealsCove
         A clerk&rsquo;s cover letter is not counted (rule {selection.coverLetterRuleId}).
         The rule counts words: it can miss an election case, and it can include a case that only discusses elections.
       </p>
+      {/* Two tables of five and four columns: one of eight does not fit a phone without a sideways scroller. */}
       <TableScroll label="What was read for each court of appeals">
-        <table className="table table-num">
-          <caption>What was read for each court, and what came of it.</caption>
+        <table className="table table-num table-dense">
+          <caption>What was read for each court.</caption>
           <thead>
             <tr>
               <th scope="col">Court</th><th scope="col" className="num">Cases read</th><th scope="col" className="num">Documents</th><th scope="col" className="num">Cover letters</th>
-              <th scope="col" className="num">Unreadable</th><th scope="col" className="num">Picked by the rule</th><th scope="col" className="num">Removed</th><th scope="col" className="num">In the dataset</th>
+              <th scope="col" className="num">Unreadable</th>
             </tr>
           </thead>
           <tbody>
@@ -143,14 +144,37 @@ function AppealsSelection({ appeals, courts, published }: { appeals: AppealsCove
                 <tr key={id}>
                   <th scope="row"><a href={courtHash(id)}>{courtShortName(courts?.get(id), id)}</a></th>
                   <td className="num">{formatNumber(read.cases)}</td><td className="num">{formatNumber(read.documents)}</td><td className="num">{formatNumber(read.coverLetters)}</td>
-                  <td className="num">{formatNumber(read.unreadableDocuments)}</td><td className="num">{formatNumber(read.selected + read.excluded)}</td><td className="num">{formatNumber(read.excluded)}</td><td className="num">{formatNumber(read.selected)}</td>
+                  <td className="num">{formatNumber(read.unreadableDocuments)}</td>
                 </tr>
               );
             })}
             <tr>
               <th scope="row">All thirteen</th>
               <td className="num">{formatNumber(total.cases)}</td><td className="num">{formatNumber(total.documents)}</td><td className="num">{formatNumber(total.coverLetters)}</td>
-              <td className="num">{formatNumber(total.unreadableDocuments)}</td><td className="num">{formatNumber(total.selected + total.excluded)}</td><td className="num">{formatNumber(total.excluded)}</td><td className="num">{formatNumber(total.selected)}</td>
+              <td className="num">{formatNumber(total.unreadableDocuments)}</td>
+            </tr>
+          </tbody>
+        </table>
+      </TableScroll>
+      <TableScroll label="What the rule found for each court of appeals">
+        <table className="table table-num table-dense">
+          <caption>What came of it: the cases the rule picked, those a maintainer removed, and those in the dataset.</caption>
+          <thead>
+            <tr><th scope="col">Court</th><th scope="col" className="num">Picked by the rule</th><th scope="col" className="num">Removed</th><th scope="col" className="num">In the dataset</th></tr>
+          </thead>
+          <tbody>
+            {ids.map((id) => {
+              const read = appeals.coverage[id]!;
+              return (
+                <tr key={id}>
+                  <th scope="row"><a href={courtHash(id)}>{courtShortName(courts?.get(id), id)}</a></th>
+                  <td className="num">{formatNumber(read.selected + read.excluded)}</td><td className="num">{formatNumber(read.excluded)}</td><td className="num">{formatNumber(read.selected)}</td>
+                </tr>
+              );
+            })}
+            <tr>
+              <th scope="row">All thirteen</th>
+              <td className="num">{formatNumber(total.selected + total.excluded)}</td><td className="num">{formatNumber(total.excluded)}</td><td className="num">{formatNumber(total.selected)}</td>
             </tr>
           </tbody>
         </table>

@@ -159,6 +159,17 @@ bill version pointing at it; then **publish**. The whole published dataset is
 checked afterwards by `npm run data:validate`, which the scheduled workflow runs
 before it commits and the deploy workflow runs again before it builds.
 
+### The federal level
+
+The stages `congress` and `circuits` (adapters `adapters/congress.py`,
+`adapters/bill_text.py`, `adapters/uscourts.py`) write `congress/` and `circuits/`
+under `public/data/`, and the `geo` stage writes `geo/circuits.json` and the circuit
+and nation layers. Their rules, seeds (`seeds/circuit_exclusions.json`,
+`seeds/tag_removals.json`) and retrieval are described in
+[FEDERAL_LEVEL.md](FEDERAL_LEVEL.md). On the site, `src/lib/courts.ts` and
+`src/lib/bills.ts` hold the fixed names of the fourteen courts and the order of the
+stages of a measure; `npm run data:validate` compares both with the data.
+
 ### Failure safety
 
 - Each stage runs in isolation. If one raises, the files it staged are

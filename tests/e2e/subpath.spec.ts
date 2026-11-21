@@ -28,7 +28,7 @@ test.describe('Static hosting under a sub-path', () => {
     ['#/', /^Election litigation, voting laws/],
     ['#/litigation', 'Election litigation'],
     [`#/litigation/${CASE.id}`, CASE.name],
-    ['#/laws', 'California election legislation'],
+    ['#/laws', 'Election legislation'],
     [`#/laws/${BILL.id}`, BILL.heading],
     [`#/laws/${BILL.id}/compare?from=${BILL.from}&to=${BILL.to}`, `Compare text versions: ${BILL.heading}`],
     ['#/redistricting', 'Districts and boundaries'],

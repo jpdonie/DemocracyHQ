@@ -15,7 +15,7 @@ test.describe('Phone layout', () => {
     await expect(heading(page)).toHaveText('Election litigation');
     await expect(tabbar.getByRole('link', { name: 'Litigation' })).toHaveAttribute('aria-current', 'page');
     await tabbar.getByRole('link', { name: 'Laws' }).tap();
-    await expect(heading(page)).toHaveText('California election legislation');
+    await expect(heading(page)).toHaveText('Election legislation');
     await tabbar.getByRole('link', { name: 'Districts' }).tap();
     await expect(heading(page)).toHaveText('Districts and boundaries');
     await tabbar.getByRole('link', { name: 'Sources', exact: true }).tap();
@@ -74,7 +74,7 @@ test.describe('Phone layout', () => {
 
   test('search opens a place', async ({ page }) => {
     await open(page, '#/');
-    const search = page.getByRole('combobox', { name: 'Search places, cases and bills' });
+    const search = page.getByRole('combobox', { name: 'Search places, courts, cases and bills' });
     await search.fill('wyoming');
     await page.getByRole('option', { name: /^Wyoming State/ }).tap();
     await expect(page).toHaveURL(/#\/place\/state:56$/);
@@ -150,7 +150,7 @@ test.describe('Phone layout, details', () => {
 
   test('the search results fit the screen', async ({ page }) => {
     await open(page, '#/');
-    await page.getByRole('combobox', { name: 'Search places, cases and bills' }).fill('california');
+    await page.getByRole('combobox', { name: 'Search places, courts, cases and bills' }).fill('california');
     const list = page.getByRole('listbox', { name: 'Search results' });
     await expect(list).toBeVisible();
     const box = (await list.boundingBox())!;
@@ -283,13 +283,13 @@ test.describe('Phone layout, details', () => {
     const clear = status.getByRole('button', { name: 'Clear filters' });
     expect((await clear.boundingBox())!.height).toBeGreaterThanOrEqual(44);
     await clear.tap();
-    await expect(status).toContainText(/^\d+ dockets in this dataset/);
+    await expect(status).toContainText(/^\d+ cases in this dataset/);
     await expect(status).toBeFocused();
   });
 
   test('the result count stays near the top while the folded filters are open', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
-    for (const [hash, searchName, query] of [['#/litigation', 'Search case name or docket number', 'louisiana'], ['#/laws', 'Search bill number or subject', 'district']] as const) {
+    for (const [hash, searchName, query] of [['#/litigation', 'Search case name or docket number', 'louisiana'], ['#/laws', 'Search measure number or subject', 'district']] as const) {
       await open(page, hash);
       await page.getByRole('searchbox', { name: searchName }).fill(query);
       await page.getByText('More filters', { exact: true }).tap();
@@ -409,7 +409,7 @@ test.describe('Phone layout, details', () => {
     await open(page, '#/litigation');
     await expect(heading(page)).toHaveText('Election litigation');
     const hint = page.locator('main .hint');
-    await expect(hint).toContainText('“State the record links to” in More filters');
+    await expect(hint).toContainText('“State” in More filters');
     await expect(hint).not.toContainText('Select a state on the map');
   });
 });

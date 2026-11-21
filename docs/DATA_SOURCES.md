@@ -70,6 +70,17 @@ passages are still checked against the text as extracted. An excerpt shown with
 a tag can come from a separate opinion (a concurrence or a dissent) and is not
 labelled with the part of the document it comes from.
 
+### GovInfo (Government Publishing Office): Bill Status, Bills, United States Courts Opinions, United States Code
+
+Four collections of GovInfo are read for the federal level: the Bill Status bulk
+data and the Bills XML for measures of Congress, the United States Courts Opinions
+collection for the courts of appeals, and the United States Code for the
+composition of the circuits. [FEDERAL_LEVEL.md](FEDERAL_LEVEL.md) describes what is
+read from each, the selection rules and their limits. GovInfo's content is the
+work of the federal government and carries no copyright restriction of its own.
+GovInfo can fail requests for hours at a time; the pipeline then asks again in
+rounds and keeps the last verified record of anything it could not read.
+
 ### California Legislative Information, bulk data
 
 | | |

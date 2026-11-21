@@ -36,8 +36,8 @@ export const UNAVAILABLE_NOTICES = {
   bills: 'The legislation indexes (legislation/index.json and congress/index.json) could not be loaded, so this pack lists no legislation. That says nothing about whether any exists.',
   events: 'The timeline (events.json) could not be loaded, so this pack lists no dated events. That says nothing about whether any exist.',
   caseRecords: 'The court case indexes (litigation/index.json and circuits/index.json) could not be loaded, so linked court cases appear only as links, without their case records.',
-  /** For a place: a case is tied to a place only through a link, so without the links no case can be listed. */
-  placeLinks: 'The links between records (relationships.json) could not be loaded, so this pack lists no court cases for this place: a case is tied to a place only through a link. That says nothing about whether any are linked.',
+  /** For a place: a case is linked to a place only through a link. Appeals that began in the state come from the case index and are still listed. */
+  placeLinks: 'The links between records (relationships.json) could not be loaded, so this pack lists no court cases linked to this place. Appeals listed because they began in a federal district court here do not depend on that file. That says nothing about whether any case is linked.',
   population: 'The population counts could not be loaded, so this pack lists none.',
   sources: 'The list of sources (sources.json) could not be loaded, so this pack does not name the sources or give their reuse terms. Each entry still carries its own source link where the record has one.',
 } as const;

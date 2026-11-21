@@ -83,7 +83,7 @@ test.describe('Geographic research workspace', () => {
     await page.getByRole('navigation', { name: 'Modules' }).getByRole('link', { name: 'Redistricting' }).click();
     await expect(heading(page)).toHaveText('Districts and boundaries');
     await page.getByRole('navigation', { name: 'Modules' }).getByRole('link', { name: 'Legislation' }).click();
-    await expect(heading(page)).toHaveText('California election legislation');
+    await expect(heading(page)).toHaveText('Election legislation');
     await page.getByRole('navigation', { name: 'Modules' }).getByRole('link', { name: 'Litigation' }).click();
     await expect(heading(page)).toHaveText('Election litigation');
   });
@@ -105,7 +105,7 @@ test.describe('Geographic research workspace', () => {
 
   test('finds a place, a case and a bill from the search box', async ({ page }) => {
     await open(page, '#/');
-    const search = page.getByRole('combobox', { name: 'Search places, cases and bills' });
+    const search = page.getByRole('combobox', { name: 'Search places, courts, cases and bills' });
     await search.fill('los angeles');
     await page.getByRole('option', { name: /Los Angeles County, California/ }).click();
     await expect(page).toHaveURL(/#\/place\/county:06037$/);

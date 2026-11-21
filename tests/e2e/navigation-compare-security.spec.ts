@@ -41,15 +41,15 @@ test.describe('Litigation map and list (DB1)', () => {
     await expect(page).toHaveURL(/state=56/);
     await expect(page.getByText('No case in this dataset matches these filters.')).toBeVisible();
     await expect(page.getByText('A data gap is not evidence of absence.').first()).toBeVisible();
-    await expect(page.getByRole('status').filter({ hasText: /^0 dockets of \d+ match these filters/ })).toBeVisible();
-    await expect(page.getByLabel('State the record links to')).toHaveValue('56');
-    await expect(page.getByLabel('State the record links to').locator('option:checked')).toHaveText('Wyoming (0)');
+    await expect(page.getByRole('status').filter({ hasText: /^0 cases of \d+ match these filters/ })).toBeVisible();
+    await expect(page.getByLabel('State', { exact: true })).toHaveValue('56');
+    await expect(page.getByLabel('State', { exact: true }).locator('option:checked')).toHaveText('Wyoming (0)');
   });
 
   test('a link with a code that is not a state still shows the whole list', async ({ page }) => {
     await open(page, '#/litigation?state=99');
-    await expect(page.getByRole('status').filter({ hasText: /dockets in this dataset/ })).toBeVisible();
-    await expect(page.getByLabel('State the record links to')).toHaveValue('');
+    await expect(page.getByRole('status').filter({ hasText: /cases in this dataset/ })).toBeVisible();
+    await expect(page.getByLabel('State', { exact: true })).toHaveValue('');
   });
 });
 
@@ -189,7 +189,7 @@ test.describe('Global search (DB10)', () => {
     await page.waitForLoadState('networkidle');
     const words = 'the qualified elector shall present identification documents before receiving provisional ballots'.split(' ');
     const text = Array.from({ length: 1500 }, (_, i) => `${words[i % words.length]}${i % 7 === 0 ? 'x' : ''}`).join(' ');
-    const box = page.getByRole('combobox', { name: 'Search places, cases and bills' });
+    const box = page.getByRole('combobox', { name: 'Search places, courts, cases and bills' });
     const longest = await page.evaluate(async () => {
       // The longest stretch the main thread is busy, sampled with animation frames over the next second.
       (window as unknown as { __gap: Promise<number> }).__gap = new Promise((resolve) => {

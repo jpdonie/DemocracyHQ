@@ -34,7 +34,7 @@ test.describe('Map', () => {
     await expect(page).toHaveURL(/#\/place\/county:06071$/);
     await expect(heading(page)).toHaveText('San Bernardino County, California');
     await expect(page.getByText('County. Census GEOID 06071.')).toBeVisible();
-    await expect(page.getByText(/Boundary: 2025 Cartographic Boundary File/)).toBeVisible();
+    await expect(page.getByText(/The outline on the map is from the 2025 Cartographic Boundary File/)).toBeVisible();
     await expect(page.getByRole('region', { name: 'Population, 2020 Census' })).toContainText('2,181,654');
   });
 
