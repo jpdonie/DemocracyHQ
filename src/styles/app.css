@@ -628,6 +628,7 @@ ul.pack-items { list-style: disc; }
   .table { font-size: var(--text-xs); }
   /* Narrower gutters, and number headers that may wrap, so the tables fit a phone screen; wider ones scroll on their own. */
   .table th, .table td { padding-right: var(--s-2); }
+  .table th:last-child, .table td:last-child { padding-right: 0; }
   .table .num { padding-left: var(--s-2); }
   .table thead th.num { white-space: normal; }
   /* A verification badge may wrap at a large text size rather than widen the panel. */
@@ -636,9 +637,15 @@ ul.pack-items { list-style: disc; }
   .unit-list ul { grid-template-columns: minmax(0, 1fr); max-height: none; overflow: visible; }
 }
 
-/* The narrowest phones: "Official version" may take two lines, so the text versions table still fits without scrolling. */
-@media (max-width: 359px) {
+/* Small phones: "Official version" may take two lines, so the text versions table fits without scrolling with room to spare
+   (font rendering differs between devices by a few pixels; a table that fits only to the pixel scrolls on some of them). */
+@media (max-width: 399px) {
   .cell-links > span:last-child > a { white-space: normal; }
+}
+
+/* The narrowest phones: the gutter after a number column narrows to the others' width, for the same reason. */
+@media (max-width: 359px) {
+  .table .num + td:not(.num), .table .num + th:not(.num) { padding-left: var(--s-2); }
   /* The closed legend has 5rem between the zoom buttons and the edge: "Legend" and its key each keep one line. */
   .legend > summary { padding-inline: var(--s-2); }
   .legend-key { margin-left: 0; }

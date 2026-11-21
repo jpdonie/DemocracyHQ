@@ -127,7 +127,7 @@ court and one state's current session.
 | Stale data presented as current | Dockets move daily | Every source has a staleness limit, calculated in the reader's browser. |
 | Keyword rules mislabel | Tags and bill selection are rule-based | The rule and the matched text are shown beside each tag. |
 | A contingent, delayed or expiring operative date | "Effective" can mislead | Sentences in which a measure makes itself or part of itself conditional are found by a published rule (`ca-cond-1`) and quoted beside the date, and so are sentences in which it, or a named part of it, remains in effect until a date or an event and is then repealed (`ca-sunset-1`). Whether a condition was met is not recorded, ballot results are not tracked, and a sentence worded differently is missed. Delayed operative dates are not extracted. |
-| Scheduled automation unproven | The workflows have never run on GitHub | Stated in the deployment guide; treat the first runs as a test. |
+| Scheduled automation unproven | The scheduled ingestion has not yet run on GitHub | Stated in the deployment guide; treat the first runs as a test. |
 | Single maintainer | Curated links need review | Every curated link and tag quotes its evidence so that others can check it, and the pipeline checks that the passage is in the cited document on every run that rebuilds the links with that document at hand; a link whose document was not fetched keeps its last check. The maintainer's description is not checked by machine. |
 
 ## 6. Evidence and assumptions

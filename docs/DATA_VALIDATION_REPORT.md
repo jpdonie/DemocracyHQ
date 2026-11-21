@@ -369,9 +369,14 @@ purpose in this release:
   curated link are not checked by machine; only the presence of the quoted passage
   is.
 - **Legal review.** No lawyer has reviewed the data or the wording.
-- **Deployment.** The site has not been deployed, and the CI, deploy and ingest
-  workflows have not run on GitHub. The deploy smoke test was run locally. Browser
-  tests ran in headless Chromium only.
+- **Deployment.** The checks above were run locally on this release. The site was
+  first published to GitHub Pages on 2026-11-21 by the deploy workflow, whose smoke
+  test (18 tests) passed on GitHub. The first CI run on GitHub failed two phone
+  layout tests: on the runner, the text versions table of a bill was 6 pixels wider
+  than a 360- and a 320-pixel screen, because text renders a few pixels wider there
+  than on the machine that ran the tests above. The stylesheet now leaves that table
+  room to spare at those widths. The scheduled ingest workflow has not yet run on
+  GitHub. Browser tests ran in headless Chromium only.
 
 ## 8. How to repeat these checks
 
