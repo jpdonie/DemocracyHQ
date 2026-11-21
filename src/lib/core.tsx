@@ -1,11 +1,11 @@
 import { createContext, useContext, useMemo, type ReactNode } from 'react';
 import type {
   BillIndex, CaseLink, CircuitIndex, DecisionIndex, EntityRelationship, FederalBillIndex, LegalCaseSummary, LegislativeInstrumentSummary, Manifest, RedistrictingFile,
-  SourceRecord, TimelineEvent,
+  SourceRecord, StateLegislationIndex, TimelineEvent,
 } from '../types/schemas';
 import {
   loadBillIndex, loadCaseIndex, loadCircuitIndex, loadCircuits, loadCourts, loadDecisionIndex, loadEvents, loadFederalBillIndex, loadGeoIndex, loadGovernment, loadManifest,
-  loadRedistricting, loadRelationships, loadSources,
+  loadRedistricting, loadRelationships, loadSources, loadStateLegislationIndex,
 } from './data';
 import { CourtDirectory } from './courts';
 import { GeoIndex } from './geo';
@@ -122,4 +122,13 @@ const loadGovernmentIndex = async () => new GovernmentIndex(await loadGovernment
  */
 export function useGovernment(wanted = true): Loadable<GovernmentIndex> {
   return useLoad(wanted ? 'government' : null, loadGovernmentIndex);
+}
+
+/**
+ * The election measures of the state legislatures read from Open States (state-legislation/index.json, close to a
+ * megabyte compressed). Requested by the views that list or count them: the list of legislation, the page of a state,
+ * and the map while it shows legislation. `wanted` false leaves the file alone.
+ */
+export function useStateLegislation(wanted = true): Loadable<StateLegislationIndex> {
+  return useLoad(wanted ? 'state-legislation' : null, loadStateLegislationIndex);
 }

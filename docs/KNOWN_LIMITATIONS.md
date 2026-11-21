@@ -310,6 +310,11 @@ great deal of litigation.
   daily update asks each such site once a week whether it serves the same page
   over https; their measures are listed once it does. California is read from its
   own data, and Puerto Rico, whose titles are in Spanish, is left out.
+- **The search box does not find the measures of the other state legislatures.**
+  Their index is close to a megabyte compressed, so it is loaded only by the list
+  of legislation, the page of a state and the page of methodology. Search for them
+  in the list of legislation, where they can be chosen by state, issue and stage.
+  Their texts are linked, not mirrored, so they cannot be compared on the site.
 - **One machine, one browser engine.** Browser tests ran in headless Chromium
   only, at a desktop size and with a phone profile. Firefox, Safari, real phones
   and real assistive technology were not tested.

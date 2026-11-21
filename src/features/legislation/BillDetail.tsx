@@ -1,5 +1,5 @@
 import type { EntityRelationship, LegislativeInstrument } from '../../types/schemas';
-import { billHeading, isFederalBill } from '../../lib/bills';
+import { billHeading, isFederalBill, isStateMeasureId } from '../../lib/bills';
 import { useCore } from '../../lib/core';
 import { loadBill } from '../../lib/data';
 import { EARLIER_SUBJECT_EXPLAINER, earlierSubject, earlierSubjectNote } from '../../lib/billHistory';
@@ -16,6 +16,7 @@ import { A, Async, BackLink, CopyLinkButton, ExportMenu, Facts, Loading, Section
 import { latestTextLine, statusLine } from './BillDirectory';
 import { CourtsCell, LinkedMeasuresAndPlaces, ListedAndTags, TextVersions, endsSentence, linkedCasesOf } from './billParts';
 import { FederalBillBody } from './FederalBillDetail';
+import { StateMeasureDetail } from './StateMeasureDetail';
 
 const BASIS_LABELS: Readonly<Record<string, string>> = {
   not_verified: 'Not verified',
@@ -74,6 +75,11 @@ function isAdoptedMeasure(bill: LegislativeInstrument): boolean {
 }
 
 export function BillDetail({ id, route }: { id: string; route: Route }) {
+  // A measure read from Open States has a page of its own, with what that source records.
+  return isStateMeasureId(id) ? <StateMeasureDetail id={id} route={route} /> : <PublishedBillDetail id={id} route={route} />;
+}
+
+function PublishedBillDetail({ id, route }: { id: string; route: Route }) {
   const core = useCore();
   const record = useLoad(`bill:${id}`, () => loadBill(id));
   return (

@@ -1,7 +1,7 @@
 /** Everything known about one place, gathered once and shared by the workspace, the export and the print summary. */
 import { useMemo } from 'react';
 import type { Court, LegalCaseSummary, LegislativeInstrumentSummary, Manifest, SourceRecord, TimelineEvent } from '../../types/schemas';
-import { useCore, useEvents } from '../../lib/core';
+import { useCore, useEvents, useStateLegislation, type BillCatalog } from '../../lib/core';
 import { SCOTUS_ID } from '../../lib/courts';
 import { loadCountyCd, loadPopulation, RELATIONSHIPS_PATH, type DataError } from '../../lib/data';
 import { entityNamer, packForPlace, UNAVAILABLE_NOTICES, type SourcePack } from '../../lib/export';
@@ -9,15 +9,18 @@ import { NO_COUNTS_FOR_UNIT, datasetFor, populationFor, type PopulationResult } 
 import { billsForPlace, casesForPlace, eventsForPlace, type LinkedRecord } from '../../lib/relations';
 import { buildHash } from '../../lib/router';
 import { allOf, dataOf, mapLoadable, useLoad, type Loadable } from '../../lib/useLoad';
-import { NATION_KEY, type GeoIndex, type GeoUnit } from '../../lib/geo';
-import type { PopulationFile } from '../../types/schemas';
+import { NATION_KEY, STATE_ABBR, type GeoIndex, type GeoUnit } from '../../lib/geo';
+import { coverageOf, whyNoneListed } from '../../lib/stateLegislation';
+import type { PopulationFile, StateLegislationIndex } from '../../types/schemas';
 
 export type PlaceEvent = TimelineEvent & { via: 'direct' | 'statewide' | 'within' };
 
 export interface PlaceLegislation {
   bills: LegislativeInstrumentSummary[];
-  /** True when legislation for this unit's state is tracked at all. */
+  /** True when the dataset lists measures of this unit's legislature. */
   covered: boolean;
+  /** Why none of its legislature's measures is listed, when that legislature is read through Open States and none is. */
+  why: string | null;
 }
 
 /**
@@ -103,13 +106,23 @@ export function usePlaceData(key: string): PlaceState {
     () => (unit ? mapLoadable(core.courts, (courts) => (unit.stateFips ? courts.forState(unit.stateFips) ?? null : null)) : { status: 'loading' }),
     [unit, core.courts],
   );
+  // The measures of the other state legislatures are read for the page of a place in a state, not for the country's.
+  const inState = Boolean(unit && unit.key !== NATION_KEY && unit.stateFips);
+  const stateLegislation = useStateLegislation(inState);
   const legislation = useMemo<Loadable<PlaceLegislation>>(
-    () => (unit ? mapLoadable(core.bills, (index) => {
-      // Legislation is covered for a place when the dataset holds measures of its legislature at all.
-      const bills = billsForPlace(unit.key, index.bills);
-      return { bills, covered: bills.length > 0 };
-    }) : { status: 'loading' }),
-    [unit, core.bills],
+    () => {
+      if (!unit) return { status: 'loading' };
+      const both: Loadable<readonly [BillCatalog, StateLegislationIndex | null]> = inState ? allOf(core.bills, stateLegislation) : mapLoadable(core.bills, (catalog) => [catalog, null] as const);
+      return mapLoadable(both, ([catalog, states]) => {
+        // Legislation is covered for a place when the dataset holds measures of its legislature at all. Those read from
+        // Open States come newest first, by their latest action.
+        const read = states ? billsForPlace(unit.key, states.bills).sort((a, b) => (b.lastActionDate ?? '').localeCompare(a.lastActionDate ?? '') || a.id.localeCompare(b.id)) : [];
+        const bills = [...billsForPlace(unit.key, catalog.bills), ...read];
+        const legislature = states && unit.stateFips ? coverageOf(states, STATE_ABBR[unit.stateFips] ?? '') : null;
+        return { bills, covered: bills.length > 0, why: bills.length === 0 && legislature ? whyNoneListed(legislature) : null };
+      });
+    },
+    [unit, inState, core.bills, stateLegislation],
   );
   const events = useMemo<Loadable<PlaceEvent[]>>(
     () => (unit ? mapLoadable(allEvents, (all) => eventsForPlace(unit.key, all)) : { status: 'loading' }),

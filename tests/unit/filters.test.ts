@@ -199,7 +199,9 @@ describe('query values typed or pasted into the address', () => {
     const both = [makeBill(), makeFederalBill()];
     expect(knownBillFilters({ jur: 'us', status: 'Passed the House' }, both)).toEqual({ jur: 'us', status: 'Passed the House', tag: undefined, type: undefined });
     expect(knownBillFilters({ jur: 'us', status: 'Chaptered' }, both).status).toBeUndefined();
-    expect(knownBillFilters({ jur: 'tx' }, both).jur).toBeUndefined();
+    // A state the map knows is kept though none of its measures is listed: its list is then empty, with the reason.
+    expect(knownBillFilters({ jur: 'tx' }, both).jur).toBe('tx');
+    expect(knownBillFilters({ jur: 'zz' }, both).jur).toBeUndefined();
     expect(filterBills(both, { jur: 'us' }).map((b) => b.id)).toEqual(['us-119-hr9001']);
     expect(filterBills(both, { sort: 'number' }).map((b) => b.id)).toEqual(['us-119-hr9001', 'ca-99999999-zz1']);
   });

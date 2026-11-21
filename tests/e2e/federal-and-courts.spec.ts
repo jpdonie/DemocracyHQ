@@ -48,6 +48,7 @@ test.describe('Federal level', () => {
     await open(page, '#/laws?jur=us');
     await expect(heading(page)).toHaveText('Election legislation');
     await expect(page.locator('.filters-status')).toContainText(/^\d+ measures of Congress in this dataset/);
+    await page.locator('details.filters-more > summary').click();
     await page.getByRole('combobox', { name: 'Stage reached' }).selectOption('Passed the House');
     await expect(page).toHaveURL(/status=Passed(\+|%20)the(\+|%20)House/);
     await expect(page.locator('main ul.rows > li').first()).toBeVisible();

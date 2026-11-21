@@ -1,15 +1,18 @@
 import { useId, useMemo, useRef } from 'react';
-import type { LegislativeInstrumentSummary } from '../../types/schemas';
-import { PASSED_IN_EACH_LIST_NOTE, PASSED_IN_EACH_SHORT, PASSED_IN_EACH_STAGES, billJurisdiction, billLabel, isFederalBill, shortSession, stateLabel, statusNoun } from '../../lib/bills';
+import type { LegislativeInstrumentSummary, StateLegislationIndex } from '../../types/schemas';
+import { PASSED_IN_EACH_LIST_NOTE, PASSED_IN_EACH_SHORT, PASSED_IN_EACH_STAGES, STATE_STAGES, billLabel, isFederalBill, isStateMeasure, shortSession, stateLabel, statusNoun } from '../../lib/bills';
 import { passageDeadlineNote, pendingAfterDeadline } from '../../lib/caSession';
-import { useCore, type BillCatalog } from '../../lib/core';
-import { countBy, filterBills, knownBillFilters, type BillFilters } from '../../lib/filters';
+import { useCore, useStateLegislation, type BillCatalog } from '../../lib/core';
+import { ALL_STATES, countBy, filterBills, inJurisdiction, knownBillFilters, positiveInt, type BillFilters } from '../../lib/filters';
+import { STATE_NAME, stateFipsOfAbbr } from '../../lib/geo';
+import { COMPACT_QUERY, useMediaQuery } from '../../lib/media';
+import { legislatureCoverage, listNames, unlistedSummary, whyNoneListed } from '../../lib/stateLegislation';
 import { formatDate, plural } from '../../lib/format';
 import { useTagLabels } from '../../lib/labels';
 import { buildHash, patchQuery, type Route } from '../../lib/router';
-import { dataOf } from '../../lib/useLoad';
+import { allOf, dataOf } from '../../lib/useLoad';
 import { AboutLine, Highlight, holdsTerm } from '../../components/About';
-import { A, Async, ClearFilters, Empty, GapNotice, MoreFilters, Segmented, SelectField, TagList, TextField, TypeMark } from '../../components/ui';
+import { A, Async, ClearFilters, Empty, GapNotice, MoreFilters, SelectField, TagList, TextField, TypeMark } from '../../components/ui';
 
 export function billFiltersFromQuery(query: Route['query']): BillFilters {
   const sort = query.sort === 'number' || query.sort === 'introduced' ? query.sort : 'action';
@@ -80,19 +83,28 @@ export function matchedElsewhere(bill: LegislativeInstrumentSummary): { title: s
   return { title: selection.matchedTitle, field: selection.matchedField, words: selection.matchedText };
 }
 
+/** How long a title a row shows of a state measure read from Open States, cut around the words the rule matched. */
+const STATE_TITLE_LIMIT = 240;
+
 export function BillRow({ bill, labels }: { bill: LegislativeInstrumentSummary; labels: ReadonlyMap<string, string> }) {
   const matched = bill.selection?.matchedText ? [bill.selection.matchedText] : [];
   const elsewhere = matchedElsewhere(bill);
+  // A state legislature's title can run to a paragraph: the row shows the part around the words that put it on the list.
+  const state = isStateMeasure(bill);
+  const title = state ? excerptAround(shownTitle(bill), bill.selection?.test === 'subject' ? '' : bill.selection?.matchedText ?? '', STATE_TITLE_LIMIT) : shownTitle(bill);
   return (
     <li className="row">
       <a className="row-title" href={buildHash(['laws', bill.id])}>
-        <span className="bill-id">{billLabel(bill)}</span> <Highlight text={shownTitle(bill)} terms={matched} />
+        <span className="bill-id">{billLabel(bill)}</span> <Highlight text={title} terms={matched} />
       </a>
       <p className="row-meta">{bill.measureType}, {isFederalBill(bill) ? shortSession(bill.session) : `${stateLabel(bill)}, ${bill.session}`}</p>
       {elsewhere ? (
         <p className="row-why">
           Also titled <q><Highlight text={excerptAround(elsewhere.title, elsewhere.words)} terms={matched} /></q> <span className="quiet">({elsewhere.field})</span>
         </p>
+      ) : null}
+      {state && bill.selection?.test === 'subject' ? (
+        <p className="row-why">Filed by the legislature under <span className="row-why-value">{bill.selection.matchedText}</span></p>
       ) : null}
       <AboutLine about={bill.about} terms={termsInQuotation(bill)} />
       <TagList tags={bill.issueTags} labels={labels} hrefFor={(tag) => buildHash(['laws'], { tag })} />
@@ -110,50 +122,85 @@ export function BillRow({ bill, labels }: { bill: LegislativeInstrumentSummary; 
 
 export function BillDirectory({ route }: { route: Route }) {
   const core = useCore();
+  // The list waits for both indexes: a list of "all measures" with the state legislatures silently missing would read as a finding.
+  const states = useStateLegislation();
   return (
     <article className="view">
       <header className="view-head">
         <TypeMark type="bill" label="Legislation" />
         <h1 tabIndex={-1}>Election legislation</h1>
-        <p className="lede">Election measures of Congress and the California Legislature, each with its official history and every published text version, so you can see what changed between versions.</p>
+        <p className="lede">Election measures of Congress and of the state legislatures, each with the words that put it on the list, how far it got and a link to the legislature&rsquo;s own record. The measures of Congress and of California carry every published text version, so you can see what changed.</p>
       </header>
-      <Async of={core.bills} what="legislation">
-        {(catalog) => <Directory catalog={catalog} route={route} />}
+      <Async of={allOf(core.bills, states)} what="legislation">
+        {([catalog, index]) => <Directory catalog={catalog} index={index} route={route} />}
       </Async>
     </article>
   );
 }
 
-const LEGISLATURES = [{ value: '', label: 'All' }, { value: 'us', label: 'Congress' }, { value: 'ca', label: 'California' }];
+/** How many rows the list shows before the reader asks for more. */
+export const BILL_ROWS_SHOWN = 100;
 
-function Directory({ catalog, route }: { catalog: BillCatalog; route: Route }) {
+const isOpenStatesLegislature = (jur: string | null | undefined): jur is string => Boolean(jur && jur !== 'us' && jur !== 'ca' && jur !== ALL_STATES);
+
+function Directory({ catalog, index, route }: { catalog: BillCatalog; index: StateLegislationIndex; route: Route }) {
   const core = useCore();
   const labels = useTagLabels();
-  const bills = catalog.bills;
+  const compact = useMediaQuery(COMPACT_QUERY);
+  const bills = useMemo(() => [...catalog.bills, ...index.bills], [catalog, index]);
   // Values that are not among the menu's choices are not applied, so the list and the menus agree.
   const filters = knownBillFilters(billFiltersFromQuery(route.query), bills);
-  const set = (patch: Record<string, string>) => patchQuery(route, patch);
-  // The menus offer what the chosen legislature's measures have. Congress and a state legislature use different words
-  // for a measure's status and kind, so those two menus appear once a legislature is chosen.
-  const pool = useMemo(() => (filters.jur ? bills.filter((b) => billJurisdiction(b) === filters.jur) : bills), [bills, filters.jur]);
-  const federal = useMemo(() => bills.filter(isFederalBill), [bills]);
-  const california = useMemo(() => bills.filter((b) => !isFederalBill(b)), [bills]);
+  // A change of a filter starts the list at its first rows again.
+  const set = (patch: Record<string, string>) => patchQuery(route, { ...patch, show: '' });
+  const limit = positiveInt(route.query.show, BILL_ROWS_SHOWN);
+  const jur = filters.jur;
+  const level = !jur ? '' : jur === 'us' ? 'us' : ALL_STATES;
+  // One legislature: Congress, California or a legislature read from Open States.
+  const single = jur && jur !== ALL_STATES ? jur : null;
+  const coverage = useMemo(() => legislatureCoverage(index), [index]);
+  const legislature = isOpenStatesLegislature(single) ? coverage.get(single) ?? null : null;
+  // The menus offer what the chosen legislature's measures have. Congress and the state legislatures use different
+  // words for a measure's status and kind, so those two menus appear once a single legislature is chosen.
+  const pool = useMemo(() => (jur ? bills.filter((b) => inJurisdiction(b, jur)) : bills), [bills, jur]);
+  const federal = useMemo(() => catalog.bills.filter(isFederalBill), [catalog]);
+  const california = useMemo(() => catalog.bills.filter((b) => !isFederalBill(b)), [catalog]);
   // Judged against the data release, never against the reader's clock.
   const asOf = dataOf(core.manifest)?.generatedAt ?? bills.reduce<string | null>((latest, b) => (!latest || b.lastCheckedAt > latest ? b.lastCheckedAt : latest), null);
   const pastDeadline = useMemo(() => pool.filter((b) => pendingAfterDeadline(b, asOf)).length, [pool, asOf]);
   const results = useMemo(() => filterBills(bills, filters), [bills, filters.q, filters.tag, filters.jur, filters.status, filters.type, filters.sort]); // eslint-disable-line react-hooks/exhaustive-deps
   const tagOptions = useMemo(() => countBy(pool, (b) => b.issueTags.map((t) => t.tag)), [pool]);
-  const statusOptions = useMemo(() => countBy(pool, (b) => [currentStatus(b)]), [pool]);
+  // A stage of rule state-status-1 is listed in the order of the rule, from the first to the furthest.
+  const statusOptions = useMemo(() => {
+    const options = countBy(pool, (b) => [currentStatus(b)]);
+    if (!isOpenStatesLegislature(single)) return options;
+    const rank = (value: string) => (STATE_STAGES.includes(value) ? STATE_STAGES.indexOf(value) : STATE_STAGES.length);
+    return options.sort((a, b) => rank(a.value) - rank(b.value));
+  }, [pool, single]);
   const typeOptions = useMemo(() => countBy(pool, (b) => [b.measureType]), [pool]);
+  // Every state whose legislature is read or left out, with how many of its measures are listed: a state with none is
+  // a choice too, and its list then says why it is empty.
+  const stateOptions = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const b of bills) if (!isFederalBill(b)) counts.set(b.stateAbbr.toLowerCase(), (counts.get(b.stateAbbr.toLowerCase()) ?? 0) + 1);
+    for (const key of coverage.keys()) if (!counts.has(key)) counts.set(key, 0);
+    return [...counts.entries()]
+      .map(([value, count]) => ({ value, count, name: STATE_NAME[stateFipsOfAbbr(value) ?? ''] ?? value.toUpperCase() }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [bills, coverage]);
+  const stateLegislatures = index.bills.length + california.length;
   const active = Boolean(filters.q || filters.tag || filters.status || filters.type);
   const status = useRef<HTMLParagraphElement | null>(null);
-  const setInGrid = [filters.tag, filters.status, filters.type].filter(Boolean).length;
+  // A state chosen implies the level of the state legislatures, so the two count as one filter.
+  const setFirst = [filters.tag, level].filter(Boolean).length;
+  const setInGrid = [filters.status, filters.type].filter(Boolean).length;
   const statusId = useId();
   const deadlineId = useId();
-  const deadlineHint = filters.jur === 'ca' && pastDeadline > 0 && asOf ? passageDeadlineNote(asOf) : null;
+  const deadlineHint = jur === 'ca' && pastDeadline > 0 && asOf ? passageDeadlineNote(asOf) : null;
   const congress = [...new Set(federal.map((b) => shortSession(b.session)))].join(' and ');
   const sessions = [...new Set(california.map((b) => b.session))].join(' and ');
   const rule = (ruleId: string) => <A to={buildHash(['sources'], { section: 'coverage' })}>rule {ruleId}</A>;
+  const read = [...coverage.values()].filter((l) => l.listed > 0);
+  const withDc = read.some((l) => l.stateAbbr === 'DC');
   const federalNote = (
     <>
       {plural(federal.length, 'measure')} of the {congress}, chosen from the {catalog.federal.totalMeasuresRead.toLocaleString('en-US')} measures in the official bill status data by a published keyword rule applied to each measure&rsquo;s titles and policy area ({rule(catalog.federal.ruleId)})
@@ -164,48 +211,75 @@ function Directory({ catalog, route }: { catalog: BillCatalog; route: Route }) {
       {plural(california.length, 'measure')} of California&rsquo;s {sessions}, chosen from {catalog.california.totalBillsInSession.toLocaleString('en-US')} bills by a published keyword rule applied to each bill&rsquo;s official subject line ({rule(catalog.california.ruleId)})
     </>
   );
-  const clearTo = buildHash(['laws'], filters.jur ? { jur: filters.jur } : {});
-  const noun = filters.jur === 'us' ? 'measure of Congress' : filters.jur === 'ca' ? 'California measure' : 'measure';
-  const nounPlural = filters.jur === 'us' ? 'measures of Congress' : `${noun}s`;
+  const statesNote = (
+    <>
+      {plural(index.bills.length, 'measure')} of the legislatures of {read.length - (withDc ? 1 : 0)} other states{withDc ? ' and the District of Columbia' : ''}, from their sessions since {formatDate(index.selection.since)}, chosen from the {index.selection.totalMeasuresRead.toLocaleString('en-US')} measures Open States holds for those sessions by a published rule applied to each measure&rsquo;s title and the subjects the legislature files it under ({rule(index.selection.ruleId)})
+    </>
+  );
+  const unlisted = unlistedSummary(coverage);
+  const unlistedNote = unlisted ? <> {unlisted}</> : null;
+  const openStatesNote = ' Open States collects these records from each legislature’s site; every measure links to the legislature’s own page.';
+  const legislatureNote = legislature ? (
+    legislature.listed > 0 ? (
+      <>
+        Covers {plural(legislature.listed, 'measure')} of the {legislature.name} legislature from {legislature.sessions.length === 1 ? 'its session' : 'its sessions'} {listNames(legislature.sessions.map((session) => session.name))}, chosen from the {legislature.measuresRead.toLocaleString('en-US')} measures Open States holds for {legislature.sessions.length === 1 ? 'that session' : 'those sessions'} by a published rule applied to each measure&rsquo;s title and the subjects the legislature files it under ({rule(index.selection.ruleId)}).{openStatesNote}
+        {legislature.withoutSecureLink > 0 ? ` ${plural(legislature.withoutSecureLink, 'other measure')} the rule picked ${legislature.withoutSecureLink === 1 ? 'is' : 'are'} not listed, because Open States gives no secure address of the legislature’s page for ${legislature.withoutSecureLink === 1 ? 'it' : 'them'} (rule secure-link-1).` : ''}
+      </>
+    ) : <>{whyNoneListed(legislature)}</>
+  ) : isOpenStatesLegislature(single) ? <>No session of this legislature was read.</> : null;
+  const clearTo = buildHash(['laws'], jur ? { jur } : {});
+  const stateName = legislature?.name ?? (single === 'ca' ? 'California' : null);
+  const noun = jur === 'us' ? 'measure of Congress' : stateName ? `${stateName} measure` : jur === ALL_STATES ? 'state measure' : 'measure';
+  const nounPlural = jur === 'us' ? 'measures of Congress' : `${noun}s`;
   return (
     <>
-      <Segmented
-        label="Legislature"
-        value={filters.jur ?? ''}
-        options={LEGISLATURES}
-        // A status or a kind of measure belongs to one legislature, so changing the legislature drops both.
-        onChange={(jur) => set({ jur, status: '', type: '', tag: '' })}
-      />
       <p className="coverage-note">
-        {filters.jur === 'us' ? <>Covers {federalNote}. A measure whose titles do not say that it concerns elections is missed.</>
-          : filters.jur === 'ca' ? <>Covers {californiaNote}. Other state legislatures are not covered yet.</>
-          : <>Covers two legislatures: {federalNote}; and {californiaNote}. Other state legislatures are not covered yet.</>}
+        {jur === 'us' ? <>Covers {federalNote}. A measure whose titles do not say that it concerns elections is missed.</>
+          : jur === 'ca' ? <>Covers {californiaNote}.</>
+          : legislatureNote ? legislatureNote
+          : jur === ALL_STATES ? <>Covers {californiaNote}; and {statesNote}.{openStatesNote}{unlistedNote}</>
+          : <>Covers {federalNote}; {californiaNote}; and {statesNote}.{openStatesNote}{unlistedNote}</>}
       </p>
       <form className="filters" role="search" aria-label="Filter legislation" onSubmit={(event) => event.preventDefault()}>
         <TextField label="Search measure number, title or summary" value={filters.q ?? ''} onChange={(q) => set({ q })} placeholder="e.g. H.R. 22, AB 604 or proof of citizenship" />
         <MoreFilters
           count={setInGrid}
+          primaryCount={setFirst}
+          primary={(
+            <div className="filters-grid filters-first">
+              {/* A status or a kind of measure belongs to one legislature, so a change of the legislature lets go of both. */}
+              <SelectField label="Legislature" value={level} onChange={(value) => set({ jur: value, status: '', type: '' })}>
+                <option value="">Congress and the states</option>
+                <option value="us">Congress ({federal.length.toLocaleString('en-US')})</option>
+                <option value={ALL_STATES}>State legislatures ({stateLegislatures.toLocaleString('en-US')})</option>
+              </SelectField>
+              <SelectField label="State" value={single && single !== 'us' ? single : ''} onChange={(value) => set({ jur: value || ALL_STATES, status: '', type: '' })}>
+                <option value="">All states</option>
+                {stateOptions.map((o) => <option key={o.value} value={o.value}>{o.name} ({o.count.toLocaleString('en-US')})</option>)}
+              </SelectField>
+              {tagOptions.length > 0 ? (
+                <SelectField label="Issue" value={filters.tag ?? ''} onChange={(tag) => set({ tag })}>
+                  <option value="">All issues</option>
+                  {tagOptions.map((o) => <option key={o.value} value={o.value}>{labels.get(o.value) ?? o.value} ({o.count.toLocaleString('en-US')})</option>)}
+                </SelectField>
+              ) : null}
+            </div>
+          )}
           status={(
             <p className="filters-status" role="status" tabIndex={-1} ref={status}>
-              {plural(results.length, noun, nounPlural)} {active ? `of ${pool.length} match these filters` : 'in this dataset'}
+              {plural(results.length, noun, nounPlural)} {active ? `of ${pool.length.toLocaleString('en-US')} match these filters` : 'in this dataset'}
               {active ? <> <ClearFilters to={clearTo} focus={status} /></> : null}
             </p>
           )}
         >
           <div className="filters-grid">
-            {tagOptions.length > 0 ? (
-              <SelectField label="Issue" value={filters.tag ?? ''} onChange={(tag) => set({ tag })}>
-                <option value="">All issues</option>
-                {tagOptions.map((o) => <option key={o.value} value={o.value}>{labels.get(o.value) ?? o.value} ({o.count})</option>)}
-              </SelectField>
-            ) : null}
-            {filters.jur ? (
+            {single ? (
               <>
                 {/* Written out rather than through SelectField, so the select can point at the deadline note below. */}
                 <div className="field">
-                  <label htmlFor={statusId}>{filters.jur === 'us' ? 'Stage reached' : 'Status as reported'}</label>
+                  <label htmlFor={statusId}>{single === 'ca' ? 'Status as reported' : 'Stage reached'}</label>
                   <select id={statusId} value={filters.status ?? ''} onChange={(event) => set({ status: event.target.value })} aria-describedby={deadlineHint ? deadlineId : undefined}>
-                    <option value="">{filters.jur === 'us' ? 'Any stage' : 'Any status'}</option>
+                    <option value="">{single === 'ca' ? 'Any status' : 'Any stage'}</option>
                     {statusOptions.map((o) => <option key={o.value} value={o.value}>{o.value} ({o.count})</option>)}
                   </select>
                 </div>
@@ -221,11 +295,16 @@ function Directory({ catalog, route }: { catalog: BillCatalog; route: Route }) {
               <option value="number">Measure number</option>
             </SelectField>
           </div>
-          {!filters.jur ? <p className="hint">Choose a legislature above to filter by stage or status and by kind of measure: Congress and California use different terms for both.</p> : null}
-          {filters.jur === 'us' ? (
+          {!single ? <p className="hint">Choose Congress or one state to filter by stage or status and by kind of measure: legislatures use different terms for both.</p> : null}
+          {single === 'us' ? (
             <p className="hint">
               The stage is how far a measure got among its recorded actions, worked out by a published rule ({rule('us-status-1')}). It is not an official status, and it does not say what is happening to the measure now.
               {statusOptions.some((o) => PASSED_IN_EACH_STAGES.has(o.value)) ? ` ${PASSED_IN_EACH_LIST_NOTE}` : ''}
+            </p>
+          ) : null}
+          {isOpenStatesLegislature(single) ? (
+            <p className="hint">
+              The stage is how far a measure got among the actions Open States records for it, worked out by a published rule ({rule(index.selection.statusRuleId)}). It is not an official status, and it does not say what is happening to the measure now.
             </p>
           ) : null}
           {/* Counted over the whole legislature, like the counts in the status menu, so it does not change with the filters. */}
@@ -238,12 +317,28 @@ function Directory({ catalog, route }: { catalog: BillCatalog; route: Route }) {
       </form>
       {results.length === 0 ? (
         <Empty title="No measure in this dataset matches these filters.">
-          <GapNotice>Only the current Congress and California&rsquo;s current session are covered, and only the measures the selection rules matched.</GapNotice>
+          <GapNotice>Only the sessions read and only the measures the selection rules matched are covered. A measure that is missing here may well exist.</GapNotice>
           <p><ClearFilters to={clearTo} focus={status} /></p>
         </Empty>
       ) : (
-        <ul className="rows">{results.map((bill) => <BillRow key={bill.id} bill={bill} labels={labels} />)}</ul>
+        <>
+          <ul className="rows">{results.slice(0, limit).map((bill) => <BillRow key={bill.id} bill={bill} labels={labels} />)}</ul>
+          {results.length > limit ? (
+            <p className="rows-more">
+              <button type="button" className="btn" onClick={() => patchQuery(route, { show: String(limit + BILL_ROWS_SHOWN) })}>Show {Math.min(BILL_ROWS_SHOWN, results.length - limit)} more</button>
+              {' '}<span className="quiet">{limit.toLocaleString('en-US')} of {plural(results.length, 'measure')} shown</span>
+            </p>
+          ) : null}
+        </>
       )}
+      {jur !== 'us' ? (
+        <p className="hint">
+          {compact
+            ? 'To list the measures of one state, choose it under “State”, or use “Show more map” and select it on the map.'
+            : 'Select a state on the map to list the measures of its legislature, and select it again to list every state’s. The other filters stay as they are, and the map shades the states with a measure that matches them.'}
+          {' '}The measures of Congress apply to the whole country and are listed under &ldquo;Congress&rdquo;.
+        </p>
+      ) : null}
     </>
   );
 }

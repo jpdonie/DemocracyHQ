@@ -1,16 +1,17 @@
 import { Component, lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { Layer } from './types/schemas';
 import { APP_NAME, REPO_URL } from './config';
-import { billLabel, isFederalBill } from './lib/bills';
-import { CoreProvider, useCore, useGovernment } from './lib/core';
+import { billLabel, isStateMeasureId } from './lib/bills';
+import { CoreProvider, useCore, useGovernment, useStateLegislation } from './lib/core';
 import {
   SCOTUS_ID, casesByCourt, circuitCourtId, circuitViewBbox, courtFullName, courtGeoKey, courtHash, courtIdOfCase, isCourtId,
 } from './lib/courts';
 import { isAppealsCaseId, isDecisionCaseId, isFederalBillId, loadPopulation } from './lib/data';
-import { caseStateCounts, filterCases, knownCaseFilters, type CaseFilters } from './lib/filters';
-import { NATION_KEY, isCensusLayer, isDistrictLayer, isLayer, parseGeoKey, unionBbox, type Bbox } from './lib/geo';
-import { caseStatesTheme, circuitTheme, coverageTheme, linkedRecordsTheme, partyControlTheme, populationTheme, redrawnTheme, type MapTheme } from './lib/mapTheme';
+import { ALL_STATES, billStateCounts, caseStateCounts, filterBills, filterCases, knownBillFilters, knownCaseFilters, type BillFilters, type CaseFilters } from './lib/filters';
+import { NATION_KEY, STATE_ABBR, isCensusLayer, isDistrictLayer, isLayer, parseGeoKey, stateFipsOfAbbr, unionBbox, type Bbox } from './lib/geo';
+import { caseStatesTheme, circuitTheme, legislationTheme, linkedRecordsTheme, partyControlTheme, populationTheme, redrawnTheme, type MapTheme } from './lib/mapTheme';
 import { linkedStates, relationshipsForRecord } from './lib/relations';
+import { unlistedNotes } from './lib/stateLegislation';
 import { fullSiteUrl, isEmbedded } from './lib/embed';
 import { buildHash, mapQuery, moveStartedOn, navigate, patchQuery, useRoute, type Route } from './lib/router';
 import { COMPACT_QUERY, SHORT_COMPACT_QUERY, TINY_COMPACT_QUERY, useMediaQuery } from './lib/media';
@@ -32,7 +33,7 @@ import { HomePanel } from './features/geography/HomePanel';
 import { PackView } from './features/geography/PackView';
 import { PlaceWorkspace } from './features/geography/PlaceWorkspace';
 import { BillDetail } from './features/legislation/BillDetail';
-import { BillDirectory } from './features/legislation/BillDirectory';
+import { BillDirectory, billFiltersFromQuery } from './features/legislation/BillDirectory';
 import { VersionCompare } from './features/legislation/VersionCompare';
 import { CaseDetail } from './features/litigation/CaseDetail';
 import { CaseDirectory, caseFiltersFromQuery } from './features/litigation/CaseDirectory';
@@ -266,6 +267,8 @@ function Shell() {
     }
     if (view.name === 'bill' || view.name === 'compare') {
       if (isFederalBillId(view.id)) return known([NATION_KEY]);
+      // A measure read from Open States names its state in its id (os-<state>-...).
+      if (isStateMeasureId(view.id)) return known([`state:${stateFipsOfAbbr(view.id.slice(3, 5)) ?? ''}`]);
       const bill = bills?.bills.find((b) => b.id === view.id);
       return bill ? known([`state:${bill.state}`]) : [];
     }
@@ -274,6 +277,8 @@ function Shell() {
       return route.query.court ? known([courtGeoKey(route.query.court)]) : [];
     }
     if (view.name === 'laws' && route.query.jur === 'us') return known([NATION_KEY]);
+    // One state's legislature: its state.
+    if (view.name === 'laws' && route.query.jur && route.query.jur !== ALL_STATES) return known([`state:${stateFipsOfAbbr(route.query.jur) ?? ''}`]);
     return [];
   }, [geo, view, relationships, bills, cases, route.query.state, route.query.court, route.query.jur]);
 
@@ -327,6 +332,17 @@ function Shell() {
     return Object.values(others).some(Boolean) ? others : null;
   }, [litigationQuery, cases]);
 
+  // The measures of the state legislatures read from Open States, wanted while the map shows legislation.
+  const stateLegislation = dataOf(useStateLegislation(module === 'laws'));
+  const allLaws = useMemo(() => (bills && stateLegislation ? [...bills.bills, ...stateLegislation.bills] : null), [bills, stateLegislation]);
+  // The filters of the legislation list other than the legislature, when any is set: the map's shading follows them.
+  const lawsQuery = view.name === 'laws' ? route.query : null;
+  const lawFilters = useMemo<BillFilters | null>(() => {
+    if (!lawsQuery || !allLaws) return null;
+    const { jur: _jur, sort: _sort, ...others } = knownBillFilters(billFiltersFromQuery(lawsQuery), allLaws);
+    return Object.values(others).some(Boolean) ? others : null;
+  }, [lawsQuery, allLaws]);
+
   const theme = useMemo<MapTheme | null>(() => {
     if (!geo) return null;
     if (activeLayer === 'circuit') return cases ? circuitTheme(casesByCourt(cases)) : null;
@@ -339,8 +355,9 @@ function Shell() {
     // A record of the whole country belongs to no single state, so no state is shaded for it.
     if (federalRecord) return null;
     if (module === 'laws') {
-      if (!bills) return null;
-      return coverageTheme(new Set(bills.bills.filter((b) => !isFederalBill(b)).map((b) => b.state)), bills.bills.some(isFederalBill));
+      if (!allLaws || !stateLegislation) return null;
+      // On the list the map follows the filters, the legislature apart: a state is shaded when one of its measures passes the others.
+      return legislationTheme(billStateCounts(lawFilters ? filterBills(allLaws, lawFilters) : allLaws), Boolean(lawFilters), unlistedNotes(stateLegislation));
     }
     if (module === 'litigation') {
       if (!cases) return null;
@@ -352,7 +369,7 @@ function Shell() {
     // The Supreme Court's page: the states its dockets are linked to.
     if (view.name === 'court') return relationships ? linkedRecordsTheme(linkedStates(relationships, 'case'), 'cases') : null;
     return relationships ? linkedRecordsTheme(linkedStates(relationships, 'any'), 'records') : null;
-  }, [geo, shade, populationFile, partyShading, government, activeLayer, redistricting, module, bills, relationships, cases, federalRecord, view.name, litigationFilters]);
+  }, [geo, shade, populationFile, partyShading, government, activeLayer, redistricting, module, allLaws, stateLegislation, lawFilters, relationships, cases, federalRecord, view.name, litigationFilters]);
 
   const onSelect = useCallback((key: string) => {
     const current = routeRef.current;
@@ -366,6 +383,12 @@ function Shell() {
     if (currentView.name === 'litigation' && key.startsWith('state:')) {
       const fips = key.slice(6);
       patchQuery(current, { state: current.query.state === fips ? '' : fips }, { replace: false });
+      return;
+    }
+    // On the list of legislation a state selects its legislature, and selecting it again lists every state's.
+    const abbr = key.startsWith('state:') ? STATE_ABBR[key.slice(6)]?.toLowerCase() : undefined;
+    if (currentView.name === 'laws' && abbr) {
+      patchQuery(current, { jur: current.query.jur === abbr ? ALL_STATES : abbr, status: '', type: '', show: '' }, { replace: false });
       return;
     }
     navigate(buildHash(['place', key], mapQuery(current.query)));
@@ -450,8 +473,8 @@ function Shell() {
       const record = cases?.find((c) => c.id === view.id);
       title = record ? `${record.caseName}, No. ${record.docketNumber}` : 'Court case';
     } else if (view.name === 'bill' || view.name === 'compare') {
-      const bill = bills?.bills.find((b) => b.id === view.id);
-      title = bill ? `${billLabel(bill)}: ${bill.subject ?? ''}` : 'Legislation';
+      const bill = (isStateMeasureId(view.id) ? stateLegislation?.bills : bills?.bills)?.find((b) => b.id === view.id);
+      title = bill ? `${billLabel(bill)}: ${bill.subject ?? bill.title ?? ''}` : 'Legislation';
       if (view.name === 'compare') title = `Text versions, ${title}`;
     } else if (view.name === 'place') title = geo?.get(view.key)?.name ?? 'Place';
     else if (view.name === 'courts') title = 'Courts';
@@ -465,7 +488,7 @@ function Shell() {
     else if (view.name === 'pack') title = packTitle(view, cases, bills?.bills, geo);
     else if (view.name === 'notfound') title = 'Page not found';
     document.title = title ? `${title} | ${APP_NAME}` : `${APP_NAME}: election law, litigation and district maps`;
-  }, [view, cases, bills, geo, courts]);
+  }, [view, cases, bills, stateLegislation, geo, courts]);
 
   /* ----- render ----- */
   let panel: React.ReactNode;

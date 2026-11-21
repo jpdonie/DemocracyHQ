@@ -365,8 +365,8 @@ function LegislationTab({ data, legislation }: { data: PlaceData; legislation: P
   const stateName = data.geo.stateName(data.unit.stateFips);
   if (!legislation.covered) {
     return (
-      <Empty title={`Legislation for ${stateName} is not covered yet.`}>
-        <GapNotice>DemocracyHQ tracks the election measures of Congress and of the California Legislature. The election legislation of {stateName} is not tracked here.</GapNotice>
+      <Empty title={`No election measure of ${stateName}’s legislature is listed.`}>
+        <GapNotice>{legislation.why ?? `The election legislation of ${stateName} is not tracked here.`} A measure that is missing here may well exist.</GapNotice>
         <FederalPointer />
       </Empty>
     );

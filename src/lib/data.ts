@@ -11,7 +11,7 @@ import type { z } from 'zod';
 import {
   BillIndexSchema, CaseIndexSchema, CIRCUIT_CASE_ID_PATTERN, CircuitIndexSchema, CircuitsFileSchema, ClassificationFileSchema, CountyCdSchema,
   CourtsFileSchema, DECISION_CASE_ID_PATTERN, DecisionIndexSchema, EventsFileSchema, FederalBillIndexSchema, GeoIndexSchema, GovernmentFileSchema, LegalCaseSchema, LegislativeInstrumentSchema, ManifestSchema,
-  PopulationFileSchema, RedistrictingFileSchema, RelationshipFileSchema, SourcesFileSchema, US_BILL_ID_PATTERN, VersionTextSchema,
+  PopulationFileSchema, RedistrictingFileSchema, RelationshipFileSchema, SourcesFileSchema, StateLegislationIndexSchema, StateMeasureFileSchema, US_BILL_ID_PATTERN, VersionTextSchema,
   type Layer, type Manifest,
 } from '../types/schemas';
 
@@ -128,6 +128,16 @@ export const loadCircuitIndex = loader('circuits/index.json', CircuitIndexSchema
 export const loadDecisionIndex = loader('decisions/index.json', DecisionIndexSchema);
 /** California's election measures. */
 export const loadBillIndex = loader('legislation/index.json', BillIndexSchema);
+/** The election measures of the other state legislatures, read from Open States, with how they were selected. */
+export const loadStateLegislationIndex = loader('state-legislation/index.json', StateLegislationIndexSchema);
+
+/** The full records of one state legislature's measures (state-legislation/<state>.json), by the state's abbreviation. */
+export function loadStateMeasures(stateAbbr: string) {
+  const abbr = stateAbbr.toLowerCase();
+  if (!/^[a-z]{2}$/.test(abbr)) return Promise.reject(new DataError('not_found', stateAbbr, 'That state is not valid.'));
+  return loader(`state-legislation/${abbr}.json`, StateMeasureFileSchema)();
+}
+
 /** The election measures of Congress. */
 export const loadFederalBillIndex = loader('congress/index.json', FederalBillIndexSchema);
 /** The thirteen courts of appeals, the states each regional circuit is made of and the statute that says so. */

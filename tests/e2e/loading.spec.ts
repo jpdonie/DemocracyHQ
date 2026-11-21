@@ -45,6 +45,8 @@ test.describe('Focus on a record that is still loading', () => {
 
     await page.getByRole('navigation', { name: 'Modules' }).getByRole('link', { name: 'Legislation' }).click();
     await expect(heading(page)).toHaveText('Election legislation');
+    // The list shows a hundred measures of every legislature at a time: the measure is found by its number first.
+    await page.getByRole('searchbox', { name: 'Search measure number, title or summary' }).fill('AB 604');
     await page.locator('.rows').getByRole('link', { name: /^CA AB 604\b/ }).focus();
     await page.keyboard.press('Enter');
     await expect(heading(page)).toHaveText(BILL.heading);

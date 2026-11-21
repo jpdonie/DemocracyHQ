@@ -1,14 +1,15 @@
 /** Data sources and methodology: where every record comes from, how it is processed, and what it cannot tell you. */
 import { useEffect } from 'react';
-import { VERIFICATION_STATUSES, type VerificationStatus } from '../../types/schemas';
+import { VERIFICATION_STATUSES, type StateLegislationIndex, type VerificationStatus } from '../../types/schemas';
 import { isFederalBill, shortSession } from '../../lib/bills';
-import { useCore, type AppealsCoverage, type BillCatalog, type DecisionsCoverage } from '../../lib/core';
+import { useCore, useStateLegislation, type AppealsCoverage, type BillCatalog, type DecisionsCoverage } from '../../lib/core';
 import { SCOTUS_ID, courtHash, courtShortName, isAppealsCourtId, levelName, levelOfKind, systemOfKind, type CourtDirectory, type CourtKind } from '../../lib/courts';
 import { loadClassification } from '../../lib/data';
 import { formatDate, formatDateTime, formatNumber, plural } from '../../lib/format';
 import { sourceFreshness } from '../../lib/freshness';
 import { eventLabel } from '../../lib/labels';
 import { buildHash, type Route } from '../../lib/router';
+import { legislatureCoverage, listNames, unlistedSummary } from '../../lib/stateLegislation';
 import { dataOf, useLoad } from '../../lib/useLoad';
 import { UNASSIGNED_STATUSES, VERIFICATION_MEANINGS } from '../../lib/verification';
 import { correctionUrl, REPO_URL } from '../../config';
@@ -82,6 +83,48 @@ function FederalSelection({ catalog }: { catalog: BillCatalog }) {
       <p>
         Each measure is read from its bill status record, which the Government Publishing Office publishes from the records of the Library of Congress, and its text versions from the official bill texts. The record gives no status of its own: the stage shown for a measure is the furthest step among its recorded actions (rule us-status-1), not an official status.
         Each measure links to its page on congress.gov; that page is not machine-checked.
+      </p>
+    </>
+  );
+}
+
+/** How the measures of the other state legislatures are read from Open States and selected, from the index itself. */
+function StateSelection({ index }: { index: StateLegislationIndex }) {
+  const selection = index.selection;
+  const coverage = legislatureCoverage(index);
+  const legislatures = [...coverage.values()].filter((l) => l.sessions.length > 0).length;
+  const unlisted = unlistedSummary(coverage);
+  const patterns: Readonly<Record<string, string>> = { named: selection.namedPattern, general: selection.generalPattern, subject: selection.subjectPattern };
+  return (
+    <>
+      <p>
+        <strong>The other state legislatures.</strong> Read from the bulk data of Open States, scanned {formatDate(index.scannedAt.slice(0, 10))}: every measure of the {formatNumber(index.sessions.length)} sessions of {formatNumber(legislatures)} legislatures that began or ended on or after {formatDate(selection.since)}, {formatNumber(selection.totalMeasuresRead)} in this release.
+        {' '}A measure is selected by rule {selection.ruleId}, applied to {selection.appliedTo}, when it meets one of three tests:
+      </p>
+      <TableScroll label="Tests of the selection rule for the measures of the other state legislatures">
+        <table className="table">
+          <thead><tr><th scope="col">Test</th><th scope="col">A measure meets it when</th><th scope="col" className="num">Measures</th><th scope="col">Pattern (case-insensitive regular expression)</th></tr></thead>
+          <tbody>
+            {Object.entries(selection.tests).map(([name, words]) => (
+              <tr key={name}>
+                <th scope="row">{name}</th>
+                <td>{words}</td>
+                <td className="num">{formatNumber(selection.selectedByTest[name] ?? 0)}</td>
+                <td className="rule-pattern">{patterns[name] ?? ''}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </TableScroll>
+      <p>
+        Before a title is read, these phrases are removed from it: <Pattern>{selection.exclusionPattern}</Pattern> A subject that names the voting of another body does not count: <Pattern>{selection.subjectExclusions}</Pattern>
+        {' '}Measures Open States classifies as {listNames(selection.notLegislation.map((kind) => `${kind}s`))} are not legislation and are left out ({formatNumber(selection.notLegislationLeftOut)} in this release), and so is a measure whose title only honours, commemorates or proclaims: <Pattern>{selection.ceremonialPattern}</Pattern>
+      </p>
+      <p>
+        The rule selected {formatNumber(selection.selected)} measures and {formatNumber(selection.listed)} are listed. A measure is listed only with a secure (https) address of the legislature&rsquo;s own page for it (rule {selection.linkRuleId}): an address Open States gives as http is used as https only where Open States&rsquo; own data for that state shows the site serving https, or where the daily update has confirmed that it answers securely. {formatNumber(selection.withoutSecureLink)} selected measures have no such address yet. {unlisted}
+      </p>
+      <p>
+        The stage shown for a measure is the furthest step among the actions Open States records for it, by the kinds Open States gives them (rule {selection.statusRuleId}): {selection.stages.join(', ')}. It is not an official status. Open States is a collection, not a legislature: each record is marked as imported from a secondary source and links to the legislature&rsquo;s own page, which is the record that counts. The texts are not mirrored, so they cannot be compared on this site.
       </p>
     </>
   );
@@ -324,6 +367,7 @@ export function SourcesPage({ route }: { route: Route }) {
   const classification = useLoad('classification', loadClassification);
   const manifest = dataOf(core.manifest);
   const bills = dataOf(core.bills);
+  const stateLegislation = useStateLegislation();
   const cases = dataOf(core.cases);
   const courts = dataOf(core.courts);
   const supremeCount = cases ? cases.filter((record) => record.courtId === SCOTUS_ID).length : null;
@@ -347,7 +391,7 @@ export function SourcesPage({ route }: { route: Route }) {
         <TypeMark type="data" label="Data and methodology" />
         <h1 tabIndex={-1}>Data sources and methodology</h1>
         <p className="lede">Where each record comes from, how it is processed, how fresh it is, and what it cannot tell you.</p>
-        <GapNotice>DemocracyHQ covers the Supreme Court and the thirteen federal courts of appeals from official records, federal district courts and state courts as far as CourtListener holds their decisions, Congress and one state legislature. Anything not listed below is simply not in the dataset.</GapNotice>
+        <GapNotice>DemocracyHQ covers the Supreme Court and the thirteen federal courts of appeals from official records, federal district courts and state courts as far as CourtListener holds their decisions, Congress and California from official records, and the other state legislatures as far as Open States holds their measures. Anything not listed below is simply not in the dataset.</GapNotice>
         <nav aria-label="On this page" className="toc">
           <a href={buildHash(['sources'], { section: 'sources' })}>Sources and freshness</a>
           <a href={buildHash(['sources'], { section: 'coverage' })}>Coverage and selection</a>
@@ -429,7 +473,9 @@ export function SourcesPage({ route }: { route: Route }) {
             </>
           )}
         </Async>
-        <p>The legislatures of the other states are not covered.</p>
+        <Async of={stateLegislation} what="the index of the other state legislatures’ measures">
+          {(index) => <StateSelection index={index} />}
+        </Async>
         <h3>Links between records</h3>
         <p>
           A case or bill is linked to a place, or to another record, only by an entry in the repository&rsquo;s seed files. Each entry quotes a passage of a named official document: the questions presented, an opinion, a filing on the docket, or the bill text. On every run that fetches the cited document, the pipeline checks that the passage is in it, ignoring only white space, hyphens and dashes, letter case and the style of quotation marks, and reading compatibility characters such as ligatures as their plain letters; parts separated by &ldquo;[&hellip;]&rdquo; must appear in order. If the document cannot be fetched in a run, a link already published stays with the date of its last successful check, and a new link is not published. A passage that ties a case or bill to a place must also name the place. A link that fails either check is not published and goes to the review queue. The check shows that the document says those words. It does not check the maintainer&rsquo;s description of the link, which is shown as theirs. A court&rsquo;s location or a party&rsquo;s name is never used to place a case.

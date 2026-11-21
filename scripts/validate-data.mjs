@@ -260,6 +260,7 @@ if (geoIndex) {
     }
     if (row[2] === '' || !parsed.geoid.startsWith(row[2])) fail(`geo/index.json: ${key} lists state "${row[2]}", which is not the start of its GEOID`);
     if (!geoLib.STATE_ABBR[row[2]]) fail(`geo/index.json: state FIPS ${row[2]} has no postal abbreviation in src/lib/geo.ts`);
+    if (parsed.layer === 'state' && geoLib.STATE_NAME[parsed.geoid] !== row[1]) fail(`src/lib/geo.ts: the name of state ${parsed.geoid} is "${geoLib.STATE_NAME[parsed.geoid]}", the Census file says "${row[1]}"`);
   }
   if (perLayer.nation !== 1 || !geoKeys.has(geoLib.NATION_KEY)) fail(`geo/index.json: the nation layer must hold exactly one unit, ${geoLib.NATION_KEY}`);
   for (const layer of S.LAYERS) {

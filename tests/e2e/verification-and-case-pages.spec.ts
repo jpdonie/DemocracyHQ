@@ -109,10 +109,14 @@ test.describe('Home, About and place pages', () => {
     await expect(page.getByRole('region', { name: 'What this is not' })).not.toContainText('stated on every page');
   });
 
-  test('a place outside California says its legislation is not tracked, without claims about it', async ({ page }) => {
+  test('a state lists its own legislature’s measures, and a place without any says why, without claims about it', async ({ page }) => {
     await open(page, '#/place/state:36?tab=legislation');
     await expect(heading(page)).toHaveText('New York');
-    await expect(page.getByText('The election legislation of New York is not tracked here.')).toBeVisible();
+    const measures = page.getByRole('region', { name: 'Election measures in New York' });
+    await expect(measures.locator('a.row-title').first()).toHaveAttribute('href', /^#\/laws\/os-ny-/);
+    await expect(measures.getByRole('link', { name: /^See all [\d,]+ tracked measures$/ })).toHaveAttribute('href', '#/laws?jur=ny');
+    await open(page, '#/place/state:72?tab=legislation');
+    await expect(page.getByText('Not covered: Puerto Rico titles its measures in Spanish, which the rule does not read. A measure that is missing here may well exist.')).toBeVisible();
     await expect(page.getByText('has election legislation that is not shown here')).toHaveCount(0);
   });
 
@@ -128,7 +132,7 @@ test.describe('Home, About and place pages', () => {
     await expect(population).not.toContainText('island areas');
   });
 
-  test('the legend calls the boundary file’s date the server’s date, and the coverage hatch makes no claim about other states', async ({ page }) => {
+  test('the legend calls the boundary file’s date the server’s date, and the legislation hatch makes no claim about other states', async ({ page }) => {
     await open(page, '#/', { withMap: true });
     await mapReady(page, 'state');
     await expect(page.locator('.legend-vintage')).toContainText('Source file dated');
@@ -136,7 +140,7 @@ test.describe('Home, About and place pages', () => {
     await expect(page.locator('.legend-vintage')).not.toContainText('published');
     await open(page, '#/laws', { withMap: true });
     await mapReady(page, 'state');
-    await expect(page.locator('.legend .legend-hatch')).toHaveText('Not covered: this legislature’s election bills are not tracked by DemocracyHQ.');
+    await expect(page.locator('.legend .legend-hatch')).toHaveText('No measure of the state’s legislature in this dataset. Not evidence that none exists.');
   });
 });
 

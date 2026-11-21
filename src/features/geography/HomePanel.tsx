@@ -30,6 +30,8 @@ export function HomePanel() {
   const federal = bills?.bills.filter(isFederalBill) ?? [];
   const california = bills?.bills.filter((b) => !isFederalBill(b)) ?? [];
   const congress = [...new Set(federal.map((b) => shortSession(b.session)))].join(' and ');
+  // Counted from the release's manifest, so the overview does not load the index of the other state legislatures.
+  const stateMeasures = manifest?.counts.stateLegislationBills ?? 0;
   const byKind = cases ? casesByKind(cases) : null;
   const supreme = byKind?.get('federal_supreme')?.cases ?? 0;
   const appeals = byKind?.get('federal_appellate') ?? { cases: 0, courts: 0 };
@@ -39,7 +41,7 @@ export function HomePanel() {
     <article className="view view-home">
       <header className="view-head">
         <h1 tabIndex={-1} className="display">Election litigation, voting laws and district boundaries, linked to their sources</h1>
-        <p className="lede">Election measures of Congress and the California Legislature, election cases in federal and state courts, and Census Bureau boundaries for states, counties and congressional districts.</p>
+        <p className="lede">Election measures of Congress and of the state legislatures, election cases in federal and state courts, and Census Bureau boundaries for states, counties and congressional districts.</p>
       </header>
 
       <Section title="Who governs">
@@ -75,8 +77,8 @@ export function HomePanel() {
             <a href={buildHash(['laws'])}>Election legislation</a>
             <p>
               {bills
-                ? `${plural(federal.length, 'election measure')} of the ${congress || 'current Congress'} and ${plural(california.length, 'measure')} of California’s current session, each with its official history and text versions you can compare.`
-                : 'Election measures of Congress and of the California Legislature, each with its official history and comparable text versions.'}
+                ? `${plural(federal.length, 'election measure')} of the ${congress || 'current Congress'} and ${plural(california.length, 'measure')} of California’s current session, each with its official history and text versions you can compare${stateMeasures ? `; and ${plural(stateMeasures, 'measure')} of the other state legislatures, read from Open States, each with its history and a link to the legislature’s page` : ''}.`
+                : 'Election measures of Congress and of the state legislatures, each with its official history.'}
             </p>
           </li>
           <li className="module module-case">
@@ -97,7 +99,7 @@ export function HomePanel() {
           </li>
         </ul>
         <GapNotice>
-          Coverage is uneven on purpose while the method is proven: Congress and one state legislature; the Supreme Court and the federal courts of appeals from official records; federal district courts and state courts only as far as CourtListener, a collection that is not a court, holds their decisions. The other state legislatures are not covered.{' '}
+          Coverage is uneven on purpose while the method is proven: Congress and California from official records, the other state legislatures as far as Open States, a collection that is not a legislature, holds their measures; the Supreme Court and the federal courts of appeals from official records; federal district courts and state courts only as far as CourtListener, a collection that is not a court, holds their decisions.{' '}
           <A to={buildHash(['sources'], { section: 'coverage' })}>See exactly what is and is not covered.</A>
         </GapNotice>
       </Section>

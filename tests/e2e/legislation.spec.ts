@@ -1,17 +1,19 @@
-import { BILL, expect, heading, open, test } from './fixtures';
+import { BILL, clickMap, expect, heading, mapReady, open, test } from './fixtures';
 
 test.describe('Voting law change monitor', () => {
   test('lists the tracked measures and filters them by reported status', async ({ page }) => {
     await open(page, '#/laws');
     await expect(heading(page)).toHaveText('Election legislation');
     const status = page.locator('.filters-status');
-    await expect(status).toContainText(/^\d+ measures in this dataset/);
-    const total = Number((await status.innerText()).match(/^(\d+)/)![1]);
+    await expect(status).toContainText(/^[\d,]+ measures in this dataset/);
+    const total = Number((await status.innerText()).match(/^([\d,]+)/)![1]!.replace(/,/g, ''));
     expect(total).toBeGreaterThanOrEqual(50);
 
     // A status belongs to one legislature, so the menu appears once a legislature is chosen.
     await expect(page.getByRole('combobox', { name: 'Status as reported' })).toHaveCount(0);
     await open(page, '#/laws?jur=ca');
+    // The stage and the kind of measure are under "More filters", below the legislature, the state and the issue.
+    await page.locator('details.filters-more > summary').click();
     await page.getByRole('combobox', { name: 'Status as reported' }).selectOption('Chaptered');
     await expect(page).toHaveURL(/status=Chaptered/);
     await expect(status).toContainText(/^\d+ California measures of \d+ match these filters/);
@@ -109,6 +111,60 @@ test.describe('Voting law change monitor', () => {
     await expect(summary).toContainText('Chaptered (Aug 21, 2025)');
     await page.getByRole('link', { name: 'Back to the measure' }).click();
     await expect(heading(page)).toHaveText(BILL.heading);
+  });
+
+  test('lists the measures of every state legislature, by state and issue, and opens the page of one', async ({ page }) => {
+    await open(page, '#/laws', { withMap: true });
+    const status = page.locator('.filters-status');
+    // The levels and the states are menus of their own; a state is chosen from the menu or on the map.
+    await page.getByRole('combobox', { name: 'Legislature' }).selectOption('states');
+    await expect(page).toHaveURL(/jur=states/);
+    await expect(status).toContainText(/^[\d,]+ state measures in this dataset/);
+    await page.getByRole('combobox', { name: 'Issue' }).selectOption('mail-voting');
+    await page.getByRole('combobox', { name: 'State' }).selectOption('la');
+    await expect(page).toHaveURL(/jur=la/);
+    await expect(page).toHaveURL(/tag=mail-voting/);
+    await expect(status).toContainText(/^\d+ Louisiana measures? of [\d,]+ match these filters/);
+    await expect(page.locator('.coverage-note')).toContainText('measures of the Louisiana legislature from its sessions');
+    await expect(page.locator('.coverage-note')).toContainText('rule state-select-1');
+    // The stage of a measure read from Open States is the rule's reading of its actions, offered in the rule's order.
+    await page.locator('details.filters-more > summary').click();
+    const stage = page.getByRole('combobox', { name: 'Stage reached' });
+    await expect(stage.locator('option').nth(1)).toHaveText(/^Introduced \(\d+\)$/);
+    await expect(page.locator('.legend')).toContainText('State legislation that matches the filters');
+
+    const first = page.locator('main ul.rows > li').first();
+    await expect(first.locator('.bill-id')).toHaveText(/^LA /);
+    await expect(first.locator('.row-line')).toContainText(/^Stage reached: /);
+    await first.locator('a.row-title').click();
+    await expect(page).toHaveURL(/#\/laws\/os-la-/);
+    await expect(heading(page)).toHaveText(/^Louisiana [A-Z]+ \d+$/);
+    await expect(page.locator('.why-listed')).toContainText(/^Why it is listed /);
+    const standing = page.getByRole('region', { name: 'Where this measure stands' });
+    await expect(standing.locator('.stage-track [aria-current="step"]')).toHaveCount(1);
+    await expect(standing.locator('a[href^="https://"]').first()).toBeVisible();
+    await expect(page.getByRole('region', { name: 'Why this measure is listed, and its tags' })).toContainText('selection rule state-select-1');
+    await expect(page.locator('.source-line')).toContainText('Imported from secondary source');
+    await page.getByRole('link', { name: 'Election legislation of Louisiana' }).click();
+    await expect(page).toHaveURL(/#\/laws\?jur=la$/);
+  });
+
+  test('a state selected on the map lists the measures of its legislature, and selected again lists every state’s', async ({ page }) => {
+    await open(page, '#/laws?jur=states', { withMap: true });
+    await mapReady(page, 'state');
+    await clickMap(page, [-98.3, 38.5]);
+    await expect(page).toHaveURL(/jur=ks/);
+    await expect(page.locator('.filters-status')).toContainText(/Kansas measures? in this dataset/);
+    await expect(page.getByRole('combobox', { name: 'State' })).toHaveValue('ks');
+    await mapReady(page, 'state');
+    await clickMap(page, [-98.3, 38.5]);
+    await expect(page).toHaveURL(/jur=states/);
+  });
+
+  test('says why a legislature has no measure listed', async ({ page }) => {
+    await open(page, '#/laws?jur=pr');
+    await expect(page.locator('.coverage-note')).toHaveText('Not covered: Puerto Rico titles its measures in Spanish, which the rule does not read.');
+    await expect(page.getByText('No measure in this dataset matches these filters.')).toBeVisible();
   });
 
   test('says so when the filters match nothing', async ({ page }) => {

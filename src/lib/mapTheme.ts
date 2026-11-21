@@ -111,22 +111,34 @@ export function circuitTheme(casesOfCourt: ReadonlyMap<string, number>): MapThem
 }
 
 /**
- * The legislation list's map: the states whose own election bills are tracked. The measures of Congress apply to
- * the whole country and are not drawn as shading.
+ * The legislation list's map: the states whose own legislature has a measure in this dataset. With `filtered`, the
+ * counts are those of the measures the list's other filters keep, and the legend says so. As on the litigation map, the
+ * shading marks that a measure is listed; how many are is in the tooltip of the state, never in the depth of a colour:
+ * how many a rule picks depends on how many bills a legislature files, how often it meets and how it titles and files
+ * them. `unlisted` gives, by state, why a legislature has none listed (see `whyNoneListed`). The measures of Congress
+ * apply to the whole country and are not drawn as shading.
  */
-export function coverageTheme(coveredStates: ReadonlySet<string>, withFederal = false): MapTheme {
+export function legislationTheme(counts: ReadonlyMap<string, number>, filtered = false, unlisted: ReadonlyMap<string, string> = new Map()): MapTheme {
   const classOf = new Map<string, number>();
-  for (const stateFips of coveredStates) classOf.set(stateFips, 0);
+  const detailOf = new Map<string, string>();
+  for (const [stateFips, count] of counts) {
+    if (count <= 0) continue;
+    classOf.set(stateFips, 0);
+    detailOf.set(stateFips, filtered ? `${plural(count, 'measure')} of the state’s legislature ${count === 1 ? 'matches' : 'match'} the filters` : `${plural(count, 'election measure')} of the state’s legislature in this dataset`);
+  }
+  for (const [stateFips, why] of unlisted) if (!classOf.has(stateFips)) detailOf.set(stateFips, why);
   return {
-    id: `coverage:${[...coveredStates].sort().join(',')}:${withFederal ? 'federal' : 'states'}`,
+    id: `legislation:${filtered ? 'filtered' : 'all'}:${[...classOf.keys()].sort().join(',')}`,
     layer: 'state',
-    title: 'State legislation coverage',
-    classes: [{ token: '--law-tint', label: 'State election bills tracked from the official legislative data' }],
+    title: filtered ? 'State legislation that matches the filters' : 'State legislation by state',
+    classes: [{ token: '--law-tint', label: filtered ? 'At least one measure of the state’s legislature matches the filters' : 'At least one election measure of the state’s legislature in this dataset' }],
     classOf,
-    hatch: { geoids: 'rest', label: 'Not covered: this legislature’s election bills are not tracked by DemocracyHQ.' },
+    hatch: { geoids: 'rest', label: filtered ? 'No measure of the state’s legislature in this dataset matches the filters. Not evidence that none exists.' : 'No measure of the state’s legislature in this dataset. Not evidence that none exists.' },
     plain: null,
-    note: withFederal ? 'The measures of Congress in this dataset apply to the whole country and are not drawn as shading.' : null,
-    sourceId: 'ca-leginfo-bulk',
+    note: 'The shading shows that a measure is listed, not how many are: how many a rule picks depends on how many bills a legislature files, how often it meets and how it titles them. The measures of Congress apply to the whole country and are not drawn as shading.',
+    sourceId: null,
+    detailOf,
+    family: filtered ? 'legislation:filtered' : undefined,
   };
 }
 

@@ -8,7 +8,7 @@
  */
 import type {
   CircuitIndex, CircuitsFile, Court, DecisionIndex, EntityRelationship, FederalBillIndex, GeoIndexFile, LegalCase, LegalCaseSummary, LegislativeInstrument,
-  LegislativeInstrumentSummary, Manifest, PopulationFile, RedistrictingFile, SourceRecord, TimelineEvent, VersionText,
+  LegislativeInstrumentSummary, Manifest, PopulationFile, RedistrictingFile, SourceRecord, StateLegislationIndex, StateMeasureSummary, TimelineEvent, VersionText,
 } from '../../src/types/schemas';
 
 export const NOW = '2026-06-15T12:00:00Z';
@@ -386,6 +386,50 @@ export function makeBill(overrides: Partial<LegislativeInstrumentSummary> = {}):
     lastCheckedAt: '2026-06-14T10:00:00Z',
     verification: { status: 'verified_primary', method: 'automated_primary_retrieval', checkedAt: '2026-06-14T10:00:00Z', note: null },
     ...overrides,
+  };
+}
+
+/** A measure of a state legislature as Open States records it (synthetic). */
+export function makeStateMeasure(overrides: Partial<StateMeasureSummary> = {}): StateMeasureSummary {
+  return {
+    ...makeBill(),
+    id: 'os-la-2026rs-hb12',
+    state: '22',
+    stateAbbr: 'LA',
+    session: '2026 Regular Session',
+    identifier: 'HB 12',
+    measureType: 'Bill',
+    title: 'Provides relative to absentee voting by mail (synthetic).',
+    subject: null,
+    chapter: null,
+    legislativeStatus: { currentStatus: 'Passed one chamber' },
+    selection: { ruleId: 'state-select-1', matchedText: 'absentee voting', matchedField: 'Title', test: 'named' },
+    sourceId: 'openstates-api',
+    verification: { status: 'imported_secondary', method: 'automated_secondary_import', checkedAt: '2026-06-14T10:00:00Z' },
+    ...overrides,
+  };
+}
+
+/** The index of the state legislatures' measures (synthetic): Louisiana listed, Maryland waiting for a secure link, Puerto Rico left out. */
+export function makeStateLegislationIndex(bills: StateMeasureSummary[] = [makeStateMeasure()]): StateLegislationIndex {
+  const session = (state: string, stateAbbr: string, listed: number, withoutSecureLink: number) => ({
+    state, stateAbbr, identifier: '2026rs', name: '2026 Regular Session', classification: 'primary', start: '2026-03-09', end: '2026-06-01',
+    measuresRead: 1000, selected: listed + withoutSecureLink, listed, withoutSecureLink,
+  });
+  return {
+    bills,
+    scannedAt: '2026-06-14T10:00:00Z',
+    sessions: [session('22', 'LA', bills.length, 0), session('24', 'MD', 0, 7)],
+    selection: {
+      ruleId: 'state-select-1', statusRuleId: 'state-status-1', linkRuleId: 'secure-link-1', appliedTo: 'the title and the subjects', since: '2025-01-01',
+      tests: { named: 'The title names an election matter.', general: 'The title holds an election word.', subject: 'A subject names elections.' },
+      subjectPattern: 'x', subjectExclusions: 'x', maxSubjects: 3, namedPattern: 'x', generalPattern: 'x', exclusionPattern: 'x', notLegislation: [],
+      ceremonialPattern: 'x', resolutionCeremonialPattern: 'x',
+      stages: ['Introduced', 'Passed one chamber', 'Passed the legislature', 'Sent to the governor', 'Vetoed', 'Signed by the governor', 'Became law'],
+      totalMeasuresRead: 2000, selected: bills.length + 7, listed: bills.length, withoutSecureLink: 7, selectedByTest: { named: bills.length },
+      notLegislationLeftOut: 0,
+      leftOut: [{ state: '06', stateAbbr: 'CA', reason: "California is read from the Legislature's own data" }, { state: '72', stateAbbr: 'PR', reason: 'Puerto Rico titles its measures in Spanish, which the rule does not read' }],
+    },
   };
 }
 

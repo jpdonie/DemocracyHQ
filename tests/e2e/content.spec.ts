@@ -90,7 +90,8 @@ test.describe('Places that are not states', () => {
 
     await open(page, '#/place/state:11');
     await expect(page.locator('.lede').first()).toHaveText(/^Federal district \(DC\)\. Census GEOID 11\./);
-    await expect(page.getByText('Legislation not covered for this federal district yet')).toBeVisible();
+    // The Council of the District of Columbia is read through Open States.
+    await expect(page.getByText('(listed for the whole federal district)')).toBeVisible();
 
     await open(page, '#/');
     const search = page.getByRole('combobox', { name: 'Search places, courts, cases and bills' });

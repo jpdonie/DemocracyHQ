@@ -33,7 +33,7 @@ export const GAP_NOTICE = 'Coverage is incomplete. A data gap is not evidence of
 export const UNAVAILABLE_NOTICES = {
   links: 'The links between records (relationships.json) could not be loaded, so this pack lists no links to places, cases or other measures. That says nothing about whether such links exist.',
   cases: 'The court case indexes (litigation/index.json and circuits/index.json) could not be loaded, so this pack lists no court cases. That says nothing about whether any are linked.',
-  bills: 'The legislation indexes (legislation/index.json and congress/index.json) could not be loaded, so this pack lists no legislation. That says nothing about whether any exists.',
+  bills: 'The legislation indexes (legislation/index.json, congress/index.json and, for a place in a state, state-legislation/index.json) could not be loaded, so this pack lists no legislation. That says nothing about whether any exists.',
   events: 'The timeline (events.json) could not be loaded, so this pack lists no dated events. That says nothing about whether any exist.',
   caseRecords: 'The court case indexes (litigation/index.json and circuits/index.json) could not be loaded, so linked court cases appear only as links, without their case records.',
   /** For a place: a case is linked to a place only through a link. Appeals that began in the state come from the case index and are still listed. */

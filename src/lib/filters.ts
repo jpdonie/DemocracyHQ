@@ -1,5 +1,6 @@
 import type { LegalCaseSummary, LegislativeInstrumentSummary } from '../types/schemas';
 import { billJurisdiction, identifierVariants, isFederalBill } from './bills';
+import { STATE_ABBR } from './geo';
 import { ALL_APPEALS, courtLevel, courtSystem, isCourtId, isCourtLevel, isCourtSystem, matchesCourt, type CourtLevel, type CourtSystem } from './courts';
 
 export function normalizeText(value: string): string {
@@ -87,7 +88,10 @@ export function filterCases(cases: readonly LegalCaseSummary[], filters: CaseFil
 export interface BillFilters {
   q?: string;
   tag?: string;
-  /** The legislature: "us" for Congress, a state's postal abbreviation in lower case for its legislature ("ca"). */
+  /**
+   * The legislature: "us" for Congress, a state's postal abbreviation in lower case for its legislature ("ca"), or
+   * "states" for every state legislature.
+   */
   jur?: string;
   /**
    * The status line of the measure: for a state bill the status as its legislature reports it ("Chaptered"), for a
@@ -107,12 +111,24 @@ export function identifierParts(identifier: string): [string, number] {
 
 const statusOf = (b: LegislativeInstrumentSummary) => b.legislativeStatus.currentStatus ?? 'Not recorded';
 
+/** The value of `jur` that stands for every state legislature. */
+export const ALL_STATES = 'states';
+
+/** Whether a measure belongs to the legislature `jur` names (see `BillFilters.jur`). */
+export function inJurisdiction(b: Pick<LegislativeInstrumentSummary, 'state' | 'stateAbbr'>, jur: string | undefined): boolean {
+  if (!jur) return true;
+  return jur === ALL_STATES ? !isFederalBill(b) : billJurisdiction(b) === jur;
+}
+
+/** The lower-case abbreviations of the states and territories the map knows, which `jur` may name though no measure is listed. */
+const KNOWN_STATES: ReadonlySet<string> = new Set(Object.values(STATE_ABBR).map((abbr) => abbr.toLowerCase()));
+
 export function filterBills(bills: readonly LegislativeInstrumentSummary[], filters: BillFilters): LegislativeInstrumentSummary[] {
   const result = bills.filter((b) => {
     // The search reads what a row shows: number and titles (also the title the selection rule matched), and the passage quoted on what the measure would do.
-    if (!matchesQuery([...identifierVariants(b.identifier), b.subject, b.title, b.selection?.matchedTitle, b.leadAuthors, b.chapter?.citation, b.about?.text], filters.q ?? '')) return false;
+    if (!matchesQuery([...identifierVariants(b.identifier), b.subject, b.title, b.selection?.matchedTitle, b.selection?.matchedText, b.leadAuthors, b.chapter?.citation, b.about?.text], filters.q ?? '')) return false;
     if (filters.tag && !b.issueTags.some((t) => t.tag === filters.tag)) return false;
-    if (filters.jur && billJurisdiction(b) !== filters.jur) return false;
+    if (!inJurisdiction(b, filters.jur)) return false;
     if (filters.status && statusOf(b) !== filters.status) return false;
     if (filters.type && b.measureType !== filters.type) return false;
     return true;
@@ -128,6 +144,13 @@ export function filterBills(bills: readonly LegislativeInstrumentSummary[], filt
     const key = sort === 'introduced' ? 'introducedDate' : 'lastActionDate';
     return (b[key] ?? '').localeCompare(a[key] ?? '') || a.id.localeCompare(b.id);
   });
+}
+
+/** How many measures of each state's own legislature a list holds, by state FIPS code, for the map of legislation. */
+export function billStateCounts(bills: readonly Pick<LegislativeInstrumentSummary, 'state'>[]): Map<string, number> {
+  const counts = new Map<string, number>();
+  for (const b of bills) if (!isFederalBill(b)) counts.set(b.state, (counts.get(b.state) ?? 0) + 1);
+  return counts;
 }
 
 /** Distinct values with counts, for building filter menus from the data itself. */
@@ -202,18 +225,23 @@ export function knownCaseFilters(filters: CaseFilters, cases: readonly LegalCase
  */
 export function knownBillFilters(filters: BillFilters, bills: readonly LegislativeInstrumentSummary[]): BillFilters {
   const legislatures = [...new Set(bills.map(billJurisdiction))];
-  let jur = knownValue(filters.jur, legislatures);
+  // Every state legislature together; or a state the map knows though none of its measures is listed, which then gives
+  // an empty list with the reason rather than the whole list.
+  let jur = filters.jur === ALL_STATES && bills.some((b) => !isFederalBill(b)) ? ALL_STATES
+    : knownValue(filters.jur, legislatures) ?? (filters.jur && KNOWN_STATES.has(filters.jur) ? filters.jur : undefined);
   if (!jur && (filters.status || filters.type)) {
     const using = legislatures.filter((legislature) => bills.some((b) => billJurisdiction(b) === legislature
       && (!filters.status || statusOf(b) === filters.status) && (!filters.type || b.measureType === filters.type)));
     if (using.length === 1) jur = using[0];
   }
-  const pool = jur ? bills.filter((b) => billJurisdiction(b) === jur) : bills;
+  const pool = jur ? bills.filter((b) => inJurisdiction(b, jur)) : bills;
+  // A status or a kind is one legislature's word: not applied to all of them, nor to every state at once.
+  const single = Boolean(jur && jur !== ALL_STATES);
   return {
     ...filters,
     jur,
     tag: knownValue(filters.tag, pool.flatMap((b) => b.issueTags.map((t) => t.tag))),
-    status: jur ? knownValue(filters.status, pool.map(statusOf)) : undefined,
-    type: jur ? knownValue(filters.type, pool.map((b) => b.measureType)) : undefined,
+    status: single ? knownValue(filters.status, pool.map(statusOf)) : undefined,
+    type: single ? knownValue(filters.type, pool.map((b) => b.measureType)) : undefined,
   };
 }
