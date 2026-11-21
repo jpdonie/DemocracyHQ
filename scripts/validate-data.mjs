@@ -83,41 +83,93 @@ const relationships = parse(S.RelationshipFileSchema, 'relationships.json', read
 const events = parse(S.EventsFileSchema, 'events.json', read('events.json'));
 const geoIndex = parse(S.GeoIndexSchema, 'geo/index.json', read('geo/index.json'));
 const countyCd = parse(S.CountyCdSchema, 'geo/county_cd119.json', read('geo/county_cd119.json'));
+const circuitsFile = parse(S.CircuitsFileSchema, 'geo/circuits.json', read('geo/circuits.json'));
 const caseIndex = parse(S.CaseIndexSchema, 'litigation/index.json', read('litigation/index.json'));
+const circuitIndex = parse(S.CircuitIndexSchema, 'circuits/index.json', read('circuits/index.json'));
+const circuitScan = parse(S.CircuitScanSchema, 'circuits/scan.json', read('circuits/scan.json'));
 const billIndex = parse(S.BillIndexSchema, 'legislation/index.json', read('legislation/index.json'));
+const federalIndex = parse(S.FederalBillIndexSchema, 'congress/index.json', read('congress/index.json'));
 const population = {};
 for (const dataset of ['state', 'county', 'cd119']) {
   population[dataset] = parse(S.PopulationFileSchema, `population/${dataset}.json`, read(`population/${dataset}.json`));
 }
 
+// The site finds a record's file from its id alone (src/lib/data.ts): a court of appeals case is under circuits/, any
+// other case under litigation/; a measure of Congress under congress/, any other bill under legislation/. So an id in
+// one index must never have the form of the other.
 const cases = new Map();
-for (const summary of caseIndex?.cases ?? []) {
-  const rel = `litigation/cases/${summary.id}.json`;
-  const record = parse(S.LegalCaseSchema, rel, read(rel));
-  if (record) cases.set(record.id, record);
-}
-const bills = new Map();
-let textFiles = 0;
-let hashedTexts = 0;
-for (const summary of billIndex?.bills ?? []) {
-  const rel = `legislation/bills/${summary.id}.json`;
-  const record = parse(S.LegislativeInstrumentSchema, rel, read(rel));
-  if (!record) continue;
-  bills.set(record.id, record);
-  for (const version of record.versions) {
-    if (version.textAvailability !== 'mirrored') continue;
-    if (!version.textPath) {
-      fail(`${rel}: version ${version.id} is marked mirrored but has no textPath`);
+/** Case id -> the index entry, to compare with the record's own file. */
+const caseSummaries = new Map();
+for (const [index, folder, appeals] of [[caseIndex, 'litigation', false], [circuitIndex, 'circuits', true]]) {
+  for (const summary of index?.cases ?? []) {
+    if (S.CIRCUIT_CASE_ID_PATTERN.test(summary.id) !== appeals) {
+      fail(`${folder}/index.json: case id ${summary.id} ${appeals ? 'is not a court of appeals case id' : 'has the form of a court of appeals case id'}; the site would look for its file in the wrong folder`);
       continue;
     }
-    const text = parse(S.VersionTextSchema, version.textPath, read(version.textPath));
-    if (!text) continue;
-    textFiles += 1;
-    const digest = createHash('sha256').update(text.blocks.map((block) => block[1]).join('\n'), 'utf8').digest('hex');
-    if (version.textHash && digest !== version.textHash) fail(`${version.textPath}: text does not match the hash recorded on ${record.identifier} (${version.label})`);
-    else if (version.textHash) hashedTexts += 1;
-    if (text.instrumentId !== record.id) fail(`${version.textPath}: belongs to ${text.instrumentId}, but is listed under ${record.id}`);
+    if (caseSummaries.has(summary.id)) fail(`${folder}/index.json: case ${summary.id} is listed twice`);
+    caseSummaries.set(summary.id, summary);
+    const rel = `${folder}/cases/${summary.id}.json`;
+    const record = parse(S.LegalCaseSchema, rel, read(rel));
+    if (record) cases.set(record.id, record);
   }
+}
+const bills = new Map();
+const billSummaries = new Map();
+let textFiles = 0;
+let hashedTexts = 0;
+for (const [index, folder, federal] of [[billIndex, 'legislation', false], [federalIndex, 'congress', true]]) {
+  for (const summary of index?.bills ?? []) {
+    if (S.US_BILL_ID_PATTERN.test(summary.id) !== federal) {
+      fail(`${folder}/index.json: bill id ${summary.id} ${federal ? 'is not the id of a measure of Congress' : 'has the form of a measure of Congress'}; the site would look for its file in the wrong folder`);
+      continue;
+    }
+    if (billSummaries.has(summary.id)) fail(`${folder}/index.json: bill ${summary.id} is listed twice`);
+    billSummaries.set(summary.id, summary);
+    const rel = `${folder}/bills/${summary.id}.json`;
+    const record = parse(S.LegislativeInstrumentSchema, rel, read(rel));
+    if (!record) continue;
+    bills.set(record.id, record);
+    for (const version of record.versions) {
+      if (version.textAvailability !== 'mirrored') continue;
+      if (!version.textPath) {
+        fail(`${rel}: version ${version.id} is marked mirrored but has no textPath`);
+        continue;
+      }
+      if (!version.textPath.startsWith(`${folder}/text/`)) {
+        fail(`${rel}: version ${version.id} names the text file ${version.textPath}, which is not under ${folder}/text/`);
+        continue;
+      }
+      const text = parse(S.VersionTextSchema, version.textPath, read(version.textPath));
+      if (!text) continue;
+      textFiles += 1;
+      const digest = createHash('sha256').update(text.blocks.map((block) => block[1]).join('\n'), 'utf8').digest('hex');
+      if (version.textHash && digest !== version.textHash) fail(`${version.textPath}: text does not match the hash recorded on ${record.identifier} (${version.label})`);
+      else if (version.textHash) hashedTexts += 1;
+      if (text.instrumentId !== record.id) fail(`${version.textPath}: belongs to ${text.instrumentId}, but is listed under ${record.id}`);
+      if (text.versionId !== version.id) fail(`${version.textPath}: is version ${text.versionId}, but is listed as ${version.id}`);
+    }
+  }
+}
+// A list shows the index entry and a page the record's own file: the two must say the same about the same record.
+{
+  const SUMMARY_FIELDS = ['caseName', 'docketNumber', 'courtId', 'sourceUrl', 'sourceLastActivity', 'identifier', 'state', 'subject', 'title', 'lastActionDate', 'lastActionText', 'versionCount', 'officialUrl'];
+  const before = errors.length;
+  let compared = 0;
+  for (const [kind, summaries, records] of [['case', caseSummaries, cases], ['bill', billSummaries, bills]]) {
+    for (const [id, summary] of summaries) {
+      const record = records.get(id);
+      if (!record) continue;
+      compared += 1;
+      for (const field of SUMMARY_FIELDS) {
+        if (!(field in summary)) continue;
+        if (JSON.stringify(summary[field] ?? null) !== JSON.stringify(record[field] ?? null)) fail(`${kind} ${id}: the index says ${field} is ${JSON.stringify(summary[field] ?? null)}, the record's own file says ${JSON.stringify(record[field] ?? null)}`);
+      }
+      const stage = (entry) => entry.legislativeStatus?.currentStatus ?? entry.latestDispositiveEntry?.date ?? null;
+      if (stage(summary) !== stage(record)) fail(`${kind} ${id}: the index and the record's own file disagree about its current stage or latest ruling (${stage(summary)} and ${stage(record)})`);
+      if (JSON.stringify(summary.issueTags.map((t) => t.tag)) !== JSON.stringify(record.issueTags.map((t) => t.tag))) fail(`${kind} ${id}: the index and the record's own file carry different subject tags`);
+    }
+  }
+  if (errors.length === before) pass('Index entries', `${compared} index entries say the same as the record files they point to`);
 }
 // Optional files written only when an API credential is configured. The site does not display
 // them yet; they are still held to the same schemas so a bad import can never be published.
@@ -138,7 +190,11 @@ for (const [rel, key, schema] of [
   });
   warn(`${rel}: ${rows.length} record(s) imported from a secondary source are present; the site does not display them yet`);
 }
-if (errors.length === 0) pass('Schemas', `every published file matches its runtime schema (${cases.size} cases, ${bills.size} bills, ${textFiles} text versions)`);
+const appealsCases = [...cases.values()].filter((record) => S.CIRCUIT_CASE_ID_PATTERN.test(record.id));
+const federalBills = [...bills.values()].filter((record) => S.US_BILL_ID_PATTERN.test(record.id));
+if (errors.length === 0) {
+  pass('Schemas', `every published file matches its runtime schema (${cases.size} cases, of which ${appealsCases.length} in the courts of appeals; ${bills.size} bills, of which ${federalBills.length} measures of Congress; ${textFiles} text versions)`);
+}
 if (textFiles > 0 && hashedTexts === textFiles) pass('Text hashes', `${hashedTexts} mirrored text versions hash to the value recorded on their bill`);
 
 /* ---------- 2. files on disk that nothing lists: section 7, once every file above and below has been read ---------- */
@@ -157,10 +213,16 @@ if (geoIndex) {
       continue;
     }
     perLayer[parsed.layer] += 1;
-    if (!parsed.geoid.startsWith(row[2])) fail(`geo/index.json: ${key} lists state ${row[2]}, which is not the start of its GEOID`);
     if (!(row[3] <= row[5] && row[4] <= row[6])) fail(`geo/index.json: ${key} has an inverted bounding box`);
+    if (!geoLib.isCensusLayer(parsed.layer)) {
+      // The nation and the judicial circuits lie in no single state.
+      if (row[2] !== '') fail(`geo/index.json: ${key} lists state ${row[2]}, but a ${parsed.layer} unit is in no single state`);
+      continue;
+    }
+    if (row[2] === '' || !parsed.geoid.startsWith(row[2])) fail(`geo/index.json: ${key} lists state "${row[2]}", which is not the start of its GEOID`);
     if (!geoLib.STATE_ABBR[row[2]]) fail(`geo/index.json: state FIPS ${row[2]} has no postal abbreviation in src/lib/geo.ts`);
   }
+  if (perLayer.nation !== 1 || !geoKeys.has(geoLib.NATION_KEY)) fail(`geo/index.json: the nation layer must hold exactly one unit, ${geoLib.NATION_KEY}`);
   for (const layer of S.LAYERS) {
     const info = geoIndex.layers[layer];
     if (info.featureCount !== perLayer[layer]) fail(`geo/index.json: layer ${layer} declares ${info.featureCount} features but lists ${perLayer[layer]}`);
@@ -183,6 +245,48 @@ if (geoIndex) {
     if (!sources?.sources.some((s) => s.id === info.sourceId)) fail(`geo/index.json: layer ${layer} cites unknown source ${info.sourceId}`);
   }
   pass('Geography', `${geoKeys.size} units, every GEOID unique, every drawn unit indexed, state abbreviations match the Census file`);
+}
+/* ---------- 3b. judicial circuits ---------- */
+// The circuits are drawn by merging states, so three things must agree: the statute's list (geo/circuits.json), the
+// units on the map (geo/index.json) and the circuit every state page names.
+const appealsCourts = circuitsFile?.courts ?? [];
+if (circuitsFile && geoIndex) {
+  const before = errors.length;
+  const stateFips = new Set([...geoKeys].filter((key) => key.startsWith('state:')).map((key) => key.slice(6)));
+  const names = new Map(geoIndex.rows.map((row) => [row[0], row[1]]));
+  const drawn = new Set([...geoKeys].filter((key) => key.startsWith('circuit:')));
+  const seenStates = new Map();
+  const seenIds = new Set();
+  for (const court of appealsCourts) {
+    if (seenIds.has(court.id)) fail(`geo/circuits.json: court ${court.id} is listed twice`);
+    seenIds.add(court.id);
+    if (court.courtType !== 'federal_appellate') fail(`geo/circuits.json: ${court.id} is not listed as a federal court of appeals`);
+    if (!court.shortName) fail(`geo/circuits.json: ${court.id} has no short name`);
+    if (!court.basis?.quote || !court.basis?.citation) fail(`geo/circuits.json: ${court.id} is published without the words of the statute it rests on`);
+    if (court.geoKey) {
+      if (!drawn.has(court.geoKey)) fail(`geo/circuits.json: ${court.id} names the map unit ${court.geoKey}, which is not in the index`);
+      else if (names.get(court.geoKey) !== court.shortName) fail(`geo/index.json: ${court.geoKey} is named "${names.get(court.geoKey)}", the court's short name is "${court.shortName}"`);
+      drawn.delete(court.geoKey);
+      if (court.states.length === 0) fail(`geo/circuits.json: ${court.id} is drawn on the map but lists no state`);
+    } else if (court.states.length > 0) {
+      fail(`geo/circuits.json: ${court.id} lists states but has no map unit`);
+    }
+    for (const fips of court.states) {
+      if (!stateFips.has(fips)) fail(`geo/circuits.json: ${court.id} lists state ${fips}, which is not on the map`);
+      if (seenStates.has(fips)) fail(`geo/circuits.json: state ${fips} is listed in both ${seenStates.get(fips)} and ${court.id}`);
+      seenStates.set(fips, court.id);
+      if (circuitsFile.circuitOfState[fips] !== court.id) fail(`geo/circuits.json: circuitOfState puts state ${fips} in ${circuitsFile.circuitOfState[fips]}, the court list puts it in ${court.id}`);
+    }
+  }
+  for (const key of drawn) fail(`geo/index.json: ${key} is drawn but no court in geo/circuits.json names it`);
+  for (const fips of Object.keys(circuitsFile.circuitOfState)) if (!seenStates.has(fips)) fail(`geo/circuits.json: circuitOfState lists state ${fips}, which no court lists`);
+  for (const fips of circuitsFile.withoutCircuit) {
+    if (!stateFips.has(fips)) fail(`geo/circuits.json: withoutCircuit names ${fips}, which is not on the map`);
+    if (seenStates.has(fips)) fail(`geo/circuits.json: state ${fips} is listed both in a circuit and as being in none`);
+  }
+  for (const fips of stateFips) if (!seenStates.has(fips) && !circuitsFile.withoutCircuit.includes(fips)) fail(`geo/circuits.json: state ${fips} is on the map but is neither in a circuit nor listed as being in none`);
+  if (!sources?.sources.some((s) => s.id === circuitsFile.statute.sourceId)) fail(`geo/circuits.json: the statute cites unknown source ${circuitsFile.statute.sourceId}`);
+  if (errors.length === before) pass('Judicial circuits', `${appealsCourts.filter((c) => c.geoKey).length} regional circuits drawn, ${seenStates.size} states and territories each in exactly one, ${circuitsFile.withoutCircuit.length} in none; every court carries the words of the statute`);
 }
 if (countyCd && geoIndex) {
   let bad = 0;
@@ -237,19 +341,47 @@ if (population.state && population.county && population.cd119) {
 
 /* ---------- 5. references between records ---------- */
 const sourceIds = new Set((sources?.sources ?? []).map((s) => s.id));
-const courtIds = new Set((courts?.courts ?? []).map((c) => c.id));
+const courtIds = new Set([...(courts?.courts ?? []), ...appealsCourts].map((c) => c.id));
+for (const court of courts?.courts ?? []) if (appealsCourts.some((c) => c.id === court.id)) fail(`courts.json: ${court.id} is also listed in geo/circuits.json`);
 const ruleIds = new Set([
   ...(classification?.issueRules ?? []).map((r) => r.ruleId),
   ...(classification?.docketEntryRules ?? []).map((r) => r.ruleId),
   ...(classification?.legislativeActionRules ?? []).map((r) => r.ruleId),
+  ...(classification?.federalActionRules ?? []).map((r) => r.ruleId),
+  ...(classification?.circuitDocumentRules ?? []).map((r) => r.ruleId),
   ...(classification?.otherRules ?? []).map((r) => r.ruleId),
 ]);
+if (classification?.curatedRuleId) ruleIds.add(classification.curatedRuleId);
+if (circuitsFile && !ruleIds.has(circuitsFile.statute.ruleId)) fail(`geo/circuits.json: cites unknown rule ${circuitsFile.statute.ruleId}`);
 const exists = (ref) => (ref.type === 'case' ? cases.has(ref.id) : ref.type === 'bill' ? bills.has(ref.id) : geoKeys.has(ref.id));
 
 for (const record of cases.values()) {
   if (!sourceIds.has(record.sourceId)) fail(`case ${record.id}: unknown source ${record.sourceId}`);
   if (!courtIds.has(record.courtId)) fail(`case ${record.id}: unknown court ${record.courtId}`);
-  if (!/^https:\/\/www\.supremecourt\.gov\//.test(record.sourceUrl)) fail(`case ${record.id}: sourceUrl is not on supremecourt.gov`);
+  if (S.CIRCUIT_CASE_ID_PATTERN.test(record.id)) {
+    // A court of appeals case: the id names the court and GovInfo's package, and every link is to GovInfo.
+    if (!record.id.startsWith(`${record.courtId}-`)) fail(`case ${record.id}: the id does not start with its court, ${record.courtId}`);
+    if (!appealsCourts.some((c) => c.id === record.courtId)) fail(`case ${record.id}: ${record.courtId} is not a court of appeals`);
+    const pkg = record.externalIds.govinfoPackage;
+    if (!pkg || record.sourceUrl !== `https://www.govinfo.gov/app/details/${pkg}`) fail(`case ${record.id}: sourceUrl is not the GovInfo page of its package (${pkg})`);
+    for (const doc of record.documents) if (doc.url != null && !doc.url.startsWith(`https://www.govinfo.gov/content/pkg/${pkg}/`)) fail(`case ${record.id}: document ${doc.id} is not a file of the case's GovInfo package`);
+    if (!record.selection) fail(`case ${record.id}: published without the record of why the selection rule picked it`);
+    else if (!ruleIds.has(record.selection.ruleId)) fail(`case ${record.id}: selection cites unknown rule ${record.selection.ruleId}`);
+    if (record.origin) {
+      if (!ruleIds.has(record.origin.ruleId)) fail(`case ${record.id}: origin cites unknown rule ${record.origin.ruleId}`);
+      if (record.origin.stateFips && !geoKeys.has(`state:${record.origin.stateFips}`)) fail(`case ${record.id}: origin names unknown state ${record.origin.stateFips}`);
+      if (!record.origin.quote.trim()) fail(`case ${record.id}: origin is published without the words of the opinion it was read from`);
+    }
+    for (const other of record.decidedWith) {
+      const partner = cases.get(other.caseId);
+      if (!partner) fail(`case ${record.id}: shown as decided with ${other.caseId}, which is not published`);
+      else if (!partner.decidedWith.some((back) => back.caseId === record.id)) fail(`case ${record.id}: shown as decided with ${other.caseId}, which does not say the same of it`);
+      else if (partner.courtId !== record.courtId) fail(`case ${record.id}: shown as decided with ${other.caseId}, a case of another court`);
+    }
+  } else {
+    if (!/^https:\/\/www\.supremecourt\.gov\//.test(record.sourceUrl)) fail(`case ${record.id}: sourceUrl is not on supremecourt.gov`);
+    if (record.courtId !== 'scotus') fail(`case ${record.id}: listed in litigation/index.json but its court is ${record.courtId}, not the Supreme Court`);
+  }
   if (record.events.length !== record.entryCount) fail(`case ${record.id}: entryCount is ${record.entryCount} but ${record.events.length} entries are stored`);
   for (const tag of record.issueTags) if (!ruleIds.has(tag.ruleId)) fail(`case ${record.id}: tag ${tag.tag} cites unknown rule ${tag.ruleId}`);
   for (const event of record.events) {
@@ -260,9 +392,23 @@ for (const record of cases.values()) {
   for (const doc of record.documents) if (doc.url != null && !/^https:\/\//.test(doc.url)) fail(`case ${record.id}: document ${doc.id} link is not https (${doc.url})`);
   for (const fips of record.stateFips) if (!geoKeys.has(`state:${fips}`)) fail(`case ${record.id}: unknown state ${fips}`);
 }
+const documentIds = new Set([...cases.values()].flatMap((record) => record.documents.map((doc) => doc.id)));
+for (const record of cases.values()) {
+  for (const doc of record.documents) for (const other of doc.sameTextAs) if (!documentIds.has(other)) fail(`case ${record.id}: document ${doc.id} is said to have the same text as ${other}, which is not published`);
+}
+const VOTE_HOSTS = /^https:\/\/(clerk\.house\.gov|www\.senate\.gov)\//;
 for (const record of bills.values()) {
   if (!sourceIds.has(record.sourceId)) fail(`bill ${record.id}: unknown source ${record.sourceId}`);
-  if (!geoKeys.has(`state:${record.state}`)) fail(`bill ${record.id}: unknown state ${record.state}`);
+  if (S.US_BILL_ID_PATTERN.test(record.id)) {
+    // A measure of Congress belongs to the nation, and every link is to Congress or the Government Publishing Office.
+    if (record.state !== S.FEDERAL_STATE || !geoKeys.has(geoLib.NATION_KEY)) fail(`bill ${record.id}: a measure of Congress must carry the state code ${S.FEDERAL_STATE}, and the nation must be on the map`);
+    if (!/^https:\/\/www\.congress\.gov\/bill\//.test(record.officialUrl)) fail(`bill ${record.id}: officialUrl is not a bill page on congress.gov`);
+    if (!record.sourceRecordUrl || !/^https:\/\/www\.govinfo\.gov\/bulkdata\/BILLSTATUS\//.test(record.sourceRecordUrl)) fail(`bill ${record.id}: has no link to its bill status record on govinfo.gov`);
+    for (const version of record.versions) if (!/^https:\/\/www\.govinfo\.gov\//.test(version.officialUrl)) fail(`bill ${record.id}: version ${version.id} does not link to govinfo.gov`);
+    for (const action of record.actions) for (const vote of action.votes) if (!VOTE_HOSTS.test(vote.url)) fail(`bill ${record.id}: a recorded vote links to ${vote.url}, which is not a page of the House Clerk or the Senate`);
+    for (const related of record.relatedMeasures) if (related.id && !bills.has(related.id)) fail(`bill ${record.id}: names ${related.id} as a related measure in the dataset, but it is not published`);
+    if (!record.selection?.test || !(record.selection.test in (federalIndex?.selection.tests ?? {}))) fail(`bill ${record.id}: published without the test of the selection rule it met`);
+  } else if (!geoKeys.has(`state:${record.state}`)) fail(`bill ${record.id}: unknown state ${record.state}`);
   if (record.versions.length !== record.versionCount) fail(`bill ${record.id}: versionCount is ${record.versionCount} but ${record.versions.length} versions are stored`);
   for (const tag of record.issueTags) if (!ruleIds.has(tag.ruleId)) fail(`bill ${record.id}: tag ${tag.tag} cites unknown rule ${tag.ruleId}`);
   for (const action of record.actions) if (action.classificationRule && !ruleIds.has(action.classificationRule)) fail(`bill ${record.id}: action cites unknown rule ${action.classificationRule}`);
@@ -279,6 +425,64 @@ for (const record of bills.values()) {
   const historyIds = record.actions.map((a) => a.historyId).filter(Boolean);
   if (new Set(historyIds).size !== historyIds.length) fail(`bill ${record.id}: a legislative history id appears twice`);
 }
+if (federalIndex) {
+  const before = errors.length;
+  const selection = federalIndex.selection;
+  if (!ruleIds.has(selection.ruleId)) fail(`congress/index.json: selection cites unknown rule ${selection.ruleId}`);
+  const byTest = {};
+  for (const record of federalBills) byTest[record.selection?.test] = (byTest[record.selection?.test] ?? 0) + 1;
+  for (const test of new Set([...Object.keys(byTest), ...Object.keys(selection.selectedByTest)])) {
+    if ((byTest[test] ?? 0) !== (selection.selectedByTest[test] ?? 0)) fail(`congress/index.json: says ${selection.selectedByTest[test] ?? 0} measure(s) were selected by the "${test}" test, the records say ${byTest[test] ?? 0}`);
+  }
+  if (selection.totalMeasuresRead < federalBills.length) fail(`congress/index.json: ${federalBills.length} measures are published, but only ${selection.totalMeasuresRead} are said to have been read`);
+  if (errors.length === before) pass('Measures of Congress', `${federalBills.length} of ${selection.totalMeasuresRead.toLocaleString('en-US')} measures read are published, each with the test of the selection rule it met`);
+}
+if (circuitIndex) {
+  const before = errors.length;
+  const selection = circuitIndex.selection;
+  for (const id of [selection.ruleId, selection.exclusionRuleId, selection.coverLetterRuleId]) if (!ruleIds.has(id)) fail(`circuits/index.json: cites unknown rule ${id}`);
+  const courtsWithCoverage = Object.keys(circuitIndex.coverage);
+  for (const court of appealsCourts) if (!circuitIndex.coverage[court.id]) fail(`circuits/index.json: no count of what was read for ${court.id}`);
+  for (const id of courtsWithCoverage) if (!appealsCourts.some((c) => c.id === id)) fail(`circuits/index.json: counts for unknown court ${id}`);
+  const sum = (field) => courtsWithCoverage.reduce((total, id) => total + circuitIndex.coverage[id][field], 0);
+  if (sum('cases') !== selection.totalCasesRead) fail(`circuits/index.json: the courts' counts add up to ${sum('cases')} cases read, the total says ${selection.totalCasesRead}`);
+  if (sum('documents') !== selection.totalDocumentsRead) fail(`circuits/index.json: the courts' counts add up to ${sum('documents')} documents read, the total says ${selection.totalDocumentsRead}`);
+  for (const id of courtsWithCoverage) {
+    const published = appealsCases.filter((record) => record.courtId === id).length;
+    const excluded = circuitIndex.exclusions.filter((entry) => entry.courtId === id).length;
+    const counts = circuitIndex.coverage[id];
+    if (counts.selected !== published) fail(`circuits/index.json: says ${counts.selected} case(s) of ${id} were selected, ${published} are published`);
+    if (counts.excluded !== excluded) fail(`circuits/index.json: says ${counts.excluded} case(s) of ${id} were removed, the list of exclusions holds ${excluded}`);
+  }
+  for (const entry of circuitIndex.exclusions) {
+    if (cases.has(entry.caseId)) fail(`circuits/index.json: ${entry.caseId} is on the list of exclusions and is published as well`);
+    if (!ruleIds.has(entry.ruleId)) fail(`circuits/index.json: exclusion of ${entry.caseId} cites unknown rule ${entry.ruleId}`);
+    if (!entry.quote.trim() || !entry.reason.trim()) fail(`circuits/index.json: ${entry.caseId} is excluded without a reason and the passage that shows it`);
+    if (!entry.documentUrl.startsWith(`https://www.govinfo.gov/content/pkg/${entry.package}/`)) fail(`circuits/index.json: the passage for excluding ${entry.caseId} is not from a document of its GovInfo package`);
+  }
+  // The ledger of the scan names every case read. Its counts are the ones the index and the site state.
+  if (circuitScan) {
+    const at = Object.fromEntries(circuitScan.fields.map((name, i) => [name, i]));
+    const fieldsOk = ['documents', 'coverLetters', 'unreadableDocuments', 'outcome'].every((name) => name in at);
+    if (!fieldsOk) fail('circuits/scan.json: one of the fields documents, coverLetters, unreadableDocuments and outcome is missing');
+    if (circuitScan.ruleId !== selection.ruleId || circuitScan.since !== selection.since || circuitScan.scannedAt !== circuitIndex.scannedAt) fail('circuits/scan.json: the rule, start date or time of the scan differ from circuits/index.json');
+    for (const id of fieldsOk ? courtsWithCoverage : []) {
+      const rows = Object.values(circuitScan.packages[id] ?? {});
+      const counts = circuitIndex.coverage[id];
+      const total = (name) => rows.reduce((n, row) => n + row[at[name]], 0);
+      const withOutcome = (value) => rows.filter((row) => row[at.outcome] === value).length;
+      const actual = { cases: rows.length, documents: total('documents'), coverLetters: total('coverLetters'), unreadableDocuments: total('unreadableDocuments'), selected: withOutcome(1), excluded: withOutcome(2) };
+      for (const [field, value] of Object.entries(actual)) if (counts[field] !== value) fail(`circuits/index.json: says ${counts[field]} ${field} for ${id}, the ledger of the scan holds ${value}`);
+    }
+    for (const id of Object.keys(circuitScan.packages)) if (!circuitIndex.coverage[id]) fail(`circuits/scan.json: lists cases of ${id}, for which the index has no counts`);
+    for (const record of fieldsOk ? appealsCases : []) {
+      // The package names the court in GovInfo's own spelling ("caDC"), so the case number is whatever follows it.
+      const number = /^USCOURTS-[A-Za-z0-9]+-(.+)$/.exec(record.externalIds.govinfoPackage ?? '')?.[1];
+      if (circuitScan.packages[record.courtId]?.[number]?.[at.outcome] !== 1) fail(`case ${record.id}: published, but the ledger of the scan does not list it as selected`);
+    }
+  }
+  if (errors.length === before) pass('Courts of appeals', `${appealsCases.length} of ${selection.totalCasesRead.toLocaleString('en-US')} cases read are published and ${circuitIndex.exclusions.length} are on the list of exclusions; the counts for each of the ${courtsWithCoverage.length} courts match the ledger of the scan`);
+}
 if (relationships) {
   const ids = new Set();
   for (const rel of relationships.relationships) {
@@ -293,7 +497,22 @@ if (relationships) {
     }
     if (rel.basis === 'curated' && rel.verification.status !== 'verified_primary') fail(`relationship ${rel.id}: a curated link is published with status ${rel.verification.status}`);
   }
-  pass('Relationships', `${relationships.relationships.length} links, every end exists, every link carries its passage, the document it is from and the document's link`);
+  // A Supreme Court docket paired with the court of appeals case it comes from (rule case-below-1): both must be published,
+  // each on its own side, and the docket's own record must name the court and the number the pairing rests on.
+  for (const link of relationships.caseLinks) {
+    if (ids.has(link.id)) fail(`relationships.json: duplicate id ${link.id}`);
+    ids.add(link.id);
+    const docket = cases.get(link.review.caseId);
+    const below = cases.get(link.below.caseId);
+    if (!docket || docket.courtId !== 'scotus') fail(`case link ${link.id}: ${link.review.caseId} is not a published Supreme Court docket`);
+    if (!below || below.courtId === 'scotus' || below.courtId !== link.below.courtId) fail(`case link ${link.id}: ${link.below.caseId} is not a published case of the court of appeals it names`);
+    if (docket && !(docket.lowerCourt.name === link.court && docket.lowerCourt.caseNumbers.includes(link.number))) {
+      fail(`case link ${link.id}: the docket's record does not give the lower court and case number the link rests on`);
+    }
+    if (docket && link.sourceUrl !== docket.sourceUrl) fail(`case link ${link.id}: its source is not the docket's page`);
+    if (!ruleIds.has(link.ruleId)) fail(`case link ${link.id}: cites unknown rule ${link.ruleId}`);
+  }
+  pass('Relationships', `${relationships.relationships.length} links, every end exists, every link carries its passage, the document it is from and the document's link; ${relationships.caseLinks.length} Supreme Court dockets paired with the case below`);
 }
 if (events) {
   const ids = new Set();
@@ -317,6 +536,9 @@ if (redistricting && geoIndex) {
 if (manifest) {
   const actual = { cases: cases.size, bills: bills.size, relationships: relationships?.relationships.length ?? 0, events: events?.events.length ?? 0, geographicUnits: geoKeys.size };
   for (const [key, value] of Object.entries(actual)) if (manifest.counts[key] !== value) fail(`manifest.json: counts.${key} is ${manifest.counts[key]}, the data holds ${value}`);
+  // The parts of the two totals, which the overview shows.
+  const parts = { supremeCourtCases: cases.size - appealsCases.length, appealsCourtCases: appealsCases.length, stateBills: bills.size - federalBills.length, federalBills: federalBills.length };
+  for (const [key, value] of Object.entries(parts)) if (manifest.counts[key] !== value) fail(`manifest.json: counts.${key} is ${manifest.counts[key]}, the data holds ${value}`);
   for (const id of Object.keys(manifest.sources)) if (!sourceIds.has(id)) fail(`manifest.json: status for unknown source ${id}`);
   for (const id of sourceIds) if (!manifest.sources[id]) fail(`manifest.json: no status for source ${id}`);
   const latest = Date.parse(manifest.generatedAt) + 36 * 3600 * 1000;
@@ -332,7 +554,7 @@ if (manifest) {
 /* ---------- 7. nothing else is published ---------- */
 // Vite copies public/data into the site unchanged, so every file here is served from the site's own address. Only
 // the .json files read above may be there: the fixed files, the records an index lists, the texts a bill record
-// names and the layers the geography index names. A page, a script, a link or an unlisted file stops the release.
+// names, the layers the geography index names and the ledger of the court of appeals scan. A page, a script, a link or an unlisted file stops the release.
 {
   const notData = [];
   const hidden = [];

@@ -1,13 +1,17 @@
 /**
- * Global search across places, cases and bills. Results are deterministic prefix matches. Only when a query
+ * Global search across places, courts, cases and bills. Results are deterministic prefix matches. Only when a query
  * matches nothing are close spellings offered, and they are labelled as suggestions, never mixed into the results.
  */
 import type { LegalCaseSummary, LegislativeInstrumentSummary } from '../types/schemas';
+import { billLabel, identifierVariants, isFederalBill } from './bills';
+import {
+  FEDERAL_CIRCUIT_ID, SCOTUS_ID, courtCitation, courtFullName, courtHash, courtShortName, fixedFullName, type CourtDirectory,
+} from './courts';
 import { normalizeText } from './filters';
-import { STATE_ABBR, stateKind, type GeoIndex, type GeoUnit } from './geo';
+import { NATION_KEY, STATE_ABBR, stateKind, type GeoIndex, type GeoUnit } from './geo';
 import { buildHash } from './router';
 
-export type SearchKind = 'place' | 'case' | 'bill';
+export type SearchKind = 'place' | 'court' | 'case' | 'bill';
 
 export interface SearchEntry {
   kind: SearchKind;
@@ -43,46 +47,89 @@ function placeEntry(unit: GeoUnit): SearchEntry {
   };
 }
 
-export function buildSearchIndex(
-  geo: GeoIndex | null,
-  cases: readonly LegalCaseSummary[],
-  bills: readonly LegislativeInstrumentSummary[],
-): SearchEntry[] {
-  const entries: SearchEntry[] = [];
-  if (geo) {
-    for (const layer of ['state', 'cd120', 'cd119', 'county'] as const) for (const unit of geo.all(layer)) entries.push(placeEntry(unit));
-  }
-  for (const c of cases) {
+/** The United States as one place: where the measures of Congress and the federal courts are gathered. */
+function nationEntry(unit: GeoUnit): SearchEntry {
+  return {
+    kind: 'place', id: unit.key, label: unit.name, detail: 'Federal level: Congress and the federal courts', hash: buildHash(['place', unit.key]),
+    text: normalizeText(`${unit.name} US U.S. USA federal nationwide Congress`), rank: -1,
+  };
+}
+
+/**
+ * The fourteen courts. A regional circuit is also found by the states it is made of, so that typing a state's name
+ * shows the court of appeals for it.
+ */
+function courtEntries(courts: CourtDirectory, geo: GeoIndex | null): SearchEntry[] {
+  const entries: SearchEntry[] = [{
+    kind: 'court', id: SCOTUS_ID, label: fixedFullName(SCOTUS_ID)!, detail: 'The highest federal court', hash: courtHash(SCOTUS_ID),
+    text: normalizeText('Supreme Court of the United States SCOTUS'), rank: 0,
+  }];
+  for (const court of courts.appeals) {
+    const states = court.states.map((fips) => geo?.stateName(fips) ?? '').filter(Boolean);
+    const short = courtShortName(court, court.id);
     entries.push({
-      kind: 'case', id: c.id, label: c.caseName, detail: `No. ${c.docketNumber}, Supreme Court of the United States`,
-      hash: buildHash(['litigation', c.id]), text: normalizeText(`${c.caseName} ${c.docketNumber} no. ${c.docketNumber} ${c.lowerCourt.caseNumbers.join(' ')}`), rank: 0,
-    });
-  }
-  for (const b of bills) {
-    entries.push({
-      kind: 'bill', id: b.id, label: `${b.stateAbbr} ${b.identifier}`, detail: b.subject ?? b.title ?? b.session,
-      hash: buildHash(['laws', b.id]), text: normalizeText(`${b.stateAbbr} ${b.identifier} ${b.identifier.replace(/\s+/g, '')} ${b.subject ?? ''} ${b.chapter?.citation ?? ''}`), rank: 0,
+      kind: 'court', id: court.id, label: short,
+      detail: court.id === FEDERAL_CIRCUIT_ID ? 'Court of appeals with no region: it takes cases by subject' : states.length > 0 ? `Appeals from ${states.join(', ')}` : courtFullName(court, court.id),
+      hash: courtHash(court.id),
+      text: normalizeText(`${short} ${courtFullName(court, court.id)} ${courtCitation(court.id)} ${court.id} ${states.join(' ')}`), rank: 1,
     });
   }
   return entries;
 }
+
+export function buildSearchIndex(
+  geo: GeoIndex | null,
+  cases: readonly LegalCaseSummary[],
+  bills: readonly LegislativeInstrumentSummary[],
+  courts: CourtDirectory | null = null,
+): SearchEntry[] {
+  const entries: SearchEntry[] = [];
+  if (geo) {
+    const nation = geo.get(NATION_KEY);
+    if (nation) entries.push(nationEntry(nation));
+    for (const layer of ['state', 'cd120', 'cd119', 'county'] as const) for (const unit of geo.all(layer)) entries.push(placeEntry(unit));
+  }
+  if (courts) entries.push(...courtEntries(courts, geo));
+  for (const c of cases) {
+    const court = c.courtId === SCOTUS_ID ? fixedFullName(SCOTUS_ID)! : courtShortName(courts?.get(c.courtId), c.courtId);
+    entries.push({
+      kind: 'case', id: c.id, label: c.caseName, detail: `No. ${c.docketNumber}, ${court}`,
+      hash: buildHash(['litigation', c.id]),
+      text: normalizeText(`${c.caseName} ${c.docketNumber} no. ${c.docketNumber} ${c.lowerCourt.caseNumbers.join(' ')} ${c.courtId === SCOTUS_ID ? '' : court}`), rank: 0,
+    });
+  }
+  for (const b of bills) {
+    entries.push({
+      kind: 'bill', id: b.id, label: billLabel(b), detail: b.subject ?? b.title ?? b.session,
+      hash: buildHash(['laws', b.id]),
+      text: normalizeText(`${isFederalBill(b) ? '' : b.stateAbbr} ${identifierVariants(b.identifier).join(' ')} ${b.subject ?? ''} ${b.chapter?.citation ?? ''}`), rank: 0,
+    });
+  }
+  return entries;
+}
+
+/** A label as it is compared with what was typed: without full stops, so "hr 22" is "H.R. 22" and "v" is "v.". */
+const undotted = (text: string) => text.replace(/\./g, '').replace(/\s+/g, ' ').trim();
 
 function score(entry: SearchEntry, query: string, tokens: readonly string[]): number | null {
   const words = entry.text.split(' ');
   for (const token of tokens) {
     if (!words.some((word) => word.startsWith(token))) return null;
   }
-  const label = normalizeText(entry.label);
+  const label = undotted(normalizeText(entry.label));
+  const typed = undotted(query);
   let value = entry.rank;
-  if (label === query) value -= 10;
-  else if (label.startsWith(query)) value -= 5;
+  if (label === typed) value -= 10;
+  else if (label.startsWith(typed)) value -= 5;
   else if (entry.text.includes(query)) value -= 2;
   return value + entry.label.length / 1000;
 }
 
 export interface SearchGroup { kind: SearchKind; title: string; entries: SearchEntry[]; total: number }
 
-const GROUP_TITLES: Readonly<Record<SearchKind, string>> = { place: 'Places', case: 'Court cases', bill: 'Legislation' };
+const GROUP_TITLES: Readonly<Record<SearchKind, string>> = { place: 'Places', court: 'Courts', case: 'Court cases', bill: 'Legislation' };
+/** The order the groups are listed in. */
+export const GROUP_ORDER: readonly SearchKind[] = ['place', 'court', 'case', 'bill'];
 
 /**
  * The longest query that is searched. A name, docket number or bill number is far shorter; text pasted by mistake
@@ -105,7 +152,7 @@ export function search(index: readonly SearchEntry[], rawQuery: string, perGroup
   }
   scored.sort((a, b) => a.score - b.score || a.entry.label.localeCompare(b.entry.label));
   const groups: SearchGroup[] = [];
-  for (const kind of ['place', 'case', 'bill'] as const) {
+  for (const kind of GROUP_ORDER) {
     const matches = scored.filter((s) => s.entry.kind === kind);
     if (matches.length > 0) groups.push({ kind, title: GROUP_TITLES[kind], entries: matches.slice(0, perGroup).map((m) => m.entry), total: matches.length });
   }
@@ -225,7 +272,7 @@ export function searchWithSuggestions(index: readonly SearchEntry[], rawQuery: s
   });
   scored.sort((a, b) => a.score - b.score || a.entry.label.localeCompare(b.entry.label));
   const groups: SearchGroup[] = [];
-  for (const kind of ['place', 'case', 'bill'] as const) {
+  for (const kind of GROUP_ORDER) {
     const matches = scored.filter((s) => s.entry.kind === kind);
     if (matches.length > 0) groups.push({ kind, title: GROUP_TITLES[kind], entries: matches.slice(0, perGroup).map((m) => m.entry), total: matches.length });
   }

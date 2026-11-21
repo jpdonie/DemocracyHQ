@@ -136,8 +136,9 @@ def _actions(*pairs):
     ("hr", [("passed_house", "us-passed-house")], "Passed the House"),
     ("s", [("passed_senate", "us-passed-senate"), ("vote_failed", "us-failed-house")], "Passed the Senate"),
     ("hr", [("vote_failed", "us-failed-senate")], "Failed in the Senate"),
-    ("hr", [("passed_house", "us-passed-house"), ("passed_senate", "us-passed-senate")], "Passed both chambers"),
-    ("hconres", [("passed_house", "us-passed-house"), ("passed_senate", "us-passed-senate")], "Agreed to by both chambers"),
+    # A vote of passage in each chamber is not passage by Congress: the two can be on different texts.
+    ("hr", [("passed_house", "us-passed-house"), ("passed_senate", "us-passed-senate")], "Passed House and Senate, not sent to the President"),
+    ("hconres", [("passed_house", "us-passed-house"), ("passed_senate", "us-passed-senate")], "Agreed to in House and Senate"),
     ("hres", [("passed_house", "us-passed-house")], "Agreed to in the House"),
     ("sres", [("vote_failed", "us-failed-senate")], "Not agreed to in the Senate"),
     ("hr", [("passed_house", "us-passed-house"), ("passed_senate", "us-passed-senate"), ("presented_to_president", "us-presented")], "Sent to the President"),
@@ -147,6 +148,17 @@ def _actions(*pairs):
 def test_the_stage_is_the_furthest_step_a_measure_reached(kind, steps, stage):
     assert congress.derive_status(kind, _actions(*steps)) == stage
     assert stage in congress.STATUS_ORDER
+
+
+def test_a_vote_of_passage_in_each_chamber_is_never_called_passage_by_congress():
+    """One chamber can pass the other's bill with an amendment. The record then has a vote of passage in each chamber
+    and no text both agreed to, so neither the stage nor the note may say that the measure passed Congress."""
+    assert not any("both chambers" in stage.lower() for stage in congress.STATUS_ORDER)
+    bill = congress.effective_info("s", "A synthetic act", congress.PASSED_IN_EACH, None, None, None)
+    assert bill.basis == "not_enacted" and "does not show that both passed the same text" in bill.note
+    resolution = congress.effective_info("sconres", "A synthetic resolution", congress.AGREED_IN_EACH, None, None, None)
+    assert resolution.basis == "not_applicable" and "whether both agreed to the same text is not read" in resolution.note
+    assert "has not been agreed to in both chambers" in congress.effective_info("sconres", "A synthetic resolution", "Introduced", None, None, None).note
 
 
 def test_no_effective_date_is_ever_asserted():

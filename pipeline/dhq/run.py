@@ -51,6 +51,9 @@ from .cli import EXIT_UNEXPECTED, LOG_FORMAT
 from .http import CredentialMissing, FetchError, Fetcher
 from .schemas import (
     CIRCUIT_CASE_ID_PATTERN,
+    CaseBelowEnd,
+    CaseLink,
+    CaseLinkEnd,
     Court,
     EntityRef,
     EntityRelationship,
@@ -1408,6 +1411,53 @@ def _listed(ctx: Context, indexes: tuple[str, ...], key: str) -> List[dict]:
     return [entry for rel in indexes for entry in (read_json(_staged_or_public(ctx, rel)) or {}).get(key, [])]
 
 
+CASE_BELOW_RULE_ID = "case-below-1"
+_APPEAL_NUMBER_RE = re.compile(r"\s*(\d{2})-0*(\d{1,6})\s*")
+
+
+def appeal_number_key(number: Optional[str]) -> Optional[tuple[str, str]]:
+    """A court of appeals case number as its two-digit year and its serial number without leading zeros ("23-03655"
+    and "23-3655" are one number), or ``None`` for a number of another form, such as a district court's."""
+    match = _APPEAL_NUMBER_RE.fullmatch(number or "")
+    return (match.group(1), match.group(2)) if match else None
+
+
+def cases_below(supreme: List[dict], appeals: List[dict], court_names: Dict[str, str]) -> List[dict]:
+    """Pair each Supreme Court docket with the court of appeals case it comes from (rule ``case-below-1``).
+
+    A docket is paired with a case of the dataset only when the Court's docket names that case's court as the lower
+    court and one of the lower-court case numbers it gives is the case's docket number, read by
+    :func:`appeal_number_key`. ``court_names`` maps the full name of each court of appeals, without letter case, to its
+    id. A number that would name two cases of the court is paired with neither. The pairing is derived from the two
+    records; neither states it.
+    """
+    by_number: Dict[tuple[str, tuple[str, str]], List[dict]] = {}
+    for case in appeals:
+        key = appeal_number_key(case.get("docketNumber"))
+        if key:
+            by_number.setdefault((case["courtId"], key), []).append(case)
+    links: Dict[str, dict] = {}
+    for docket in supreme:
+        lower = docket.get("lowerCourt") or {}
+        court_id = court_names.get((lower.get("name") or "").casefold())
+        if not court_id:
+            continue
+        for number in lower.get("caseNumbers") or []:
+            key = appeal_number_key(number)
+            found = by_number.get((court_id, key), []) if key else []
+            if len(found) != 1:
+                continue
+            case = found[0]
+            link = CaseLink(
+                id=f"below-{docket['id']}-{case['id']}", ruleId=CASE_BELOW_RULE_ID,
+                review=CaseLinkEnd(caseId=docket["id"], docket=docket["docketNumber"], caseName=docket["caseName"]),
+                below=CaseBelowEnd(caseId=case["id"], docket=case["docketNumber"], caseName=case["caseName"], courtId=case["courtId"]),
+                court=lower["name"], number=number, sourceUrl=docket["sourceUrl"],
+            )
+            links[link.id] = link.model_dump(mode="json")
+    return [links[link_id] for link_id in sorted(links)]
+
+
 def stage_relationships(ctx: Context) -> None:
     index = read_json(_staged_or_public(ctx, "geo/index.json"))
     if not index:
@@ -1526,7 +1576,11 @@ def stage_relationships(ctx: Context) -> None:
             continue
         resolved.append(rel)
     resolved.sort(key=lambda r: r["id"])
-    write_json(ctx.staging / "relationships.json", {"relationships": resolved})
+    # Supreme Court dockets and the court of appeals cases they come from, as the two indexes are about to be published.
+    composition = read_json(_staged_or_public(ctx, "geo/circuits.json")) or {}
+    court_names = {court["name"].casefold(): court["id"] for court in composition.get("courts", [])}
+    case_links = cases_below(_listed(ctx, CASE_INDEXES[:1], "cases"), _listed(ctx, CASE_INDEXES[1:], "cases"), court_names)
+    write_json(ctx.staging / "relationships.json", {"relationships": resolved, "caseLinks": case_links})
     ctx.published_files.append("relationships.json")
 
 
@@ -1570,7 +1624,9 @@ def stage_events(ctx: Context) -> None:
                 "id": ev["id"], "date": ev["date"], "category": "litigation", "eventType": ev["eventType"],
                 "entityType": "case", "entityId": case["id"], "entityLabel": f"{case['caseName']} (No. {case['docketNumber']})",
                 "description": ev["description"], "sourceUrl": ev["evidence"]["url"],
-                "geoKeys": sorted(set(geo_for.get(f"case:{case['id']}", []))), "ruleId": ev.get("classificationRule"),
+                # The Supreme Court is a court of the whole country, so its entries are listed under the nation as well
+                # as under the places the docket is linked to.
+                "geoKeys": sorted(set([NATION_KEY] + geo_for.get(f"case:{case['id']}", []))), "ruleId": ev.get("classificationRule"),
             })
     # A court of appeals decision is listed under its circuit only. A circuit covers several states and the decision
     # binds all of them alike, so no state is named. One opinion that decides several appeals is listed once, under
@@ -1602,7 +1658,9 @@ def stage_events(ctx: Context) -> None:
         federal = bill["state"] == "US"
         # A measure of Congress applies nationwide, so it is listed under the nation, not under any state.
         keys = sorted(set([NATION_KEY if federal else f"state:{bill['state']}"] + geo_for.get(f"bill:{bill['id']}", [])))
-        label = f"{bill['identifier']} ({bill['session']})" if federal else f"{bill['stateAbbr']} {bill['identifier']} ({bill['session']})"
+        # "H.R. 22 (119th Congress)": the session's own name ends in its years in brackets, which would nest here.
+        label = (f"{bill['identifier']} ({bill['session'].split(' (')[0]})" if federal
+                 else f"{bill['stateAbbr']} {bill['identifier']} ({bill['session']})")
         for i, action in enumerate(bill.get("actions", [])):
             if action["significance"] != "major":
                 continue
@@ -1662,6 +1720,14 @@ OTHER_RULES = [
                     "prefix, the judges' initials after the number must be given on both and agree (so 3:21-cv-00259-DCG-JES-JVB "
                     "and EP-21-CV-00259-DCG-JES-JVB agree). Other numbers must agree exactly. "
                     "The Court does not state the relation; it is derived by this rule."},
+    {"ruleId": CASE_BELOW_RULE_ID, "appliesTo": "A Supreme Court docket shown with the court of appeals case it comes from",
+     "description": "A Supreme Court docket is paired with a court of appeals case in the dataset when the Court's docket page names "
+                    "that court of appeals as the lower court and gives a lower-court case number that is the case's docket number. "
+                    "The court's name must agree in full, and the numbers are compared by their two-digit year and their serial "
+                    "number without leading zeros. A number that would name two cases of the court is paired with neither. Neither "
+                    "record states the pairing; it is derived by this rule, and each of the two pages links the other. Most dockets "
+                    "from a court of appeals have no such link, because the case below is older than the documents read or was not "
+                    "picked by the selection rule."},
     {"ruleId": "rel-seed-2", "appliesTo": "Links between a bill and another bill, a case or a place",
      "description": "A maintainer lists the link in pipeline/seeds/relationships.json together with a passage quoted from the official text "
                     "of the named bill version or from the named court document. On every run that has that text the pipeline checks that the "
@@ -1707,9 +1773,12 @@ OTHER_RULES = [
     {"ruleId": congress.STATUS_RULE_ID, "appliesTo": "The stage shown for a measure of Congress",
      "description": "The stage is the furthest step among the measure's recorded actions, read from the labels the action rules "
                     "assign: became law; vetoed; sent to the President; for a resolution of one chamber, agreed to (or not agreed to) "
-                    "there; passed both chambers; passed one chamber; failed in a chamber; reported by a committee; introduced. It "
+                    "there; passed in each chamber; passed one chamber; failed in a chamber; reported by a committee; introduced. It "
                     "says how far the measure got, not what is happening to it now, and it is not an official status. The official "
-                    "record's own latest action is shown beside it."},
+                    f"record's own latest action is shown beside it. The stage '{congress.PASSED_IN_EACH}' (for a concurrent "
+                    f"resolution, '{congress.AGREED_IN_EACH}') means only that the record has a vote of passage in each chamber. The "
+                    "two votes can be on different texts, as when one chamber passes the other's bill with an amendment, so the stage "
+                    "does not say that Congress has passed the measure."},
     {"ruleId": uscourts.SELECTION_RULE_ID, "appliesTo": "Which court of appeals cases are included",
      "description": "Every case of the thirteen courts of appeals that GovInfo lists with an opinion or order issued since "
                     f"{uscourts.SINCE} is read. A case is included when the court's own record gives it the nature of suit "
@@ -1747,7 +1816,8 @@ OTHER_RULES = [
                     "federal law alone. Many opinions name the court below in another form (an abbreviation, a caption set in "
                     "columns), and then no origin is shown; the absence of one does not mean the case did not come from a district court."},
     {"ruleId": uscourts.PUBLICATION_RULE_ID, "appliesTo": "Whether a court of appeals decision is shown as published or unpublished",
-     "description": "Read from the court's own entry for the opinion in GovInfo's record: 'Unpublished' when the pattern "
+     "description": "Read from the court's own entry for the case's latest opinion, decision or judgment in GovInfo's record, and "
+                    "from no other entry: 'Unpublished' when the pattern "
                     + uscourts.UNPUBLISHED_PATTERN.pattern + " matches, otherwise 'Published' when the pattern "
                     + uscourts.PUBLISHED_PATTERN.pattern + " matches, otherwise nothing is shown. The courts' rules on what an "
                     "unpublished decision is worth as precedent differ and are not stated here."},
@@ -1834,11 +1904,17 @@ def stage_validate(ctx: Context) -> None:
             errors.append(f"geo/circuits.json: {str(exc)[:200]}")
     rel_path = ctx.staging / "relationships.json"
     if rel_path.exists():
-        for rel in read_json(rel_path)["relationships"]:
+        staged_links = read_json(rel_path)
+        for rel in staged_links["relationships"]:
             try:
                 EntityRelationship(**rel)
             except Exception as exc:  # noqa: BLE001
                 errors.append(f"relationship {rel.get('id')}: {str(exc)[:200]}")
+        for link in staged_links.get("caseLinks", []):
+            try:
+                CaseLink(**link)
+            except Exception as exc:  # noqa: BLE001
+                errors.append(f"case link {link.get('id')}: {str(exc)[:200]}")
     if errors:
         raise RuntimeError("validation failed: " + " | ".join(errors[:10]))
 

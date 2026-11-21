@@ -79,13 +79,56 @@ export function labelPoint(geometry: Geometry): Position | null {
   return best ? best.point : null;
 }
 
+/** The centroid and the area (in square degrees) of every outer ring of a geometry. */
+function ringCentroids(geometry: Geometry): Array<{ area: number; point: Position }> {
+  const polygons: Position[][][] = geometry.type === 'Polygon' ? [geometry.coordinates] : geometry.type === 'MultiPolygon' ? geometry.coordinates : [];
+  const rings: Array<{ area: number; point: Position }> = [];
+  for (const polygon of polygons) {
+    const point = labelPoint({ type: 'Polygon', coordinates: polygon });
+    const ring = polygon[0];
+    if (!point || !ring) continue;
+    let twiceArea = 0;
+    for (let i = 0; i < ring.length - 1; i += 1) twiceArea += ring[i]![0]! * ring[i + 1]![1]! - ring[i + 1]![0]! * ring[i]![1]!;
+    rings.push({ area: Math.abs(twiceArea / 2), point });
+  }
+  return rings;
+}
+
+const inside = (point: Position, [west, south, east, north]: Bbox, margin = 0) =>
+  point[0]! >= west - margin && point[0]! <= east + margin && point[1]! >= south - margin && point[1]! <= north + margin;
+
+/**
+ * Where a circuit's number is written. A circuit is made of states that need not touch: the Ninth has Alaska, Hawaii
+ * and two territories in the Pacific besides its states on the mainland. The number is written once on the largest
+ * part among the contiguous states, and once on each state or territory of the circuit that lies far from them, so
+ * that a reader who has flown to Alaska or Puerto Rico still sees which circuit it is in.
+ */
+function circuitLabelPoints(geometry: Geometry, geo: GeoIndex): Position[] {
+  const rings = ringCentroids(geometry).sort((a, b) => b.area - a.area);
+  const points: Position[] = [];
+  const main = rings.find((ring) => inside(ring.point, CONTIGUOUS_BOUNDS));
+  if (main) points.push(main.point);
+  for (const state of geo.all('state')) {
+    if (inside([state.bbox[0], state.bbox[1]], CONTIGUOUS_BOUNDS, 1) && inside([state.bbox[2], state.bbox[3]], CONTIGUOUS_BOUNDS, 1)) continue;
+    const part = rings.find((ring) => inside(ring.point, state.bbox));
+    if (part && part !== main) points.push(part.point);
+  }
+  if (points.length === 0 && rings[0]) points.push(rings[0].point);
+  return points;
+}
+
 function labelCollection(collection: UnitCollection, layer: Layer, geo: GeoIndex): FeatureCollection<Point> {
   const features: Feature<Point>[] = [];
+  // The country as a whole carries no label: it is never the layer the reader picks units from.
+  if (layer === 'nation') return { type: 'FeatureCollection', features };
   for (const feature of collection.features) {
     const unit = geo.get(geoKey(layer, feature.properties.GEOID));
+    if (!unit) continue;
     const point = labelPoint(feature.geometry);
-    if (!unit || !point) continue;
-    features.push({ type: 'Feature', geometry: { type: 'Point', coordinates: point }, properties: { label: shortLabel(unit), GEOID: unit.geoid } });
+    const points = layer === 'circuit' ? circuitLabelPoints(feature.geometry, geo) : point ? [point] : [];
+    for (const coordinates of points) {
+      features.push({ type: 'Feature', geometry: { type: 'Point', coordinates }, properties: { label: shortLabel(unit), GEOID: unit.geoid } });
+    }
   }
   return { type: 'FeatureCollection', features };
 }
@@ -131,7 +174,8 @@ function hatchFilter(theme: MapTheme | null, layer: Layer): FilterSpecification 
   return ['in', ['get', 'GEOID'], ['literal', [...theme.hatch.geoids]]];
 }
 
-const LABEL_MIN_ZOOM: Record<Layer, number> = { state: 2.6, county: 6.6, cd119: 4.8, cd120: 4.8 };
+/** The twelve circuits are few and large, so their numbers show at every zoom. The country as a whole has no label. */
+const LABEL_MIN_ZOOM: Record<Layer, number> = { nation: 24, circuit: 1.2, state: 2.6, county: 6.6, cd119: 4.8, cd120: 4.8 };
 
 /** Boundary lines that can sit on a theme's fill, with the ink each is drawn in when there is no fill. */
 const UNIT_LINES: ReadonlyArray<{ id: string; casing: string; layer: Layer | 'any'; ink: string }> = [
@@ -140,6 +184,8 @@ const UNIT_LINES: ReadonlyArray<{ id: string; casing: string; layer: Layer | 'an
   { id: 'cd120-line', casing: 'cd120-casing', layer: 'cd120', ink: '--geo' },
   // State lines are drawn over every layer, so they meet whichever layer is shaded.
   { id: 'state-line', casing: 'state-casing', layer: 'any', ink: '--ink' },
+  // Circuit lines are drawn over the state lines: a circuit's edge is a state line drawn heavier.
+  { id: 'circuit-line', casing: 'circuit-casing', layer: 'circuit', ink: '--ink' },
 ];
 
 export function MapView(props: MapViewProps) {
@@ -151,8 +197,9 @@ export function MapView(props: MapViewProps) {
   const requested = useRef(new Set<Layer>());
   const latest = useRef({ activeLayer, onSelect, onBoundaryError, onBoundaryLoaded, geo, theme, padding });
   latest.current = { activeLayer, onSelect, onBoundaryError, onBoundaryLoaded, geo, theme, padding };
-  /** The bounds last fitted by the app, and whether the reader has moved the map since. */
+  /** The bounds last fitted by the app, the request they were fitted for, and whether the reader has moved the map since. */
   const lastFit = useRef<Bbox>(CONTIGUOUS_BOUNDS);
+  const lastFitKey = useRef<string | null>(null);
   const userMoved = useRef(false);
   const [ready, setReady] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
@@ -218,6 +265,8 @@ export function MapView(props: MapViewProps) {
       }
       map.addLayer({ id: 'state-casing', type: 'line', source: 'src-state', layout: { visibility: 'none', 'line-join': 'round' }, paint: { 'line-color': land, 'line-width': ['interpolate', ['linear'], ['zoom'], 2, 1.5, 6, 2.6, 10, 3.4] } });
       map.addLayer({ id: 'state-line', type: 'line', source: 'src-state', layout: { 'line-join': 'round' }, paint: { 'line-color': ink, 'line-width': ['interpolate', ['linear'], ['zoom'], 2, 0.5, 6, 1.2, 10, 1.8] } });
+      map.addLayer({ id: 'circuit-casing', type: 'line', source: 'src-circuit', layout: { visibility: 'none', 'line-join': 'round' }, paint: { 'line-color': land, 'line-width': ['interpolate', ['linear'], ['zoom'], 2, 3, 6, 4.6, 10, 5.6] } });
+      map.addLayer({ id: 'circuit-line', type: 'line', source: 'src-circuit', layout: { visibility: 'none', 'line-join': 'round' }, paint: { 'line-color': ink, 'line-width': ['interpolate', ['linear'], ['zoom'], 2, 1.5, 6, 2.4, 10, 3.2] } });
       for (const layer of LAYERS) {
         map.addLayer({ id: `${layer}-hover`, type: 'line', source: `src-${layer}`, filter: NONE, layout: { 'line-join': 'round' }, paint: { 'line-color': ink, 'line-width': 2 } });
         map.addLayer({ id: `${layer}-selected-halo`, type: 'line', source: `src-${layer}`, filter: NONE, layout: { 'line-join': 'round' }, paint: { 'line-color': land, 'line-width': 6 } });
@@ -360,6 +409,9 @@ export function MapView(props: MapViewProps) {
     map.setLayoutProperty('county-context', 'visibility', activeLayer === 'state' ? 'visible' : 'none');
     map.setLayoutProperty('cd119-line', 'visibility', activeLayer === 'cd119' ? 'visible' : 'none');
     map.setLayoutProperty('cd120-line', 'visibility', activeLayer === 'cd120' ? 'visible' : 'none');
+    map.setLayoutProperty('circuit-line', 'visibility', activeLayer === 'circuit' ? 'visible' : 'none');
+    // Under the circuits the state lines step back, so the heavier circuit lines read as the grouping of the states.
+    map.setPaintProperty('state-line', 'line-opacity', activeLayer === 'circuit' ? 0.4 : 1);
     // Lines that would fade into the active fill (brown district lines on the darkest population class, for one)
     // are drawn in ink over a land casing, so every boundary stays visible on every class.
     const fills = theme && theme.layer === activeLayer && theme.classOf.size > 0 ? theme.classes.map((c) => token(c.token)) : [];
@@ -392,7 +444,12 @@ export function MapView(props: MapViewProps) {
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !ready) return;
-    const bbox = fitBbox ?? CONTIGUOUS_BOUNDS;
+    // The same request with other padding (a control grew or shrank): the area in view stays the one last fitted,
+    // which may be one a locator button flew to, and a reader who has moved the map keeps the camera.
+    const samePlace = lastFitKey.current === fitKey;
+    if (samePlace && userMoved.current) return;
+    lastFitKey.current = fitKey;
+    const bbox = samePlace ? lastFit.current : fitBbox ?? CONTIGUOUS_BOUNDS;
     lastFit.current = bbox;
     userMoved.current = false;
     const [w, s, e, n] = bbox;

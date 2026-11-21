@@ -219,6 +219,57 @@ def test_dockets_from_the_same_case_below_point_at_each_other(env, session):
     assert env.read("litigation/cases/scotus-99-0002.json")["sameLowerCourt"] == []
 
 
+SYNTHETIC_CIRCUIT = "United States Court of Appeals for the Synthetic Circuit"
+
+
+def appeal(case_id: str, docket: str, court: str = "ca5") -> dict:
+    return {"id": case_id, "docketNumber": docket, "caseName": f"Synthetic {case_id}", "courtId": court}
+
+
+def docket_from(number: str, court: str, *numbers: str) -> dict:
+    return {"id": f"scotus-{number}", "docketNumber": number, "caseName": f"Synthetic docket {number}",
+            "sourceUrl": f"https://www.supremecourt.gov/docket/{number}.html", "lowerCourt": {"name": court, "caseNumbers": list(numbers)}}
+
+
+def test_a_docket_is_paired_with_the_case_below_only_by_the_court_and_number_the_docket_gives():
+    names = {SYNTHETIC_CIRCUIT.casefold(): "ca5", "united states court of appeals for the other circuit": "ca8"}
+    appeals = [appeal("ca5-25-09999", "25-9999"), appeal("ca8-25-09998", "25-9998", "ca8"), appeal("ca5-24-00007", "24-7")]
+    links = pipeline.cases_below([
+        docket_from("99-0001", SYNTHETIC_CIRCUIT, "25-9999", "25-9998"),              # the second number is a case of another court
+        docket_from("99-0002", SYNTHETIC_CIRCUIT.upper(), "24-00007"),                # letter case and leading zeros do not matter
+        docket_from("99-0003", "Supreme Court of Synthetica", "25-9999"),             # not a court of appeals
+        docket_from("99-0004", SYNTHETIC_CIRCUIT, "3:25-cv-9999", "25-9999-cv"),      # numbers of another form
+        docket_from("99-0005", SYNTHETIC_CIRCUIT),
+    ], appeals, names)
+    assert links == [
+        {"id": "below-scotus-99-0001-ca5-25-09999", "ruleId": "case-below-1",
+         "review": {"caseId": "scotus-99-0001", "docket": "99-0001", "caseName": "Synthetic docket 99-0001"},
+         "below": {"caseId": "ca5-25-09999", "docket": "25-9999", "caseName": "Synthetic ca5-25-09999", "courtId": "ca5"},
+         "court": SYNTHETIC_CIRCUIT, "number": "25-9999", "sourceUrl": "https://www.supremecourt.gov/docket/99-0001.html"},
+        {"id": "below-scotus-99-0002-ca5-24-00007", "ruleId": "case-below-1",
+         "review": {"caseId": "scotus-99-0002", "docket": "99-0002", "caseName": "Synthetic docket 99-0002"},
+         "below": {"caseId": "ca5-24-00007", "docket": "24-7", "caseName": "Synthetic ca5-24-00007", "courtId": "ca5"},
+         "court": SYNTHETIC_CIRCUIT.upper(), "number": "24-00007", "sourceUrl": "https://www.supremecourt.gov/docket/99-0002.html"},
+    ]
+    # A number that would name two cases of the court is paired with neither.
+    twice = [appeal("ca5-25-09999", "25-9999"), appeal("ca5-25-9999", "25-09999")]
+    assert pipeline.cases_below([docket_from("99-0001", SYNTHETIC_CIRCUIT, "25-9999")], twice, names) == []
+
+
+def test_the_pairings_are_published_with_the_links_and_only_for_cases_in_the_dataset(env):
+    # Both dockets name the Synthetic Circuit and Nos. 25-9999 and 25-9998 as the case below.
+    env.run(COURT)
+    assert env.read("relationships.json")["caseLinks"] == []          # no court of appeals case is published
+    write_json(env.public / "geo" / "circuits.json", {"courts": [{"id": "ca5", "name": SYNTHETIC_CIRCUIT}]})
+    write_json(env.public / "circuits" / "index.json", {"cases": [appeal("ca5-25-09998", "25-9998")]})
+    env.run(["relationships"], now=T2)
+    links = env.read("relationships.json")["caseLinks"]
+    assert [(link["review"]["caseId"], link["below"]["caseId"], link["number"]) for link in links] == [
+        ("scotus-99-0001", "ca5-25-09998", "25-9998"), ("scotus-99-0002", "ca5-25-09998", "25-9998")]
+    assert links[0]["sourceUrl"] == env.read("litigation/cases/scotus-99-0001.json")["sourceUrl"]
+    assert "case-below-1" in {rule["ruleId"] for rule in env.read("classification.json")["otherRules"]}
+
+
 def test_the_timeline_carries_a_long_court_order_in_full(env, session):
     long_order = "Application (99A1) granted by the Court. " + "The order of the court below is stayed pending appeal. " * 30 + "Justice Synthetic dissents."
     assert len(long_order) > 1500
@@ -236,7 +287,8 @@ def test_timeline_holds_only_major_dated_entries_with_their_source_and_rule(env)
     assert {e["eventType"] for e in events} == {"initiating_filing", "review_denied"}
     assert all(e["ruleId"] and e["sourceUrl"].startswith("https://www.supremecourt.gov/") for e in events)
     assert [e["date"] for e in events] == sorted((e["date"] for e in events), reverse=True)
-    assert {tuple(e["geoKeys"]) for e in events if e["entityId"] == "scotus-99-0001"} == {("state:06",)}
+    # A Supreme Court docket is listed under the nation and under the places it is linked to.
+    assert {tuple(e["geoKeys"]) for e in events if e["entityId"] == "scotus-99-0001"} == {("nation:US", "state:06")}
 
 
 def test_source_metadata_is_recorded_for_every_source(env):

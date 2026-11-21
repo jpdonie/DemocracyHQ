@@ -174,6 +174,8 @@ SAME_OPINION_MIN_LETTERS = 2000
 DOCUMENT_RULES: list[tuple[str, str, str, str, str]] = [
     # (ruleId, eventType, document type shown, significance, pattern)
     ("ca-doc-errata", "errata", "Errata", "routine", r"\berrat(?:a|um)\b"),
+    # An entry that opens with an order about an opinion ("ORDER AMENDING OPINION") is the order, not an opinion.
+    ("ca-doc-order-on-opinion", "order", "Order", "major", r"\A\W*order (?:amending|correcting|modifying|vacating|withdrawing)\b"),
     ("ca-doc-opinion", "opinion", "Opinion", "major", r"\bopinions?\b"),
     ("ca-doc-decision", "decision", "Decision", "major", r"\bdisposition\b|\bterminated on the merits\b"),
     ("ca-doc-judgment", "judgment", "Judgment", "major", r"\bjudgments?\b"),
@@ -581,7 +583,9 @@ def build_case(record: dict, texts: Dict[str, Optional[str]], evaluation: dict, 
         ))
         if event_type in RULING_TYPES:
             ruling = DispositiveEntry(date=doc["date"], text=description, eventType=event_type, ruleId=rule_id)
-            publication = publication_of(doc["text"]) or publication
+            # What the entry of this decision says, and nothing where it does not say: a label carried over from an
+            # earlier decision of the case would be shown beside a decision it does not describe.
+            publication = publication_of(doc["text"])
     origin: Optional[CaseOrigin] = None
     for doc in reversed(record["documents"]):  # the latest opinion that names the court below
         text = texts.get(doc["granule"])

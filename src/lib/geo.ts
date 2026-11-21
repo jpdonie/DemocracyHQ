@@ -6,6 +6,12 @@
  * the only join keys used anywhere in the application. Congressional districts
  * carry their Congress in the layer name because a district number means a
  * different area under different plans.
+ *
+ * Two layers are not Census units. "nation:US" is the United States as one unit,
+ * the place federal records belong to. "circuit:01" to "circuit:11" and
+ * "circuit:DC" are the regional federal judicial circuits, drawn by merging the
+ * states each one is made of (28 U.S.C. § 41). Neither lies in a single state,
+ * so their state code is empty.
  */
 import type { GeoIndexFile, Layer, LayerInfo } from '../types/schemas';
 import { LAYERS } from '../types/schemas';
@@ -39,9 +45,18 @@ export function isLayer(value: string | undefined): value is Layer {
 }
 
 export function parseGeoKey(key: string): { layer: Layer; geoid: string } | null {
-  const match = /^(state|county|cd119|cd120):([0-9A-Z]{2,5})$/.exec(key);
+  const match = /^(nation|circuit|state|county|cd119|cd120):([0-9A-Z]{2,5})$/.exec(key);
   if (!match || !isLayer(match[1])) return null;
   return { layer: match[1], geoid: match[2]! };
+}
+
+/** The United States as one unit: the place federal records (measures of Congress, the Supreme Court) belong to. */
+export const NATION_KEY = 'nation:US';
+
+/** The layers whose units are Census Bureau units with a state code: everything but the nation and the circuits. */
+export type CensusLayer = Exclude<Layer, 'nation' | 'circuit'>;
+export function isCensusLayer(layer: Layer): layer is CensusLayer {
+  return layer !== 'nation' && layer !== 'circuit';
 }
 
 export function geoKey(layer: Layer, geoid: string): string {
@@ -49,6 +64,8 @@ export function geoKey(layer: Layer, geoid: string): string {
 }
 
 export const LAYER_NOUN: Readonly<Record<Layer, string>> = {
+  nation: 'Country',
+  circuit: 'Federal judicial circuit',
   state: 'State',
   county: 'County',
   cd119: 'Congressional district, 119th Congress',
@@ -77,6 +94,8 @@ export function unitNoun(unit: Pick<GeoUnit, 'layer' | 'stateFips'>): string {
 }
 
 export const LAYER_SHORT: Readonly<Record<Layer, string>> = {
+  nation: 'Federal',
+  circuit: 'Judicial circuits',
   state: 'States',
   county: 'Counties',
   cd119: 'Districts, 119th Congress',
@@ -87,8 +106,17 @@ export function isDistrictLayer(layer: Layer): layer is 'cd119' | 'cd120' {
   return layer === 'cd119' || layer === 'cd120';
 }
 
-/** Short map label: "CA", "Kern", "12", "AL" (at large). */
+const ORDINALS = ['', '1st', '2nd', '3rd', '4th', '5th', '6th', '7th', '8th', '9th', '10th', '11th'];
+
+/** "5th" for circuit GEOID "05", "D.C." for "DC". */
+export function circuitOrdinal(geoid: string): string {
+  return geoid === 'DC' ? 'D.C.' : (ORDINALS[Number(geoid)] ?? geoid);
+}
+
+/** Short map label: "CA", "Kern", "12", "At large", "5th" (a circuit), "U.S.". */
 export function shortLabel(unit: GeoUnit): string {
+  if (unit.layer === 'nation') return 'U.S.';
+  if (unit.layer === 'circuit') return circuitOrdinal(unit.geoid);
   if (unit.layer === 'state') return STATE_ABBR[unit.stateFips] ?? unit.name;
   if (unit.layer === 'county') return unit.name.split(',')[0]!.replace(/ (County|Parish|Borough|Census Area|Municipality|Municipio|Planning Region|city)$/i, '');
   const code = unit.geoid.slice(2);

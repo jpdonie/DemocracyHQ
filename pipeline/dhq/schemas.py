@@ -529,3 +529,32 @@ class EntityRelationship(Model):
     basis: Literal["rule_derived", "curated"]
     ruleId: Optional[str] = None
     verification: Verification
+
+
+class CaseLinkEnd(Model):
+    caseId: str
+    docket: str
+    caseName: str
+
+
+class CaseBelowEnd(CaseLinkEnd):
+    #: The court of appeals the case is in.
+    courtId: str
+
+
+class CaseLink(Model):
+    """A Supreme Court docket and the court of appeals case it comes from (rule ``case-below-1``).
+
+    The Court's docket names the court below and its case number; the pairing with a case in the dataset is derived
+    from those two statements and is not stated by either record.
+    """
+
+    id: str
+    ruleId: str
+    review: CaseLinkEnd
+    below: CaseBelowEnd
+    #: The court below and its case number, as the Supreme Court's docket gives them.
+    court: str
+    number: str
+    #: The Supreme Court's docket page.
+    sourceUrl: HttpsUrl

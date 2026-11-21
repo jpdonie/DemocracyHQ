@@ -87,7 +87,7 @@ def test_a_measure_of_congress_is_listed_under_the_nation_and_under_no_state(law
     events = [e for e in laws.read("events.json")["events"] if e["entityId"] == "us-119-hr22"]
     assert {e["eventType"] for e in events} == {"introduced", "passed_house", "text_version_changed"}
     assert all(e["geoKeys"] == ["nation:US"] and e["ruleId"] and e["category"] == "legislation" for e in events)
-    assert {e["entityLabel"] for e in events} == {"H.R. 22 (119th Congress (2025–2026))"}
+    assert {e["entityLabel"] for e in events} == {"H.R. 22 (119th Congress)"}
     assert laws.read("manifest.json")["counts"] == {
         "cases": 0, "bills": 2, "supremeCourtCases": 0, "appealsCourtCases": 0, "stateBills": 0, "federalBills": 2,
         "relationships": 0, "events": 4, "geographicUnits": 2}

@@ -4,19 +4,21 @@
  */
 import { useEffect, useMemo, useRef } from 'react';
 import { EVENT_CATEGORIES, type EventCategory, type LegalCaseSummary } from '../../types/schemas';
+import { billJurisdiction, isFederalBill } from '../../lib/bills';
 import { useCore } from '../../lib/core';
+import { courtHash, courtShortName } from '../../lib/courts';
 import { isoDateParam, positiveInt } from '../../lib/filters';
 import { formatDate, formatNumber, formatPercent, formatSignedPercent, plural } from '../../lib/format';
 import { sourceFreshness } from '../../lib/freshness';
-import { isDistrictLayer, STATE_ABBR, stateKind, unitNoun, type GeoUnit } from '../../lib/geo';
+import { NATION_KEY, isCensusLayer, isDistrictLayer, STATE_ABBR, stateKind, unitNoun, type GeoUnit } from '../../lib/geo';
 import { districtDeviation, groupBreakdown, groupsSumToTotal, type PopulationResult } from '../../lib/population';
 import { buildHash, patchQuery, shareUrl, type Route } from '../../lib/router';
 import { COMPACT_QUERY, useMediaQuery } from '../../lib/media';
 import { isPlainClick, revealElement, useRaiseSheet } from '../../lib/sheet';
-import { dataOf } from '../../lib/useLoad';
+import { allOf, dataOf } from '../../lib/useLoad';
 import { useTagLabels } from '../../lib/labels';
 import { A, Async, BackLink, CopyLinkButton, Empty, ErrorHeading, ErrorNote, ExportMenu, Ext, Facts, GapNotice, Loading, Section, Segmented, TableScroll, TabPanel, Tabs, TextField, TypeMark, VerificationBadge, WatchButton } from '../../components/ui';
-import { CaseRow } from '../litigation/CaseDirectory';
+import { CaseRow, CaseRows } from '../litigation/CaseDirectory';
 import { BillRow } from '../legislation/BillDirectory';
 import { TimelineList } from './Timeline';
 import { buildPlacePack, usePlaceData, type PlaceData, type PlaceEvent, type PlaceLegislation } from './placeData';
@@ -105,6 +107,7 @@ function RelatedGeography({ data }: { data: PlaceData }) {
     const counties = geo.inState('county', unit.geoid);
     return (
       <>
+        <CircuitOfState data={data} />
         <p>{redrawnText}</p>
         <UnitLinks units={cd120} label={`${plural(cd120.length, 'congressional district')} for the 2026 elections (120th Congress)`} />
         <UnitLinks units={cd119} label={`${plural(cd119.length, 'congressional district')} of the 119th Congress`} />
@@ -148,6 +151,41 @@ function RelatedGeography({ data }: { data: PlaceData }) {
   );
 }
 
+/**
+ * The judicial circuit a state or territory is in, in the statute's own words. The statute's table (28 U.S.C. § 41)
+ * places every state, the District of Columbia and four of the five territories in a circuit; the one it leaves out is
+ * said to be in none.
+ */
+function CircuitOfState({ data }: { data: PlaceData }) {
+  const core = useCore();
+  const { unit } = data;
+  const name = data.geo.stateName(unit.stateFips);
+  return (
+    <Async of={data.appealsCourt} what="the judicial circuit">
+      {(court) => {
+        const statute = dataOf(core.courts)?.statute;
+        if (!court) {
+          return (
+            <p>
+              {name} is in no federal judicial circuit: the statute that lists the circuits
+              {statute?.sections[0] ? <> (<Ext href={statute.sections[0].url}>{statute.sections[0].citation}</Ext>)</> : null} does not name it.
+              {' '}<A to={buildHash(['courts'])}>The federal courts</A>
+            </p>
+          );
+        }
+        const basis = court.basis;
+        const entry = basis?.also?.find((also) => also.quote.includes(name)) ?? basis;
+        return (
+          <p>
+            {name} is in the <a href={courtHash(court.id)}>{courtShortName(court, court.id)}</a>: appeals from the federal district courts in {name} go to the {court.name}.
+            {entry ? <> The statute reads: <q>{entry.quote}</q> (<Ext href={entry.url}>{entry.citation}</Ext>)</> : null}
+          </p>
+        );
+      }}
+    </Async>
+  );
+}
+
 /** ": 2 for this unit, 5 for the whole state": how many records name the unit and how many are inherited. `kind` is "state", "territory" or "federal district". */
 function viaBreakdown(items: ReadonlyArray<{ via: 'direct' | 'statewide' | 'within' }>, isState: boolean, kind: string): string {
   if (items.length === 0) return '';
@@ -181,6 +219,13 @@ function Overview({ data, route }: { data: PlaceData; route: Route }) {
               {(cases) => <><a href={tabHash('litigation')}>{plural(cases.length, 'court case')}</a> linked by the record{viaBreakdown(cases, isState, kind)}</>}
             </Async>
           </li>
+          {isState ? (
+            <li>
+              <Async of={data.appealsFrom} what="the court of appeals cases">
+                {(appeals) => <><a href={tabHash('litigation')}>{plural(appeals.length, 'court of appeals case')}</a> that began in a federal district court here</>}
+              </Async>
+            </li>
+          ) : null}
           <li>
             <Async of={data.legislation} what="the tracked legislation">
               {(legislation) => <><a href={tabHash('legislation')}>{legislation.covered ? plural(legislation.bills.length, 'tracked measure') : `Legislation not covered for this ${kind} yet`}</a>{legislation.covered ? ` (listed for the whole ${kind})` : ''}</>}
@@ -192,26 +237,47 @@ function Overview({ data, route }: { data: PlaceData; route: Route }) {
             </Async>
           </li>
         </ul>
+        <FederalPointer />
         <GapNotice>These counts describe this dataset, not the amount of litigation or legislation that exists.</GapNotice>
       </Section>
     </>
   );
 }
 
-function LitigationTab({ data, cases }: { data: PlaceData; cases: LinkedRecord<LegalCaseSummary>[] }) {
+/** Federal law applies in every state, so each place points to the page of the country, where the measures of Congress are listed. */
+function FederalPointer() {
+  const core = useCore();
+  const federal = dataOf(core.bills)?.bills.filter(isFederalBill).length;
+  return (
+    <p className="quiet">
+      The measures of Congress apply nationwide and are not repeated for each state.{' '}
+      <A to={buildHash(['place', NATION_KEY])}>{federal ? `Federal level: ${plural(federal, 'election measure')} of Congress` : 'Federal level'}</A>
+    </p>
+  );
+}
+
+function LitigationTab({ data, cases, appeals }: { data: PlaceData; cases: LinkedRecord<LegalCaseSummary>[]; appeals: LegalCaseSummary[] }) {
   const labels = useTagLabels();
   const { unit } = data;
   const kind = stateKind(unit.stateFips).toLowerCase();
+  const stateName = data.geo.stateName(unit.stateFips);
+  const court = dataOf(data.appealsCourt);
   const groups: Array<{ via: 'direct' | 'statewide' | 'within'; title: string }> = [
     { via: 'direct', title: unit.layer === 'state' ? `Linked to the whole ${kind}` : 'Linked to this exact unit' },
-    { via: 'statewide', title: kind === 'state' ? `Statewide records for ${data.geo.stateName(unit.stateFips)}` : `Records for the whole of ${data.geo.stateName(unit.stateFips)}` },
+    { via: 'statewide', title: kind === 'state' ? `Statewide records for ${stateName}` : `Records for the whole of ${stateName}` },
     { via: 'within', title: `Linked to a district or county inside this ${kind}` },
   ];
-  if (cases.length === 0) {
+  if (cases.length === 0 && appeals.length === 0) {
     return (
       <Empty title="No court case in this dataset is linked to this place.">
-        <GapNotice>DemocracyHQ tracks a small set of Supreme Court dockets and links a case to a place only where a court document supports it. Cases concerning this place may exist in courts that are not covered.</GapNotice>
-        <p><A to={buildHash(['litigation'])}>Browse all tracked cases</A></p>
+        <GapNotice>
+          DemocracyHQ holds a hand-picked set of Supreme Court dockets and the court of appeals cases a keyword rule finds. It links a case to a place only where a court document supports it.
+          Cases concerning this place may exist, in these courts and in courts that are not covered.
+        </GapNotice>
+        <p>
+          <A to={buildHash(['litigation'])}>Browse all cases</A>
+          {court ? <> <A to={courtHash(court.id)}>Cases of the {courtShortName(court, court.id)}</A></> : null}
+        </p>
       </Empty>
     );
   }
@@ -228,7 +294,16 @@ function LitigationTab({ data, cases }: { data: PlaceData; cases: LinkedRecord<L
           </Section>
         );
       })}
-      <GapNotice>Only cases a maintainer has linked with supporting text appear here.</GapNotice>
+      {appeals.length > 0 ? (
+        <Section
+          title={`Appeals that began in a federal district court in ${stateName}`}
+          note={`Listed by the court below that each opinion names. That says where a case began, not what it concerns: a case from ${stateName} can concern another state, or federal law alone. The published rule that reads the line misses opinions that name the court below in another form.`}
+        >
+          <CaseRows cases={appeals} labels={labels} />
+          {court ? <p><A to={courtHash(court.id)}>All cases of the {courtShortName(court, court.id)} in this dataset</A></p> : null}
+        </Section>
+      ) : null}
+      <GapNotice>A Supreme Court docket appears here only where a maintainer has linked it with supporting text, and an appeal only where its opinion names a district court in this {kind}.</GapNotice>
     </>
   );
 }
@@ -239,7 +314,8 @@ function LegislationTab({ data, legislation }: { data: PlaceData; legislation: P
   if (!legislation.covered) {
     return (
       <Empty title={`Legislation for ${stateName} is not covered yet.`}>
-        <GapNotice>DemocracyHQ currently tracks election bills for California only. Election legislation for {stateName} is not tracked here.</GapNotice>
+        <GapNotice>DemocracyHQ tracks the election measures of Congress and of the California Legislature. The election legislation of {stateName} is not tracked here.</GapNotice>
+        <FederalPointer />
       </Empty>
     );
   }
@@ -247,17 +323,27 @@ function LegislationTab({ data, legislation }: { data: PlaceData; legislation: P
   return (
     <Section title={`Election measures in ${stateName}`} note={data.unit.layer === 'state' ? 'Bills are listed for the whole state. Some concern a single county or district but are not linked to it here.' : 'Bills are listed for the whole state this unit belongs to. Some concern a single county or district but are not linked to it here.'}>
       <ul className="rows">{shown.map((bill) => <BillRow key={bill.id} bill={bill} labels={labels} />)}</ul>
-      {legislation.bills.length > shown.length ? <p><A to={buildHash(['laws'])}>See all {legislation.bills.length} tracked measures</A></p> : null}
+      {legislation.bills.length > shown.length ? <p><A to={buildHash(['laws'], { jur: billJurisdiction(legislation.bills[0]!) })}>See all {legislation.bills.length} tracked measures</A></p> : null}
+      <FederalPointer />
     </Section>
   );
 }
 
-function TimelineTab({ data, events, route }: { data: PlaceData; events: PlaceEvent[]; route: Route }) {
-  const selected = (route.query.cat ?? '').split(',').filter((c): c is EventCategory => (EVENT_CATEGORIES as readonly string[]).includes(c));
-  const categories = selected.length > 0 ? selected : [...EVENT_CATEGORIES];
+const PLACE_TIMELINE_NOTE = 'Key entries only, newest first: the docket entries and legislative actions that the published rules mark as key, each changed text version of a bill, and Census boundary-file dates. See each case or bill for its full docket or history. Court and legislative entries carry the date of the event itself; a boundary entry carries the date of the Census file it comes from.';
+
+/**
+ * The dated events of a place, with their filters. `kinds` are the kinds of event the place can have (the country has
+ * no boundary entries of its own) and `note` says what the entries are.
+ */
+export function TimelineTab({ data, events, route, kinds = EVENT_CATEGORIES, note = PLACE_TIMELINE_NOTE, title = 'What changed here?' }: {
+  data: PlaceData; events: PlaceEvent[]; route: Route; kinds?: readonly EventCategory[]; note?: string; title?: string;
+}) {
+  const selected = (route.query.cat ?? '').split(',').filter((c): c is EventCategory => (kinds as readonly string[]).includes(c));
+  const categories = selected.length > 0 ? selected : [...kinds];
   const from = isoDateParam(route.query.from) ?? '';
   const to = isoDateParam(route.query.to) ?? '';
-  const subState = data.unit.layer !== 'state';
+  // Only a unit inside a state inherits the state's records, so only there can they be left out.
+  const subState = isCensusLayer(data.unit.layer) && data.unit.layer !== 'state';
   const directOnly = subState && route.query.scope === 'direct';
   const filtered = useMemo(
     () => events.filter((e) => categories.includes(e.category) && (!from || e.date >= from) && (!to || e.date <= to) && (!directOnly || e.via === 'direct')),
@@ -266,14 +352,14 @@ function TimelineTab({ data, events, route }: { data: PlaceData; events: PlaceEv
   const limit = positiveInt(route.query.show, 60);
   const toggle = (category: EventCategory) => {
     const next = categories.includes(category) ? categories.filter((c) => c !== category) : [...categories, category];
-    patchQuery(route, { cat: next.length === EVENT_CATEGORIES.length || next.length === 0 ? '' : next.join(','), show: '' });
+    patchQuery(route, { cat: next.length === kinds.length || next.length === 0 ? '' : next.join(','), show: '' });
   };
   return (
-    <Section title="What changed here?" note="Key entries only, newest first: the docket entries and legislative actions that the published rules mark as key, each changed text version of a bill, and Census boundary-file dates. See each case or bill for its full docket or history. Court and legislative entries carry the date of the event itself; a boundary entry carries the date of the Census file it comes from.">
+    <Section title={title} note={note}>
       <form className="filters" aria-label="Filter the timeline" onSubmit={(event) => event.preventDefault()}>
         <fieldset className="checks">
           <legend>Kind of event</legend>
-          {EVENT_CATEGORIES.map((category) => (
+          {kinds.map((category) => (
             <label key={category} className="check">
               <input type="checkbox" checked={categories.includes(category)} onChange={() => toggle(category)} />
               <span className={`cat-label cat-${category}`}>{CATEGORY_NAMES[category]}</span>
@@ -308,12 +394,16 @@ function TimelineTab({ data, events, route }: { data: PlaceData; events: PlaceEv
   );
 }
 
-function SourcesTab({ data }: { data: PlaceData }) {
+export function SourcesTab({ data, also = [] }: { data: PlaceData; also?: readonly string[] }) {
   const core = useCore();
   const population = dataOf(data.population);
-  const ids = new Set<string>([data.geoSourceId]);
+  const ids = new Set<string>([data.geoSourceId, ...also]);
   if (population?.status === 'available') ids.add(population.dataset.sourceId);
   for (const linked of dataOf(data.cases) ?? []) ids.add(linked.record.sourceId);
+  for (const record of dataOf(data.appealsFrom) ?? []) ids.add(record.sourceId);
+  // The circuit a state is in is read from the United States Code.
+  const statuteSource = dataOf(core.courts)?.statute.sourceId;
+  if (data.unit.layer === 'state' && statuteSource) ids.add(statuteSource);
   for (const bill of dataOf(data.legislation)?.bills ?? []) ids.add(bill.sourceId);
   if (dataOf(data.events)?.some((e) => e.category === 'geography')) ids.add('census-cd120-page');
   return (
@@ -350,16 +440,18 @@ function SourcesTab({ data }: { data: PlaceData }) {
 
 const TAB_IDS = ['overview', 'litigation', 'legislation', 'timeline', 'sources'] as const;
 
-export function PlaceWorkspace({ placeKey, route }: { placeKey: string; route: Route }) {
-  const state = usePlaceData(placeKey);
-  const tab = (TAB_IDS as readonly string[]).includes(route.query.tab ?? '') ? route.query.tab! : 'overview';
+/**
+ * The behaviour of a workspace's tabs, shared by the page of a place and the page of the country. A new tab replaces the
+ * content under the tab row, so it is brought into view (on a phone the half-height sheet would leave it below the
+ * fold) and, unless the reader is moving through the tabs themselves, focus moves to the new content. `openPack` is for
+ * the header's link to the source pack, which lives on the Sources tab.
+ */
+export function useWorkspaceTabs(route: Route, tab: string) {
   const raiseSheet = useRaiseSheet();
   const compact = useMediaQuery(COMPACT_QUERY);
   const tablistRef = useRef<HTMLDivElement | null>(null);
   const shownTab = useRef(tab);
   const goingToPack = useRef(false);
-  // A new tab replaces the content under the tab row. Bring it into view (on a phone the half-height sheet would leave it
-  // below the fold) and, unless the reader is moving through the tabs themselves, move focus to the new content.
   useEffect(() => {
     if (shownTab.current === tab) return;
     shownTab.current = tab;
@@ -381,6 +473,13 @@ export function PlaceWorkspace({ placeKey, route }: { placeKey: string; route: R
     goingToPack.current = true;
     patchQuery(route, { tab: 'sources' }, { replace: false });
   };
+  return { tablistRef, openPack };
+}
+
+export function PlaceWorkspace({ placeKey, route }: { placeKey: string; route: Route }) {
+  const state = usePlaceData(placeKey);
+  const tab = (TAB_IDS as readonly string[]).includes(route.query.tab ?? '') ? route.query.tab! : 'overview';
+  const { tablistRef, openPack } = useWorkspaceTabs(route, tab);
   if (state.status === 'loading') return <article className="view"><Loading what="this place" /></article>;
   if (state.status === 'error') return <article className="view"><ErrorHeading error={state.error} noun="Place" /><ErrorNote error={state.error} what="the place index" /></article>;
   if (state.status === 'missing') {
@@ -398,7 +497,7 @@ export function PlaceWorkspace({ placeKey, route }: { placeKey: string; route: R
   const { unit } = data;
   const tabs = [
     { id: 'overview', label: 'Overview' },
-    { id: 'litigation', label: data.cases.status === 'ready' ? `Litigation (${data.cases.data.length})` : 'Litigation' },
+    { id: 'litigation', label: data.cases.status === 'ready' && data.appealsFrom.status === 'ready' ? `Litigation (${data.cases.data.length + data.appealsFrom.data.length})` : 'Litigation' },
     { id: 'legislation', label: data.legislation.status === 'ready' && data.legislation.data.covered ? `Legislation (${data.legislation.data.bills.length})` : 'Legislation' },
     { id: 'timeline', label: data.events.status === 'ready' ? `Timeline (${data.events.data.length})` : 'Timeline' },
     { id: 'sources', label: 'Sources' },
@@ -423,7 +522,7 @@ export function PlaceWorkspace({ placeKey, route }: { placeKey: string; route: R
       <TabPanel idBase="place" id={tab}>
         {tab === 'overview' ? <Overview data={data} route={route} /> : null}
         {/* Each tab waits only for the files it uses, and shows an error if one of them failed. */}
-        {tab === 'litigation' ? <Async of={data.cases} what="court cases">{(cases) => <LitigationTab data={data} cases={cases} />}</Async> : null}
+        {tab === 'litigation' ? <Async of={allOf(data.cases, data.appealsFrom)} what="court cases">{([cases, appeals]) => <LitigationTab data={data} cases={cases} appeals={appeals} />}</Async> : null}
         {tab === 'legislation' ? <Async of={data.legislation} what="legislation">{(legislation) => <LegislationTab data={data} legislation={legislation} />}</Async> : null}
         {tab === 'timeline' ? <Async of={data.events} what="the timeline">{(events) => <TimelineTab data={data} events={events} route={route} />}</Async> : null}
         {tab === 'sources' ? <SourcesTab data={data} /> : null}

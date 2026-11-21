@@ -6,8 +6,9 @@
  * mistaken for a low value or a verified zero.
  */
 import type { Layer, PopulationFile, RedistrictingFile } from '../types/schemas';
+import { courtGeoKey } from './courts';
 import type { GeoIndex } from './geo';
-import { ISLAND_AREAS, isDistrictLayer } from './geo';
+import { ISLAND_AREAS, isDistrictLayer, parseGeoKey } from './geo';
 import { formatNumber } from './format';
 
 export interface ThemeClass { token: string; label: string }
@@ -45,18 +46,66 @@ export function linkedRecordsTheme(counts: ReadonlyMap<string, number>, what: 'c
   };
 }
 
-export function coverageTheme(coveredStates: ReadonlySet<string>): MapTheme {
+/**
+ * The litigation list's map: the states its cases are listed under. A Supreme Court docket is listed under the states
+ * its record links it to, an appeal under the state of the district court it came from, so the map and the list's
+ * state filter always agree.
+ */
+export function caseStatesTheme(counts: ReadonlyMap<string, number>): MapTheme {
+  const classOf = new Map<string, number>();
+  for (const [stateFips, count] of counts) if (count > 0) classOf.set(stateFips, 0);
+  return {
+    id: `case-states:${[...classOf.keys()].sort().join(',')}`,
+    layer: 'state',
+    title: 'Court cases by state',
+    classes: [{ token: '--case-tint', label: 'At least one case in this dataset' }],
+    classOf,
+    hatch: { geoids: 'rest', label: 'No case in this dataset. Not evidence that none exists.' },
+    plain: null,
+    note: 'A state is shaded when the record links a Supreme Court docket to it, or when an appeal in this dataset came from a federal district court there. Where an appeal came from says where it began, not what it concerns.',
+    sourceId: null,
+  };
+}
+
+/**
+ * The circuits layer: which regional circuits have cases in this dataset. `casesOfCourt` is keyed by court id ("ca5").
+ * With twelve units the shading marks presence only; the counts are in the panel.
+ */
+export function circuitTheme(casesOfCourt: ReadonlyMap<string, number>): MapTheme {
+  const classOf = new Map<string, number>();
+  for (const [courtId, count] of casesOfCourt) {
+    const parsed = parseGeoKey(courtGeoKey(courtId) ?? '');
+    if (parsed && count > 0) classOf.set(parsed.geoid, 0);
+  }
+  return {
+    id: `circuits:${[...classOf.keys()].sort().join(',')}`,
+    layer: 'circuit',
+    title: 'Election cases in the courts of appeals',
+    classes: [{ token: '--case-tint', label: 'At least one case of this circuit’s court in this dataset' }],
+    classOf,
+    hatch: { geoids: 'rest', label: 'No case in this dataset. Not evidence that none exists.' },
+    plain: null,
+    note: 'A circuit is the group of states and territories whose federal district courts one court of appeals hears appeals from (28 U.S.C. § 41). The outlines are the Census Bureau’s state boundaries, merged by DemocracyHQ. They are not an official map of the courts.',
+    sourceId: 'govinfo-uscourts',
+  };
+}
+
+/**
+ * The legislation list's map: the states whose own election bills are tracked. The measures of Congress apply to
+ * the whole country and are not drawn as shading.
+ */
+export function coverageTheme(coveredStates: ReadonlySet<string>, withFederal = false): MapTheme {
   const classOf = new Map<string, number>();
   for (const stateFips of coveredStates) classOf.set(stateFips, 0);
   return {
-    id: `coverage:${[...coveredStates].sort().join(',')}`,
+    id: `coverage:${[...coveredStates].sort().join(',')}:${withFederal ? 'federal' : 'states'}`,
     layer: 'state',
-    title: 'Legislation coverage',
-    classes: [{ token: '--law-tint', label: 'Election bills tracked from the official legislative data' }],
+    title: 'State legislation coverage',
+    classes: [{ token: '--law-tint', label: 'State election bills tracked from the official legislative data' }],
     classOf,
-    hatch: { geoids: 'rest', label: 'Not covered: election legislation here is not tracked by DemocracyHQ.' },
+    hatch: { geoids: 'rest', label: 'Not covered: this legislature’s election bills are not tracked by DemocracyHQ.' },
     plain: null,
-    note: null,
+    note: withFederal ? 'The measures of Congress in this dataset apply to the whole country and are not drawn as shading.' : null,
     sourceId: 'ca-leginfo-bulk',
   };
 }

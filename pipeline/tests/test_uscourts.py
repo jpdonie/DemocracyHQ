@@ -203,6 +203,11 @@ def test_changing_a_selection_pattern_requires_a_new_rule_id():
     ("PUBLISHED AUTHORED OPINION filed.", ("ca-doc-opinion", "opinion", "Opinion", "major")),
     ("ERRATA to the opinion filed.", ("ca-doc-errata", "errata", "Errata", "routine")),
     ("NON DISPOSITIVE PUBLISHED ORDER filed.", ("ca-doc-order", "order", "Order", "major")),
+    # An order about an opinion is the order: the entry opens with it. An entry that merely mentions one is not.
+    ("ORDER AMENDING OPINION (Clerk) The opinion filed April 25, 2025 is vacated.", ("ca-doc-order-on-opinion", "order", "Order", "major")),
+    ("ORDER VACATING OPINION and judgment filed.", ("ca-doc-order-on-opinion", "order", "Order", "major")),
+    ("PRECEDENTIAL OPINION. VACATED Per Clerk Order amending the opinion.", ("ca-doc-opinion", "opinion", "Opinion", "major")),
+    ("ORDER AND JUDGMENT filed.", ("ca-doc-judgment", "judgment", "Judgment", "major")),
     ("FILED MEMORANDUM DISPOSITION.", ("ca-doc-decision", "decision", "Decision", "major")),
     ("JUDGMENT ENTERED AND FILED.", ("ca-doc-judgment", "judgment", "Judgment", "major")),
     ("Document posted.", ("ca-doc-other", "court_document", "Document", "major")),
@@ -287,6 +292,19 @@ def test_a_case_record_says_why_it_was_selected_and_links_every_document():
     assert (selection.wordMatches, selection.phraseMatches) == (16, 16) and selection.phrases[0].count == 4
     assert case.parties[0].name == "Board of Elections" and case.verification.status.value == "verified_primary"
     assert all(doc.url.startswith(f"https://www.govinfo.gov/content/pkg/{PKG}/pdf/") for doc in case.documents)
+
+
+def test_the_publication_label_describes_the_latest_decision_and_no_earlier_one():
+    """A case with a published opinion and a later decision whose entry does not say is shown without a label: the
+    label of the first decision would stand beside the second. An order about the opinion is not a later decision."""
+    texts = {f"{PKG}-0": fed.election_opinion(), f"{PKG}-1": "A second decision.", f"{PKG}-2": "The opinion is amended."}
+    later = record_of(documents=[fed.document(0, "2026-03-10", OPINION), fed.document(1, "2026-05-01", "OPINION filed.")])
+    case = uscourts.build_case(later, texts, uscourts.evaluate(later, texts), checked_at=NOW, changed_at="2026-05-20T12:00:00Z")
+    assert (case.latestDispositiveEntry.date, case.publication) == ("2026-05-01", None)
+    amended = record_of(documents=[fed.document(0, "2026-03-10", OPINION), fed.document(2, "2026-03-12", "ORDER AMENDING OPINION (Clerk)")])
+    case = uscourts.build_case(amended, texts, uscourts.evaluate(amended, texts), checked_at=NOW, changed_at="2026-05-20T12:00:00Z")
+    assert (case.latestDispositiveEntry.date, case.latestDispositiveEntry.eventType, case.publication) == ("2026-03-10", "opinion", "Published")
+    assert [(e.eventType, e.classificationRule) for e in case.events] == [("opinion", "ca-doc-opinion"), ("order", "ca-doc-order-on-opinion")]
 
 
 # --- the scan ---------------------------------------------------------------------------------

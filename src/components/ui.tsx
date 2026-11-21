@@ -177,7 +177,7 @@ export function SourceLine(props: SourceLineProps) {
   );
 }
 
-const TYPE_LABELS = { case: 'Court case', bill: 'Legislation', place: 'Place', data: 'Data' } as const;
+const TYPE_LABELS = { case: 'Court case', bill: 'Legislation', place: 'Place', court: 'Court', data: 'Data' } as const;
 
 export function TypeMark({ type, label }: { type: keyof typeof TYPE_LABELS; label?: string }) {
   return <span className={`type-mark type-${type}`}>{label ?? TYPE_LABELS[type]}</span>;

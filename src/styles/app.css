@@ -99,7 +99,7 @@ h1:focus { outline: none; }
 .search-option { display: grid; gap: 1px; padding: var(--s-2) var(--s-3) var(--s-2) calc(var(--s-3) + 9px); cursor: pointer; border-left: 3px solid transparent; }
 .search-option.is-active { background: var(--sunk); }
 .search-place .search-option.is-active { border-left-color: var(--geo); }
-.search-case .search-option.is-active { border-left-color: var(--case); }
+.search-case .search-option.is-active, .search-court .search-option.is-active { border-left-color: var(--case); }
 .search-bill .search-option.is-active { border-left-color: var(--law); }
 .search-detail { color: var(--ink-3); font-size: var(--text-sm); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .search-empty { padding: var(--s-3); color: var(--ink-2); }
@@ -148,6 +148,13 @@ h1:focus { outline: none; }
 .seg label.is-on span, .segmented-options label.is-on span { background: var(--ink); color: #fff; }
 .seg label:not(.is-on):hover span, .segmented-options label:not(.is-on):hover span { background: var(--sunk); }
 .seg input:focus-visible + span, .segmented-options input:focus-visible + span { outline: 3px solid var(--focus); outline-offset: -3px; }
+/* The control never reaches under the zoom buttons. Its two groups sit side by side while the map is wide enough, and one under the other when it is not. */
+.layer-control { max-width: calc(100% - 3.5rem - 4.25rem); }
+.layer-groups { display: flex; flex-wrap: wrap; gap: var(--s-2) var(--s-4); }
+.layer-sub { display: flex; align-items: center; gap: var(--s-2); }
+.layer-sub label { font-size: var(--text-xs); font-weight: 600; color: var(--ink-2); }
+.layer-control select { height: 2rem; min-width: 0; max-width: 100%; padding: 0 var(--s-1) 0 var(--s-2); border: var(--border-control); border-radius: var(--radius-1); background: var(--surface); font-size: var(--text-sm); font-weight: 500; cursor: pointer; }
+.layer-control-compact { display: flex; flex-wrap: wrap; }
 
 .map-insets { position: absolute; left: 3.5rem; bottom: var(--s-4); z-index: 5; display: flex; align-items: stretch; justify-content: flex-start; gap: var(--s-2); flex-wrap: wrap; max-width: calc(100% - 22rem); }
 .inset { display: grid; justify-items: center; gap: 2px; padding: var(--s-1) var(--s-2); background: var(--surface); border: 0; border-radius: var(--radius-2); box-shadow: var(--elev-1); cursor: pointer; font-size: var(--text-xs); font-weight: 500; color: var(--ink-2); }
@@ -183,6 +190,7 @@ h1:focus { outline: none; }
 .line-sample { height: 0; margin-top: 0.5em; border-top: 2px solid var(--ink); }
 .line-county { border-top: 1px solid var(--ink-3); }
 .line-cd119, .line-cd120 { border-top-color: var(--geo); }
+.line-circuit { border-top-width: 3px; }
 .legend-fresh { font-size: var(--text-xs); color: var(--ink-2); }
 .legend-error { color: var(--error); font-size: var(--text-xs); }
 .fresh-stale, .fresh-failed, .fresh-never_checked { color: var(--stale); }
@@ -216,6 +224,8 @@ h1:focus { outline: none; }
 .type-case::before { background: var(--case); }
 .type-bill::before { background: var(--law); }
 .type-place::before { background: var(--geo); border-radius: 50%; }
+/* A court is marked in the colour of its cases, with a shape of its own: a square stood on its corner. */
+.type-court::before { background: var(--case); width: 0.6rem; height: 0.6rem; transform: rotate(45deg); margin: 0 0.05rem; }
 
 .back-link { display: inline-flex; align-items: center; gap: 0.2rem; font-size: var(--text-sm); color: var(--ink-2); text-decoration: none; margin-left: -0.2rem; }
 .back-link:hover { color: var(--ink); text-decoration: underline; }
@@ -591,7 +601,8 @@ ul.pack-items { list-style: disc; }
   .view-wide, .app.is-wide .site-foot { border-inline: 0; }
   .site-foot { padding-inline: var(--s-4); }
 
-  .layer-control { left: var(--s-3); top: var(--s-3); padding: var(--s-1); gap: var(--s-1); }
+  .layer-control { left: var(--s-3); top: var(--s-3); padding: var(--s-1); gap: var(--s-1); max-width: calc(100% - 1.5rem); }
+  .layer-control select { height: 2.75rem; }
   .layer-control legend { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
   .map-zoom { right: auto; top: auto; left: calc(var(--s-3) + 7.5rem + var(--s-2)); bottom: var(--s-3); display: flex; }
   .map-zoom button + button { border-top: 0; border-left: var(--border); }

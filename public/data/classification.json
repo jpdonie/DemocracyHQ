@@ -8,6 +8,13 @@
    "significance": "routine"
   },
   {
+   "documentType": "Order",
+   "eventType": "order",
+   "pattern": "\\A\\W*order (?:amending|correcting|modifying|vacating|withdrawing)\\b",
+   "ruleId": "ca-doc-order-on-opinion",
+   "significance": "major"
+  },
+  {
    "documentType": "Opinion",
    "eventType": "opinion",
    "pattern": "\\bopinions?\\b",
@@ -601,6 +608,11 @@
    "ruleId": "same-lower-court-2"
   },
   {
+   "appliesTo": "A Supreme Court docket shown with the court of appeals case it comes from",
+   "description": "A Supreme Court docket is paired with a court of appeals case in the dataset when the Court's docket page names that court of appeals as the lower court and gives a lower-court case number that is the case's docket number. The court's name must agree in full, and the numbers are compared by their two-digit year and their serial number without leading zeros. A number that would name two cases of the court is paired with neither. Neither record states the pairing; it is derived by this rule, and each of the two pages links the other. Most dockets from a court of appeals have no such link, because the case below is older than the documents read or was not picked by the selection rule.",
+   "ruleId": "case-below-1"
+  },
+  {
    "appliesTo": "Links between a bill and another bill, a case or a place",
    "description": "A maintainer lists the link in pipeline/seeds/relationships.json together with a passage quoted from the official text of the named bill version or from the named court document. On every run that has that text the pipeline checks that the passage is in it, ignoring white space, hyphens and dashes, letter case and the style of quotation marks, and reading Unicode compatibility characters (such as ligatures and superscript digits) as their plain forms; a passage that ties a bill or case to a place must also name the place. A link whose passage is not found, or does not name the place, is not published; it is listed in the review queue. The links are a hand-picked subset: the absence of a link does not mean two records are unrelated.",
    "ruleId": "rel-seed-2"
@@ -657,7 +669,7 @@
   },
   {
    "appliesTo": "Whether a court of appeals decision is shown as published or unpublished",
-   "description": "Read from the court's own entry for the opinion in GovInfo's record: 'Unpublished' when the pattern \\b(?:un|non-?)published\\b|\\bnot precedential\\b|\\bnon-?precedential\\b|\\bnot for publication\\b matches, otherwise 'Published' when the pattern \\bpublished\\b|\\bprecedential\\b|\\bfor publication\\b matches, otherwise nothing is shown. The courts' rules on what an unpublished decision is worth as precedent differ and are not stated here.",
+   "description": "Read from the court's own entry for the case's latest opinion, decision or judgment in GovInfo's record, and from no other entry: 'Unpublished' when the pattern \\b(?:un|non-?)published\\b|\\bnot precedential\\b|\\bnon-?precedential\\b|\\bnot for publication\\b matches, otherwise 'Published' when the pattern \\bpublished\\b|\\bprecedential\\b|\\bfor publication\\b matches, otherwise nothing is shown. The courts' rules on what an unpublished decision is worth as precedent differ and are not stated here.",
    "ruleId": "publication-1"
   },
   {

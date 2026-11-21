@@ -9,9 +9,10 @@ import type { Topology } from 'topojson-specification';
 import type { FeatureCollection, Geometry } from 'geojson';
 import type { z } from 'zod';
 import {
-  BillIndexSchema, CaseIndexSchema, ClassificationFileSchema, CountyCdSchema, CourtsFileSchema, EventsFileSchema,
-  GeoIndexSchema, LegalCaseSchema, LegislativeInstrumentSchema, ManifestSchema, PopulationFileSchema,
-  RedistrictingFileSchema, RelationshipFileSchema, SourcesFileSchema, VersionTextSchema, type Layer, type Manifest,
+  BillIndexSchema, CaseIndexSchema, CIRCUIT_CASE_ID_PATTERN, CircuitIndexSchema, CircuitsFileSchema, ClassificationFileSchema, CountyCdSchema,
+  CourtsFileSchema, EventsFileSchema, FederalBillIndexSchema, GeoIndexSchema, LegalCaseSchema, LegislativeInstrumentSchema, ManifestSchema,
+  PopulationFileSchema, RedistrictingFileSchema, RelationshipFileSchema, SourcesFileSchema, US_BILL_ID_PATTERN, VersionTextSchema,
+  type Layer, type Manifest,
 } from '../types/schemas';
 
 export type DataErrorKind = 'network' | 'not_found' | 'invalid';
@@ -119,8 +120,16 @@ export const loadSources = loader('sources.json', SourcesFileSchema);
 export const loadGeoIndex = loader('geo/index.json', GeoIndexSchema);
 export const loadCountyCd = loader('geo/county_cd119.json', CountyCdSchema);
 export const loadRedistricting = loader('redistricting.json', RedistrictingFileSchema);
+/** The Supreme Court dockets. */
 export const loadCaseIndex = loader('litigation/index.json', CaseIndexSchema);
+/** The court of appeals cases, with the selection rule and what was read for each court. */
+export const loadCircuitIndex = loader('circuits/index.json', CircuitIndexSchema);
+/** California's election measures. */
 export const loadBillIndex = loader('legislation/index.json', BillIndexSchema);
+/** The election measures of Congress. */
+export const loadFederalBillIndex = loader('congress/index.json', FederalBillIndexSchema);
+/** The thirteen courts of appeals, the states each regional circuit is made of and the statute that says so. */
+export const loadCircuits = loader('geo/circuits.json', CircuitsFileSchema);
 /** The links between records. Its path is also how a view tells a failed links file from a failed record index. */
 export const RELATIONSHIPS_PATH = 'relationships.json';
 export const loadRelationships = loader(RELATIONSHIPS_PATH, RelationshipFileSchema);
@@ -130,18 +139,30 @@ export const loadCourts = loader('courts.json', CourtsFileSchema);
 
 const SAFE_ID = /^[A-Za-z0-9_-]+$/;
 
-export function loadCase(id: string) {
-  if (!SAFE_ID.test(id)) return Promise.reject(new DataError('not_found', id, 'That case identifier is not valid.'));
-  return loader(`litigation/cases/${id}.json`, LegalCaseSchema)();
+/** Whether a case id is a court of appeals case (ca5-25-30725) rather than a Supreme Court docket. */
+export function isAppealsCaseId(id: string): boolean {
+  return CIRCUIT_CASE_ID_PATTERN.test(id);
 }
 
+/** Whether a bill id is a measure of Congress (us-119-hr22) rather than a state bill. */
+export function isFederalBillId(id: string): boolean {
+  return US_BILL_ID_PATTERN.test(id);
+}
+
+/** A case's own file. The id says which folder it is in: court of appeals cases are under circuits/, the others under litigation/. */
+export function loadCase(id: string) {
+  if (!SAFE_ID.test(id)) return Promise.reject(new DataError('not_found', id, 'That case identifier is not valid.'));
+  return loader(`${isAppealsCaseId(id) ? 'circuits' : 'litigation'}/cases/${id}.json`, LegalCaseSchema)();
+}
+
+/** A measure's own file: measures of Congress are under congress/, state bills under legislation/. */
 export function loadBill(id: string) {
   if (!SAFE_ID.test(id)) return Promise.reject(new DataError('not_found', id, 'That bill identifier is not valid.'));
-  return loader(`legislation/bills/${id}.json`, LegislativeInstrumentSchema)();
+  return loader(`${isFederalBillId(id) ? 'congress' : 'legislation'}/bills/${id}.json`, LegislativeInstrumentSchema)();
 }
 
 export function loadVersionText(textPath: string) {
-  if (!/^legislation\/text\/[A-Za-z0-9_-]+\.json$/.test(textPath)) {
+  if (!/^(?:legislation|congress)\/text\/[A-Za-z0-9_-]+\.json$/.test(textPath)) {
     return Promise.reject(new DataError('not_found', textPath, 'That text version is not available.'));
   }
   return loader(textPath, VersionTextSchema)();

@@ -7,6 +7,8 @@ import { dataOf } from '../../lib/useLoad';
 import { A, Async, Ext, Facts, GapNotice, Section, Segmented, TableScroll, TypeMark } from '../../components/ui';
 
 export const LAYER_EXPLAINERS: Readonly<Record<Layer, { title: string; body: string }>> = {
+  nation: { title: 'United States', body: 'The country as one unit: the outline of the states, the District of Columbia and the territories in the Census Bureau’s boundary file, merged by DemocracyHQ.' },
+  circuit: { title: 'Federal judicial circuits', body: 'The twelve regional circuits of the courts of appeals. Each is drawn by merging the states and territories that 28 U.S.C. § 41 places in it; the outlines are not an official map of the courts.' },
   state: { title: 'States and equivalents', body: 'The 50 states, the District of Columbia, Puerto Rico and the island areas, as of January 1, 2025.' },
   county: { title: 'Counties and equivalents', body: 'Counties, parishes, boroughs, independent cities and Connecticut planning regions, as of January 1, 2025.' },
   cd119: { title: 'Districts of the 119th Congress', body: 'The districts in effect for the Congress that convened in January 2025.' },

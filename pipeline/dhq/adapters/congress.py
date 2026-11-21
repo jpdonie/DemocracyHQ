@@ -191,14 +191,19 @@ def classify_action(text: str, code: Optional[str], source: Optional[str], kind:
 
 
 STATUS_RULE_ID = "us-status-1"
+#: Each chamber has voted to pass the measure, and the record shows no later step. The two votes can be on different
+#: texts (one chamber passes the other's bill with an amendment), so the names do not say that Congress passed it.
+PASSED_IN_EACH = "Passed House and Senate, not sent to the President"
+AGREED_IN_EACH = "Agreed to in House and Senate"
 
 
 def derive_status(kind: str, actions: List[LegislativeAction]) -> str:
     """The stage a measure has reached, from the event labels of its actions (rule ``us-status-1``).
 
     The first line that applies is the stage: became law; vetoed; sent to the President; for a resolution of one
-    chamber, agreed to there; passed both chambers; passed one chamber; failed in a chamber; reported by a
-    committee; introduced. It says how far the measure got, not what is happening to it now.
+    chamber, agreed to there; passed in each chamber; passed one chamber; failed in a chamber; reported by a
+    committee; introduced. It says how far the measure got, not what is happening to it now. "Passed in each chamber"
+    means only that the record has a vote of passage in each: whether both passed the same text is not read.
     """
     seen = {a.eventType for a in actions}
     rules = {a.classificationRule for a in actions}
@@ -216,7 +221,7 @@ def derive_status(kind: str, actions: List[LegislativeAction]) -> str:
             return f"Not agreed to in the {chamber}"
     else:
         if "passed_house" in seen and "passed_senate" in seen:
-            return "Agreed to by both chambers" if kind in CONCURRENT_RESOLUTIONS else "Passed both chambers"
+            return AGREED_IN_EACH if kind in CONCURRENT_RESOLUTIONS else PASSED_IN_EACH
         if "passed_house" in seen:
             return "Passed the House"
         if "passed_senate" in seen:
@@ -233,7 +238,7 @@ def derive_status(kind: str, actions: List[LegislativeAction]) -> str:
 #: Every stage :func:`derive_status` can give, in the order a measure moves through them.
 STATUS_ORDER = ["Introduced", "Reported by committee", "Failed in the House", "Failed in the Senate", "Not agreed to in the House",
                 "Not agreed to in the Senate", "Passed the House", "Passed the Senate", "Agreed to in the House", "Agreed to in the Senate",
-                "Passed both chambers", "Agreed to by both chambers", "Sent to the President", "Vetoed", "Became law"]
+                PASSED_IN_EACH, AGREED_IN_EACH, "Sent to the President", "Vetoed", "Became law"]
 
 
 # --- reading a status record ----------------------------------------------------
@@ -539,10 +544,11 @@ def effective_info(kind: str, title: str, status: str, became_law: Optional[str]
         return EffectiveInfo(date=None, basis="not_applicable",
                              note=f"A simple resolution speaks for one chamber only. It is not a law and has no effective date. This one {state}.")
     if kind in CONCURRENT_RESOLUTIONS:
-        state = "was agreed to by both chambers" if status == "Agreed to by both chambers" else "has not been agreed to by both chambers"
+        state = ("The record shows a vote agreeing to this one in each chamber; whether both agreed to the same text is not read"
+                 if status == AGREED_IN_EACH else "This one has not been agreed to in both chambers")
         return EffectiveInfo(date=None, basis="not_applicable",
                              note="A concurrent resolution is acted on by both chambers but is not sent to the President. It is not a law "
-                                  f"and has no effective date. This one {state}.")
+                                  f"and has no effective date. {state}.")
     if kind in JOINT_RESOLUTIONS and re.match(r"^Proposing an amendment to the Constitution", title or "", re.I):
         return EffectiveInfo(date=None, basis="not_enacted",
                              note="A joint resolution that proposes a constitutional amendment needs two thirds of each chamber and then "
@@ -558,10 +564,12 @@ def effective_info(kind: str, title: str, status: str, became_law: Optional[str]
                              note=f"Vetoed by the President on {long_date(vetoed)}. A vetoed measure becomes law only if two thirds of each "
                                   "chamber vote to override the veto (U.S. Const. art. I, § 7); the status record shows no such law. "
                                   "It has no effective date.")
+    each = (" Each chamber has voted to pass this measure, but the record does not show that both passed the same text: one chamber "
+            "can pass the other's bill with an amendment, which the first must then accept." if status == PASSED_IN_EACH else "")
     return EffectiveInfo(date=None, basis="not_enacted",
-                         note=f"Not enacted as of the date of the data (stage reached: {status}). A bill becomes law only when both chambers "
-                              "pass the same text and the President signs it, lets it become law without a signature, or is overridden. "
-                              "It has no effective date.")
+                         note=f"Not enacted as of the date of the data (stage reached: {status}).{each} A bill becomes law only when both "
+                              "chambers pass the same text and the President signs it, lets it become law without a signature, or is "
+                              "overridden. It has no effective date.")
 
 
 class BillTextUnavailable(Exception):
