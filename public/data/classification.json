@@ -1,4 +1,55 @@
 {
+ "circuitDocumentRules": [
+  {
+   "documentType": "Errata",
+   "eventType": "errata",
+   "pattern": "\\berrat(?:a|um)\\b",
+   "ruleId": "ca-doc-errata",
+   "significance": "routine"
+  },
+  {
+   "documentType": "Opinion",
+   "eventType": "opinion",
+   "pattern": "\\bopinions?\\b",
+   "ruleId": "ca-doc-opinion",
+   "significance": "major"
+  },
+  {
+   "documentType": "Decision",
+   "eventType": "decision",
+   "pattern": "\\bdisposition\\b|\\bterminated on the merits\\b",
+   "ruleId": "ca-doc-decision",
+   "significance": "major"
+  },
+  {
+   "documentType": "Judgment",
+   "eventType": "judgment",
+   "pattern": "\\bjudgments?\\b",
+   "ruleId": "ca-doc-judgment",
+   "significance": "major"
+  },
+  {
+   "documentType": "Order",
+   "eventType": "order",
+   "pattern": "\\borders?\\b",
+   "ruleId": "ca-doc-order",
+   "significance": "major"
+  },
+  {
+   "documentType": "Procedural termination",
+   "eventType": "procedural_termination",
+   "pattern": "\\bprocedural termination\\b",
+   "ruleId": "ca-doc-procedural",
+   "significance": "routine"
+  },
+  {
+   "documentType": "Document",
+   "eventType": "court_document",
+   "pattern": "(any entry no rule above matches, or an entry without text)",
+   "ruleId": "ca-doc-other",
+   "significance": "major"
+  }
+ ],
  "curatedRuleId": "tag-curated-1",
  "docketEntryRules": [
   {
@@ -195,6 +246,166 @@
    "pattern": "^Record |^The record |^Letter |^Waiver\\b|^Blanket [Cc]onsent|^Joint Blanket Consent|^Consent to the filing|electronically received",
    "ruleId": "sc-record",
    "rulesOn": null,
+   "significance": "routine"
+  }
+ ],
+ "federalActionRules": [
+  {
+   "actionCodes": [
+    "36000",
+    "E40000",
+    "41000"
+   ],
+   "eventType": "became_law",
+   "pattern": "^Became (?:Public|Private) Law No: ?[0-9]+-[0-9]+",
+   "ruleId": "us-became-law",
+   "significance": "major"
+  },
+  {
+   "actionCodes": [
+    "36000",
+    "E30000",
+    "29000"
+   ],
+   "eventType": "approved_by_president",
+   "pattern": "^Signed by President",
+   "ruleId": "us-signed",
+   "significance": "major"
+  },
+  {
+   "actionCodes": [
+    "32000",
+    "34000"
+   ],
+   "eventType": "veto_override_passed",
+   "pattern": "^Passed (?:House|Senate) over veto",
+   "ruleId": "us-veto-overridden",
+   "significance": "major"
+  },
+  {
+   "actionCodes": [
+    "33000",
+    "35000"
+   ],
+   "eventType": "veto_override_failed",
+   "pattern": "^Failed of passage in (?:House|Senate) over veto",
+   "ruleId": "us-veto-sustained",
+   "significance": "major"
+  },
+  {
+   "actionCodes": [
+    "31000"
+   ],
+   "eventType": "vetoed",
+   "pattern": "^(?:Pocket )?[Vv]etoed by President",
+   "ruleId": "us-vetoed",
+   "significance": "major"
+  },
+  {
+   "actionCodes": [
+    "28000"
+   ],
+   "eventType": "presented_to_president",
+   "pattern": "^Presented to President",
+   "ruleId": "us-presented",
+   "significance": "major"
+  },
+  {
+   "actionCodes": [
+    "23000",
+    "25000"
+   ],
+   "eventType": "conference_report_agreed",
+   "pattern": "^Conference report agreed to in (?:House|Senate)",
+   "ruleId": "us-conference",
+   "significance": "major"
+  },
+  {
+   "actionCodes": [
+    "19500",
+    "20500"
+   ],
+   "eventType": "resolving_differences",
+   "pattern": "^Resolving differences -- (?:House|Senate) actions",
+   "ruleId": "us-differences",
+   "significance": "major"
+  },
+  {
+   "actionCodes": [
+    "8000"
+   ],
+   "eventType": "passed_house",
+   "pattern": "^Passed/agreed to in House",
+   "ruleId": "us-passed-house",
+   "significance": "major"
+  },
+  {
+   "actionCodes": [
+    "17000"
+   ],
+   "eventType": "passed_senate",
+   "pattern": "^Passed/agreed to in Senate",
+   "ruleId": "us-passed-senate",
+   "significance": "major"
+  },
+  {
+   "actionCodes": [
+    "9000"
+   ],
+   "eventType": "vote_failed",
+   "pattern": "^Failed of passage/not agreed to in House",
+   "ruleId": "us-failed-house",
+   "significance": "major"
+  },
+  {
+   "actionCodes": [
+    "18000"
+   ],
+   "eventType": "vote_failed",
+   "pattern": "^Failed of passage/not agreed to in Senate",
+   "ruleId": "us-failed-senate",
+   "significance": "major"
+  },
+  {
+   "actionCodes": [
+    "5000",
+    "14000",
+    "1010"
+   ],
+   "eventType": "reported",
+   "pattern": "[Rr]eported",
+   "ruleId": "us-reported",
+   "significance": "major"
+  },
+  {
+   "actionCodes": [
+    "5500",
+    "14500"
+   ],
+   "eventType": "committee_discharged",
+   "pattern": "discharged",
+   "ruleId": "us-discharged",
+   "significance": "routine"
+  },
+  {
+   "actionCodes": [
+    "1000",
+    "10000",
+    "1025",
+    "10025",
+    "Intro-H",
+    "Intro-S"
+   ],
+   "eventType": "introduced",
+   "pattern": "^(?:Introduced|Submitted) in (?:the )?(?:House|Senate)",
+   "ruleId": "us-introduced",
+   "significance": "major"
+  },
+  {
+   "actionCodes": [],
+   "eventType": "committee_action, floor_action, referral, calendar or legislative_action",
+   "pattern": "(any action no rule above matches; named by the kind the record gives it)",
+   "ruleId": "us-other",
    "significance": "routine"
   }
  ],
@@ -413,6 +624,51 @@
    "appliesTo": "Repeal dates quoted beside a California measure's effective date",
    "description": "A sentence of the latest mirrored text is quoted when it says that the measure, or a named part of it ('This section', 'This chapter'), shall remain in effect until, or only until, a date or an event and as of that date is repealed. The clause applies to the provision the sentence names, not necessarily to the whole measure, and only if the measure is enacted. Where the sentence gives a calendar date it is recorded; where it names an event, no date is recorded. A sentence repeated in several sections is quoted once. The pattern is (\\b(This|That) (act|bill|chapter|section|article|part|division|title|subdivision|paragraph|subparagraph)\\b|\\bSections? (?:[^.;]|\\.(?=\\d)){0,60}? of this (act|bill)\\b)[^.;]{0,80}?\\bshall remain in effect (only )?until (?P<until>(?:(?!\\. [A-Z(])[^;]){1,300}?),? and,? as of (that|such) date,? (is|are) repealed . A sunset worded differently (for example 'is repealed on' or 'becomes inoperative on') is not found, so the absence of a quoted clause does not mean there is none, and a later statute may have changed the date.",
    "ruleId": "ca-sunset-1"
+  },
+  {
+   "appliesTo": "Which measures of Congress are included",
+   "description": "Every measure of the Congress named in congress/index.json is read. A measure is included when one of its titles (display, official or short title) meets one of three tests, tried in this order: the title names election law (the first pattern); the title has a general election word (the second pattern) and the policy area the Congressional Research Service assigned is Government Operations and Politics, or none is assigned yet; the title has an election word (the third pattern) and the policy area is one of the three listed with it. A measure in the policy area International Affairs is not included, because its titles speak of elections in other countries. Before a title is read, the phrases of the exclusion pattern are removed from it: procedure of the two chambers (a rule for the consideration of a bill, the election of the Speaker) and voting outside public elections (proxy voting, votes of shareholders). Each measure's page names the test it met and the words that met it. The patterns, the policy areas and the number of measures read are published in congress/index.json and shown under Coverage and selection. A measure whose titles do not say that it concerns elections is missed.",
+   "ruleId": "us-select-1"
+  },
+  {
+   "appliesTo": "The stage shown for a measure of Congress",
+   "description": "The stage is the furthest step among the measure's recorded actions, read from the labels the action rules assign: became law; vetoed; sent to the President; for a resolution of one chamber, agreed to (or not agreed to) there; passed both chambers; passed one chamber; failed in a chamber; reported by a committee; introduced. It says how far the measure got, not what is happening to it now, and it is not an official status. The official record's own latest action is shown beside it.",
+   "ruleId": "us-status-1"
+  },
+  {
+   "appliesTo": "Which court of appeals cases are included",
+   "description": "Every case of the thirteen courts of appeals that GovInfo lists with an opinion or order issued since 2025-01-01 is read. A case is included when the court's own record gives it the nature of suit 441 (Civil Rights: Voting), or when one of its documents meets one of three text tests: 'long' (at least 8 election words, at least 8 election phrases and at least 2 election words in every 1,000 words), 'dense' (at least 8 election words, at least 3 phrases and at least 5 election words in every 1,000 words) or 'party' (a party or the case title names an election authority, and the document has at least 3 election words). The text tests are not applied where the record gives the case a nature of suit of another field of law (contract, torts, labor, intellectual property, securities, freedom of information), and a document with many labor-law terms is not read as an election document, because union representation elections are not public elections. A clerk's cover letter (rule cover-letter-1) is not counted. Counts are taken after words broken across lines are joined. Each case's page shows the tests it met, the document they rest on and the phrases counted in it. The patterns, thresholds and nature of suit codes are published in circuits/index.json, with the number of cases and documents read for each court. The rule counts words: it can miss an election case, and it can include a case that only discusses elections.",
+   "ruleId": "circuit-select-1"
+  },
+  {
+   "appliesTo": "Court of appeals cases the selection rule picks that a maintainer removed",
+   "description": "A maintainer may list a case in pipeline/seeds/circuit_exclusions.json when the opinion itself shows that no public election is at issue: an election of another kind (a student council, a union, a company board), a record that classifies the case as a voting case by mistake, election cases cited only as precedent, or a dispute in which an election office is only the employer. Each entry gives the reason and quotes a passage of the opinion. On every run the pipeline looks for the passage in the documents of the case, ignoring white space, hyphens and dashes, letter case and the style of quotation marks, and reading Unicode compatibility characters (such as ligatures and superscript digits) as their plain forms. Only if it is found is the case left out, and the entry is then published in circuits/index.json and shown under Coverage and selection. If the passage is not found, the case stays in the dataset and the entry is listed in the review queue. A case is never excluded because of who its parties are or how it was decided.",
+   "ruleId": "circuit-exclusion-1"
+  },
+  {
+   "appliesTo": "Court of appeals documents that are a clerk's cover letter",
+   "description": "Some courts send GovInfo the clerk's letter that tells counsel an opinion was issued, in place of the opinion. A document is read as such a letter when the pattern \\bDear [^:]{1,60}:\\s*(?:The court (?:has |today )?issued an? (?:amended )?opinion in th(?:is|ese) cases?|Enclosed is a copy of (?:the|an) (?:amended )?(?:opinion|order and judgment)) matches in its first 4,000 characters. The selection rule does not count such a document, and the case page says that the file is the letter and not the opinion.",
+   "ruleId": "cover-letter-1"
+  },
+  {
+   "appliesTo": "The district court a court of appeals case came from",
+   "description": "The opinion's own line naming the court below is quoted when the pattern (?:On )?(?:Appeals?|Petitions? for (?:a )?Writ of Mandamus) (?:from|to) (?:a |an |the )?(?:(?:judgment|order|orders|decision|final judgment)s? of (?:a |an |the )?)?(United\\s+States\\s+District\\s+Court\\s+for\\s+the\\s+((?:(?:Northern|Southern|Eastern|Western|Middle|Central)\\s+)?District\\s+of\\s+(?:the\\s+)?)([A-Z][A-Za-z]+(?:\\s+[A-Z][A-Za-z]+){0,3})) matches in the first 20,000 characters of the opinion. The state is the one the district's name gives. It says where the case began, not what it concerns: a case from one state can concern another, or federal law alone. Many opinions name the court below in another form (an abbreviation, a caption set in columns), and then no origin is shown; the absence of one does not mean the case did not come from a district court.",
+   "ruleId": "origin-court-1"
+  },
+  {
+   "appliesTo": "Whether a court of appeals decision is shown as published or unpublished",
+   "description": "Read from the court's own entry for the opinion in GovInfo's record: 'Unpublished' when the pattern \\b(?:un|non-?)published\\b|\\bnot precedential\\b|\\bnon-?precedential\\b|\\bnot for publication\\b matches, otherwise 'Published' when the pattern \\bpublished\\b|\\bprecedential\\b|\\bfor publication\\b matches, otherwise nothing is shown. The courts' rules on what an unpublished decision is worth as precedent differ and are not stated here.",
+   "ruleId": "publication-1"
+  },
+  {
+   "appliesTo": "Court of appeals cases shown as decided together",
+   "description": "Two cases of the same court are shown as decided together when each has a document of the same day whose text, reduced to its letters, is identical and at least 2,000 letters long. That is how a court files one opinion that decides several appeals. The record does not state the relation; it is derived by this rule. Such an opinion appears once in timelines, with the numbers of all its cases.",
+   "ruleId": "same-opinion-1"
+  },
+  {
+   "appliesTo": "Which states and territories each judicial circuit is drawn with",
+   "description": "The pipeline keeps a table of the states and territories of each circuit. On every run of the boundary stage it reads 28 U.S.C. § 41 and 48 U.S.C. § 1821(a) in the edition of the United States Code that GovInfo publishes, and compares the table with the statute's entry for every circuit. The map and the list of courts are published only if they agree, and each court's page quotes the statute's entry. A name in the statute that is not a unit on the map, and a unit on the map that the statute places in no circuit, are listed in geo/circuits.json. The circuit outlines are the Census Bureau's state boundaries merged by DemocracyHQ, not an official map.",
+   "ruleId": "circuit-composition-1"
   },
   {
    "appliesTo": "Timeline entries for a changed text version",

@@ -89,7 +89,9 @@ def test_first_run_publishes_validated_records(env):
     assert case["questionsPresented"]["text"] == QP_1
     assert [t["tag"] for t in case["issueTags"]] == ["redistricting"]
     assert case["issueTags"][0]["matchedField"] == "questions presented"
-    assert env.read("manifest.json")["counts"] == {"cases": 2, "bills": 0, "relationships": 1, "events": 4, "geographicUnits": 2}
+    assert env.read("manifest.json")["counts"] == {
+        "cases": 2, "bills": 0, "supremeCourtCases": 2, "appealsCourtCases": 0, "stateBills": 0, "federalBills": 0,
+        "relationships": 1, "events": 4, "geographicUnits": 2}
 
 
 def test_a_link_is_published_only_when_its_quoted_passage_is_in_the_cited_document(env):

@@ -1,16 +1,22 @@
 {
- "contentHash": "335ca3b1638f15cc36d985fa4ae5b8bd779fa4046bffccca2fcddb57321fa710",
+ "contentHash": "d3cd15a4f173e508b9fd659e6e90344f848de04c0a454f69bdd29bce383c53de",
  "counts": {
-  "bills": 132,
-  "cases": 25,
-  "events": 1053,
-  "geographicUnits": 4173,
-  "relationships": 38
+  "appealsCourtCases": 128,
+  "bills": 404,
+  "cases": 153,
+  "events": 1475,
+  "federalBills": 272,
+  "geographicUnits": 4186,
+  "relationships": 38,
+  "stateBills": 132,
+  "supremeCourtCases": 25
  },
- "generatedAt": "2026-11-20T22:05:28Z",
+ "generatedAt": "2026-11-21T06:05:19Z",
  "reviewQueue": {
-  "byKind": {},
-  "items": 0
+  "byKind": {
+   "text_version_note": 1
+  },
+  "items": 1
  },
  "schemaVersion": 1,
  "sources": {
@@ -20,8 +26,8 @@
    "processingStatus": "ok"
   },
   "census-cb-2025": {
-   "lastAttempt": "2026-11-20T22:05:28Z",
-   "lastSuccessfulCheck": "2026-11-20T22:05:28Z",
+   "lastAttempt": "2026-11-21T06:05:19Z",
+   "lastSuccessfulCheck": "2026-11-21T06:05:19Z",
    "processingStatus": "ok"
   },
   "census-cd119-sf": {
@@ -30,8 +36,8 @@
    "processingStatus": "ok"
   },
   "census-cd120-page": {
-   "lastAttempt": "2026-11-20T22:05:28Z",
-   "lastSuccessfulCheck": "2026-11-20T22:05:28Z",
+   "lastAttempt": "2026-11-21T06:05:19Z",
+   "lastSuccessfulCheck": "2026-11-21T06:05:19Z",
    "processingStatus": "ok"
   },
   "census-pl-2020": {
@@ -40,14 +46,34 @@
    "processingStatus": "ok"
   },
   "census-tiger-2026-cd120": {
-   "lastAttempt": "2026-11-20T22:05:28Z",
-   "lastSuccessfulCheck": "2026-11-20T22:05:28Z",
+   "lastAttempt": "2026-11-21T06:05:19Z",
+   "lastSuccessfulCheck": "2026-11-21T06:05:19Z",
    "processingStatus": "ok"
   },
   "courtlistener-api": {
    "lastAttempt": "2026-11-20T22:05:28Z",
    "lastSuccessfulCheck": null,
    "processingStatus": "credential_missing"
+  },
+  "govinfo-bills": {
+   "lastAttempt": "2026-11-21T06:05:19Z",
+   "lastSuccessfulCheck": "2026-11-21T06:05:19Z",
+   "processingStatus": "ok"
+  },
+  "govinfo-billstatus": {
+   "lastAttempt": "2026-11-21T06:05:19Z",
+   "lastSuccessfulCheck": "2026-11-21T06:05:19Z",
+   "processingStatus": "ok"
+  },
+  "govinfo-uscode": {
+   "lastAttempt": "2026-11-21T06:05:19Z",
+   "lastSuccessfulCheck": "2026-11-21T06:05:19Z",
+   "processingStatus": "ok"
+  },
+  "govinfo-uscourts": {
+   "lastAttempt": "2026-11-21T06:05:19Z",
+   "lastSuccessfulCheck": "2026-11-21T06:05:19Z",
+   "processingStatus": "ok"
   },
   "openstates-api": {
    "lastAttempt": "2026-11-20T22:05:28Z",

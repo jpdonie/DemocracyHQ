@@ -1,0 +1,41 @@
+{
+  "_readme": "Court of appeals cases that the selection rule (circuit-select-1) selects although they are not about a public election. Each entry names the GovInfo package, gives the reason in one sentence and quotes a passage of the opinion that shows what the case is about. Use […] inside a quote for words left out. On every run the pipeline looks for the passage in the documents of the case. Only if it is found is the case left out, and the entry is then published with the data under 'exclusions', so that every case the rule selected and a maintainer removed can be seen. If the passage is not found, the case stays in the dataset and the entry is listed in the review queue. Add an entry only when the opinion itself shows that no public election is at issue: an election of another kind (a student council, a union, a company board), a record that classifies the case as a voting case by mistake, election cases cited only as precedent, or a dispute in which an election office is only the employer. Never exclude a case because of who the parties are or how it was decided.",
+  "exclusions": [
+    {
+      "package": "USCOURTS-ca4-22-01814",
+      "caseName": "Davina Ricketts v. Wake County Public School System",
+      "reason": "The election in this case is a high school's student council election, not a public election.",
+      "quote": "Davina Ricketts, then a sophomore at a high school in North Carolina, decided to run for student council in hopes of remedying its lack of diversity."
+    },
+    {
+      "package": "USCOURTS-ca5-26-20337",
+      "caseName": "In re Paula Goodhart",
+      "reason": "The case is about a consent decree on bail in Harris County, Texas. The opinion mentions a state election because of the timing of a hearing.",
+      "quote": "The plaintiffs brought a class-action lawsuit against Harris County, Texas, and a number of its officials, including, as relevant here, judges of the Harris County Criminal Courts at Law."
+    },
+    {
+      "package": "USCOURTS-ca9-25-2134",
+      "caseName": "Rivera v. Anderson",
+      "reason": "The case is about the Washington State Energy Code and state sovereign immunity. The election cases in the opinion are cited as precedent.",
+      "quote": "seeking declaratory and injunctive relief against enforcement of the Washington State Energy Code as preempted by federal law"
+    },
+    {
+      "package": "USCOURTS-ca13-25-02017",
+      "caseName": "Sansone v. PTO",
+      "reason": "The court's record classifies the case as a voting case (nature of suit 441), but the opinion concerns a patent application.",
+      "quote": "Mr. Sansone, proceeding pro se, filed U.S. Patent Application No. 16/255,511 on January 23, 2019, seeking a patent for a wearable thermal device."
+    },
+    {
+      "package": "USCOURTS-ca10-25-05097",
+      "caseName": "Jiang v. City of Tulsa",
+      "reason": "The court's record classifies the case as a voting case (nature of suit 441), but the opinion concerns a hiring decision of a city's water department.",
+      "quote": "Jiang sued the city for discrimination. He alleged that the reason the city didn’t choose him for superintendent was his age and race."
+    },
+    {
+      "package": "USCOURTS-ca11-25-11242",
+      "caseName": "Patricia Spurlin v. Floyd County, Georgia, et al",
+      "reason": "The case is an employment dispute of a clerk at a county elections office. No election is at issue.",
+      "quote": "Patricia Spurlin brought this lawsuit, alleging that Akyn Beck terminated Spurlin from her job at the Floyd County Elections Office in retaliation for an anonymous complaint about a coworker who was related to Beck."
+    }
+  ]
+}
