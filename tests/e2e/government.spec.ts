@@ -18,16 +18,27 @@ const PARTY = { R: 'Republican', D: 'Democratic' } as const;
 const HEADLINE = { R: 'Republican trifecta', D: 'Democratic trifecta', divided: 'Divided government', undetermined: 'Not determined' } as const;
 
 test.describe('Who governs', () => {
-  test('the overview counts the fifty states as the published file does, and offers the party map', async ({ page }) => {
+  test('the overview counts the fifty states and the seats of Congress as the published file does, and offers the party map', async ({ page }) => {
     await open(page, '#/');
     const states = (await published(page)).filter((record) => record.id.startsWith('state:'));
     expect(states).toHaveLength(50);
     const count = (control: Record['control']) => states.filter((record) => record.control === control).length;
-    const block = page.getByRole('region', { name: 'Who governs the states' });
-    await expect(block).toContainText(`Republican ${count('R')}`);
-    await expect(block).toContainText(`Democratic ${count('D')}`);
-    await expect(block).toContainText(`Divided ${count('divided')}`);
+    const block = page.getByRole('region', { name: 'Who governs', exact: true });
+    const rows = block.getByRole('list', { name: 'Who governs, by party' }).getByRole('listitem');
+    await expect(rows.nth(0)).toContainText('State governments');
+    await expect(rows.nth(0)).toContainText(`Republican ${count('R')}`);
+    await expect(rows.nth(0)).toContainText(`Democratic ${count('D')}`);
+    await expect(rows.nth(0)).toContainText(`Divided ${count('divided')}`);
+    // Under the states, the two chambers of Congress, each with the seats the file gives.
+    const nation = (await published(page)).find((record) => record.id === 'nation:US')!;
+    await expect(rows).toHaveCount(1 + nation.chambers.length);
+    for (const [index, chamber] of nation.chambers.entries()) {
+      await expect(rows.nth(index + 1)).toContainText(`U.S. ${chamber.name}`);
+      await expect(rows.nth(index + 1)).toContainText(`Democratic ${seats(chamber, 'D')}`);
+      await expect(rows.nth(index + 1)).toContainText(`Republican ${seats(chamber, 'R')}`);
+    }
     await expect(block).toContainText('not an election result');
+    await expect(block.getByRole('link', { name: 'Congress in detail' })).toHaveAttribute('href', '#/place/nation:US');
 
     await block.getByRole('link', { name: 'Colour the map by party control' }).click();
     await expect(page).toHaveURL(/#\/\?shade=party$/);

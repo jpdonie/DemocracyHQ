@@ -195,12 +195,13 @@ export function WhoGoverns({ record, sources }: { record: Government; sources: r
 }
 
 /**
- * The fifty states at a glance: how many are held by each party, how many are divided. One bar, the same order as a
- * chamber's: Democratic from the left, Republican from the right.
+ * Who governs, at a glance: how many of the fifty states each party holds and how many are divided, and under them
+ * the two chambers of Congress. Every bar has the same order: Democratic from the left, Republican from the right.
  */
-export function ControlTally({ index, mapHash, shown }: { index: GovernmentIndex; mapHash: string; shown: boolean }) {
+export function ControlTally({ index, mapHash, shown, nationHash }: { index: GovernmentIndex; mapHash: string; shown: boolean; nationHash?: string }) {
   const tally = controlTally(index.states);
-  const parts: Array<{ key: string; count: number; label: string }> = [
+  const congress = index.nation?.chambers ?? [];
+  const parts: Array<{ key: 'R' | 'D' | 'split' | 'unknown'; count: number; label: string }> = [
     { key: 'D', count: tally.D, label: 'Democratic' },
     { key: 'split', count: tally.divided, label: 'Divided' },
     { key: 'unknown', count: tally.undetermined, label: 'Not determined' },
@@ -208,20 +209,48 @@ export function ControlTally({ index, mapHash, shown }: { index: GovernmentIndex
   ];
   return (
     <div className="gov gov-tally">
-      <div className="seatbar seatbar-tall" aria-hidden="true">
-        <span className="seatbar-count seatbar-count-D">{tally.D}</span>
-        <span className="seatbar-track">
-          {parts.filter((part) => part.count > 0).map((part) => <span key={part.key} className={`seat seat-${part.key}`} style={{ flexGrow: part.count, flexBasis: 0 }} />)}
-        </span>
-        <span className="seatbar-count seatbar-count-R">{tally.R}</span>
-      </div>
-      <p className="gov-seats">
-        {parts.filter((part) => part.count > 0).map((part) => <span key={part.key}><Chip side={part.key as 'R' | 'D' | 'split' | 'unknown'} />{part.label} {part.count}</span>)}
-      </p>
+      <ol className="gov-board" aria-label="Who governs, by party">
+        <li className="gov-row">
+          <div className="gov-part-head">
+            <span className="gov-office">State governments</span>
+            <span className="gov-party">{plural(index.states.length, 'state')}</span>
+          </div>
+          <div className="seatbar seatbar-tall" aria-hidden="true">
+            <span className="seatbar-count seatbar-count-D">{tally.D}</span>
+            <span className="seatbar-track">
+              {parts.filter((part) => part.count > 0).map((part) => <span key={part.key} className={`seat seat-${part.key}`} style={{ flexGrow: part.count, flexBasis: 0 }} />)}
+            </span>
+            <span className="seatbar-count seatbar-count-R">{tally.R}</span>
+          </div>
+          <p className="gov-seats">
+            {parts.filter((part) => part.count > 0).map((part) => <span key={part.key}><Chip side={part.key} />{part.label} {part.count}</span>)}
+          </p>
+        </li>
+        {congress.map((chamber) => (
+          <li className="gov-row" key={chamber.chamber}>
+            <div className="gov-part-head">
+              <span className="gov-office">U.S. {chamber.name}</span>
+              <span className="gov-party"><Chip side={chamber.lead ?? 'none'} />{chamberVerdict(chamber)}</span>
+            </div>
+            <SeatBar chamber={chamber} />
+            <p className="gov-seats">
+              <span>Democratic {seatsOf(chamber, 'D')}</span>
+              <span>Republican {seatsOf(chamber, 'R')}</span>
+              {chamber.parties.filter((entry) => entry.group !== 'R' && entry.group !== 'D').map((entry) => <span key={entry.name}>{entry.name} {entry.seats}</span>)}
+              {chamber.vacant ? <span>Vacant {chamber.vacant}</span> : null}
+            </p>
+          </li>
+        ))}
+      </ol>
       <p className="gov-note">
-        Of the fifty states: the governor and every chamber of the legislature of one party, or divided between the two. Counted from the members each source lists today; not an election result.
+        A state government is counted for a party when the governor and every chamber of the legislature are that party&rsquo;s, and as divided otherwise.
+        {congress.length > 0 ? ' For Congress the bars show the seats held under each party’s label.' : ''}
+        {' '}Counted from the members each source lists today; not an election result.
       </p>
-      <p>{shown ? <A to={mapHash}>Back to the map of records</A> : <A to={mapHash}>Colour the map by party control</A>}</p>
+      <p className="gov-links">
+        {shown ? <A to={mapHash}>Back to the map of records</A> : <A to={mapHash}>Colour the map by party control</A>}
+        {nationHash && congress.length > 0 ? <A to={nationHash}>Congress in detail</A> : null}
+      </p>
     </div>
   );
 }

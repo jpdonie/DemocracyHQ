@@ -240,7 +240,8 @@ test.describe('Map encodings', () => {
   test('without shading, district lines keep their own colour and no casing', async ({ page }) => {
     await open(page, '#/redistricting?layer=cd119&shade=none', { withMap: true });
     await mapReady(page, 'cd119');
-    const geo = await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--geo').trim());
+    // The map stage has its own values for the colour tokens: the line is in the stage's brown.
+    const geo = await page.evaluate(() => getComputedStyle(document.querySelector('.mapstage')!).getPropertyValue('--geo').trim());
     const paint = await linePaint(page, 'cd119');
     expect(paint.line.toLowerCase()).toBe(geo.toLowerCase());
     expect(paint.cased).toBe(false);

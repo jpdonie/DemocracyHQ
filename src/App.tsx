@@ -11,6 +11,7 @@ import { caseStateCounts } from './lib/filters';
 import { NATION_KEY, isCensusLayer, isDistrictLayer, isLayer, parseGeoKey, unionBbox, type Bbox } from './lib/geo';
 import { caseStatesTheme, circuitTheme, coverageTheme, linkedRecordsTheme, partyControlTheme, populationTheme, redrawnTheme, type MapTheme } from './lib/mapTheme';
 import { linkedStates, relationshipsForRecord } from './lib/relations';
+import { fullSiteUrl, isEmbedded } from './lib/embed';
 import { buildHash, mapQuery, moveStartedOn, navigate, patchQuery, useRoute, type Route } from './lib/router';
 import { COMPACT_QUERY, SHORT_COMPACT_QUERY, TINY_COMPACT_QUERY, useMediaQuery } from './lib/media';
 import { isPlainClick, RaiseSheetContext } from './lib/sheet';
@@ -206,6 +207,8 @@ function Shell() {
   const module = moduleOf(view);
   const wide = WIDE.has(view.name);
   const compact = useMediaQuery(COMPACT_QUERY);
+  // Shown inside another page (`?embed=1` before the `#`): the address does not change while the page is open.
+  const embedded = useMemo(() => isEmbedded(), []);
   const short = useMediaQuery(SHORT_COMPACT_QUERY);
   // A very short screen (for example a laptop screen at 400% zoom): the page scrolls as one document (see app.css).
   const tiny = useMediaQuery(TINY_COMPACT_QUERY);
@@ -495,7 +498,7 @@ function Shell() {
   );
 
   return (
-    <div className={`app${wide ? ' is-wide' : ''}${compact ? ' is-compact' : ''}`} data-sheet={compact ? (wide ? 'full' : sheetSize) : undefined}>
+    <div className={`app${wide ? ' is-wide' : ''}${compact ? ' is-compact' : ''}${embedded ? ' is-embed' : ''}`} data-sheet={compact ? (wide ? 'full' : sheetSize) : undefined}>
       {/* The address is the current view, so the link still works when it is opened in a new tab or copied ("#panel" would
           be read as a route and lead to "Page not found"). Followed here, it moves focus into the panel. */}
       <a className="skip-link" href={buildHash(route.path, route.query)} onClick={(event) => { if (!isPlainClick(event)) return; event.preventDefault(); panelRef.current?.focus(); }}>Skip to content</a>
@@ -508,15 +511,23 @@ function Shell() {
           {navLinks.map((link) => <a key={link.id} href={link.hash} aria-current={module === link.id ? 'page' : undefined}>{link.label}</a>)}
         </nav>
         <GlobalSearch />
-        {compact ? <MoreMenu view={view} route={route} /> : null}
-        <nav className="topnav-meta" aria-label="About this site">
-          <a href={buildHash(['sources'])} aria-current={view.name === 'sources' ? 'page' : undefined}>Data and methodology</a>
-          <a href={buildHash(['watchlist'])} aria-current={view.name === 'watchlist' ? 'page' : undefined}>Watchlist</a>
-          <a href={buildHash(['about'])} aria-current={view.name === 'about' ? 'page' : undefined}>About</a>
-          {REPO_URL
-            ? <a href={REPO_URL} rel="noopener noreferrer external">GitHub</a>
-            : <a href={buildHash(['about'], { section: 'source' })}>GitHub</a>}
-        </nav>
+        {compact && !embedded ? <MoreMenu view={view} route={route} /> : null}
+        {embedded ? (
+          // Inside another page: the way out to the full site, at the view the reader is on.
+          <nav className="topnav-meta topnav-embed" aria-label="About this site">
+            <a href={buildHash(['sources'])} aria-current={view.name === 'sources' ? 'page' : undefined}>Data and methodology</a>
+            <a className="topnav-out" href={fullSiteUrl(buildHash(route.path, route.query))} target="_blank" rel="noopener" aria-label={`Open ${APP_NAME} in a new tab`}><span>Open<span className="topnav-out-name"> {APP_NAME}</span></span><Icon name="external" /></a>
+          </nav>
+        ) : (
+          <nav className="topnav-meta" aria-label="About this site">
+            <a href={buildHash(['sources'])} aria-current={view.name === 'sources' ? 'page' : undefined}>Data and methodology</a>
+            <a href={buildHash(['watchlist'])} aria-current={view.name === 'watchlist' ? 'page' : undefined}>Watchlist</a>
+            <a href={buildHash(['about'])} aria-current={view.name === 'about' ? 'page' : undefined}>About</a>
+            {REPO_URL
+              ? <a href={REPO_URL} rel="noopener noreferrer external">GitHub</a>
+              : <a href={buildHash(['about'], { section: 'source' })}>GitHub</a>}
+          </nav>
+        )}
       </header>
       {/* On a very short screen the page scrolls as one document: the section links follow the top bar, so they are
           reached first, and nothing stays fixed over the content. Elsewhere the tab bar is fixed at the bottom. */}

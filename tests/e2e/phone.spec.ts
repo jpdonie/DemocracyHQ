@@ -261,8 +261,9 @@ test.describe('Phone layout, details', () => {
   test('adding to the watchlist offers a way to the list, and the pressed button keeps its contrast', async ({ page }) => {
     await open(page, '#/place/county:06037');
     await page.getByRole('button', { name: 'Add to watchlist' }).tap();
-    // On a touch screen the hover state stays after a tap; the pressed button must still read white on dark.
-    await expect(page.getByRole('button', { name: 'Remove from watchlist' })).toHaveCSS('background-color', 'rgb(23, 35, 59)');
+    // On a touch screen the hover state stays after a tap; the pressed button must still read dark on light.
+    await expect(page.getByRole('button', { name: 'Remove from watchlist' })).toHaveCSS('background-color', 'rgb(244, 247, 252)');
+    await expect(page.getByRole('button', { name: 'Remove from watchlist' })).toHaveCSS('color', 'rgb(10, 18, 34)');
     await page.waitForLoadState('networkidle');
     expect(await axeViolations(page)).toEqual([]);
     await page.getByRole('link', { name: 'View watchlist' }).tap();

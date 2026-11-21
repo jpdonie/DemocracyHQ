@@ -39,6 +39,9 @@ between cases, bills and places that each quote the passage supporting them, a
 search box, a watchlist kept in your own browser, and a "legal source pack" export
 as JSON, CSV or a printable page.
 
+Any view can be shown inside another page: put `?embed=1` before the `#` of its
+address and use it as the address of a frame. The About page gives the markup.
+
 Figures are those of the data release generated on 2026-11-21. [The federal level](docs/FEDERAL_LEVEL.md)
 describes the measures of Congress, the courts of appeals and the circuits. The site's
 **Data and methodology** page gives the release date and each source's current
@@ -86,7 +89,7 @@ npm run test:e2e       # builds the browser-test build in dist-e2e/, then runs t
                        # browser tests against it, served under a sub-path
 ```
 
-The suites hold 358 unit tests in 25 files, 259 browser tests in 18 files (a
+The suites hold 366 unit tests in 27 files, 261 browser tests in 19 files (a
 desktop project at 1366 x 768 and a phone project) and 772 pipeline tests.
 [CONTRIBUTING.md](CONTRIBUTING.md#tests) says what each covers.
 

@@ -8,12 +8,18 @@
  * avoid red and blue so nothing reads as a party colour. The one exception is
  * the party-control view, where red and blue mean exactly that: the party that
  * holds an office or more than half of a chamber's seats.
+ *
+ * The site has a light side and a night side. The reading panel is the light
+ * side. The top bar, the map stage and the title block of a page are the night
+ * side: the same token names with other values, set at the foot of this file,
+ * so a control or a mark placed there takes the right ink without a rule of
+ * its own.
  */
 :root {
   /* Surfaces */
-  --sheet: #f1f4ef;        /* application background, survey paper */
+  --sheet: #f2f4f8;        /* application background */
   --surface: #ffffff;      /* panels and controls */
-  --sunk: #e7ebe4;         /* inset areas, table headers */
+  --sunk: #e8ecf2;         /* inset areas, table headers */
   --land: #fbfcf9;         /* map land */
   --water: #d6e1e4;        /* map water */
 
@@ -21,8 +27,17 @@
   --ink: #17233b;          /* text, state lines */
   --ink-2: #414d66;        /* secondary text */
   --ink-3: #5f6a80;        /* tertiary text, still 4.5:1 on white and on sheet */
-  --rule: #cdd4ca;         /* hairlines */
-  --rule-strong: #9aa497;  /* control borders, 3:1 on white */
+  --rule: #d0d6e0;         /* hairlines */
+  --rule-strong: #838ea4;  /* control borders, 3:1 on white */
+  --on-ink: #ffffff;       /* text on an ink fill: a pressed button, the chosen part of a control, a tooltip */
+  --on-ink-2: #d9deea;     /* secondary text on an ink fill */
+  --ink-hover: #24365c;    /* an ink fill under the pointer */
+
+  /* Night: the top bar, the map stage and the title block */
+  --night: #0a1222;
+  --night-2: #0f1a33;
+  --night-3: #16223f;
+  --night-rule: #263555;
 
   /* Record inks */
   --geo: #85551b;          /* geography: contour brown */
@@ -48,11 +63,11 @@
   --del-ink: #7c1d17;
 
   /* Party control: the only use of red and blue. Each names one of the two parties and nothing else. */
-  --party-r: #c5443a;
-  --party-r-tint: #f9e5e2;
-  --party-d: #2c69ad;
-  --party-d-tint: #e0ebf7;
-  --party-split: #cdc2e0;  /* a government divided between the parties */
+  --party-r: #d63f3a;
+  --party-r-tint: #fbe6e3;
+  --party-d: #2f72c6;
+  --party-d-tint: #e1ecf9;
+  --party-split: #cdc2e0;  /* a government divided between the parties: lighter than either, so it is told apart without hue */
   --party-none: #c5cbc2;   /* seats held under no party's label */
 
   /* Map thematic ramp (single hue, light to dark; brown plate) */
@@ -103,6 +118,7 @@
   /* Motion */
   --dur-1: 120ms;
   --dur-2: 240ms;
+  --dur-3: 700ms;          /* a bar that grows to its figure, once, when it first appears */
   --ease: cubic-bezier(0.2, 0, 0, 1);
 
   /* Layout */
@@ -123,5 +139,72 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  :root { --dur-1: 0ms; --dur-2: 0ms; }
+  :root { --dur-1: 0ms; --dur-2: 0ms; --dur-3: 0ms; }
+}
+
+/*
+ * The night side. On a screen, the map stage, the bar of the phone's sheet and the title block of a page (with the
+ * link back above it and the tabs under it) take these values. Print keeps the light side, and so does the printable source pack.
+ * Every pair used for text here keeps 4.5:1, and control borders keep 3:1, as on the light side.
+ */
+@media screen {
+  .mapstage,
+  .sheet-bar,
+  .view:not(.pack) > .view-head,
+  .view:not(.pack) > .view-head + .tabs,
+  .view:not(.pack) > .back-link {
+    --sheet: var(--night-2);
+    --surface: var(--night-3);
+    --sunk: #1f2d4f;
+    --land: #1c2946;
+    --water: var(--night);
+    --ink: #f4f7fc;
+    --ink-2: #ccd5e5;
+    --ink-3: #a3b0c9;
+    --rule: var(--night-rule);
+    --rule-strong: #6e80a8;
+    --on-ink: #0a1222;
+    --on-ink-2: #414d66;
+    --ink-hover: #d6deee;
+    --geo: #e6b872;
+    --law: #5fd0b8;
+    --case: #e0a0dc;
+    --data: #a3b8de;
+    --stale: #ffc670;
+    --stale-tint: #3a2c12;
+    --error: #ffa399;
+    --error-tint: #3f1f1c;
+    --focus: #9cc4ff;
+    --elev-1: 0 1px 2px rgb(0 0 0 / 0.5), 0 0 0 1px rgb(255 255 255 / 0.09);
+    --elev-2: 0 12px 32px rgb(0 0 0 / 0.55), 0 0 0 1px rgb(255 255 255 / 0.1);
+    color: var(--ink);
+    color-scheme: dark;
+  }
+
+  /* On the stage the tints are fills of the map, lit against the dark: a place with records stands out, a place
+     without them stays in the dark under its hatching. */
+  .mapstage {
+    --geo-tint: #b98a3e;
+    --law-tint: #1f9482;
+    --case-tint: #7d58aa;
+    --data-tint: #4f6a9c;
+    /* The ramp runs from dim to bright: the more there is, the more light. */
+    --ramp-1: #3d3423;
+    --ramp-2: #6b5428;
+    --ramp-3: #9c7a31;
+    --ramp-4: #cfa23d;
+    --ramp-5: #ffd166;
+    --selected: #ffffff;
+    --hover: #ffffff;
+  }
+
+  /* In the title block the tints stay grounds for text. */
+  .view:not(.pack) > .view-head,
+  .view:not(.pack) > .view-head + .tabs,
+  .view:not(.pack) > .back-link {
+    --geo-tint: #3a2f1b;
+    --law-tint: #12362f;
+    --case-tint: #3a2440;
+    --data-tint: #1f2d4f;
+  }
 }

@@ -511,7 +511,22 @@ derives an overall status for a case.
   TopoJSON layers with MapLibre GL JS. There is no basemap and no tile server, so
   the map makes no external request; its worker is served from the site's own
   address. Shading is either a published count or a plain "has a linked record"
-  class; units without data are hatched.
+  class; units without data are hatched. The map stage is the night side of the
+  site: the map reads its colours from the stage's own values of the colour
+  tokens (`src/styles/tokens.css`), paints no water (the stage's ground shows
+  through), fades a new colouring in and lays a wash of light over the unit under
+  the pointer.
+- **Two sides.** The top bar, the map stage and the title block of a page are
+  dark; the reading panel is light. The dark side is the same token names with
+  other values, scoped in `tokens.css` to the stage, the title block and the bar
+  of the phone's sheet, on screens only. [`design/DESIGN_PLAN.md`](../design/DESIGN_PLAN.md)
+  gives the reasons and the rules both sides keep.
+- **Embedding.** [`lib/embed.ts`](../src/lib/embed.ts): with `?embed=1` before the
+  `#` of an address the site is in its embedded form, for a frame in another
+  page. The value is in the query, not in the route, so it stays while the reader
+  moves inside the frame. The embedded form replaces the links to the watchlist,
+  About and the repository by one link that opens the current view on the full
+  site in a new tab. The About page gives the markup of a frame.
 - **Views.** One folder per view under `features/`. The place workspace joins
   population, cases, legislation and the timeline for one geographic unit. Every
   view other than the overview ends with a footer that says the site is a research

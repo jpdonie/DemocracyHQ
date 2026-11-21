@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { APP_NAME, POSITIONING, REPO_URL, correctionUrl } from '../../config';
+import { embedCode } from '../../lib/embed';
 import { buildHash, type Route } from '../../lib/router';
 import { A, Ext, Section, TypeMark } from '../../components/ui';
 
@@ -41,6 +42,12 @@ export function AboutPage({ route }: { route: Route }) {
         {issue
           ? <p><Ext href={issue}>Open a correction on GitHub</Ext></p>
           : <p>This copy of the site was built without a repository address, so it cannot link straight to the issue tracker. If you are running it yourself, set <span className="hash">VITE_REPO_URL</span> at build time; the published site links to its own repository automatically.</p>}
+      </Section>
+
+      <Section title="Embedding" id="embed">
+        <p>Any view of {APP_NAME} can be shown inside another page. Put <span className="hash">?embed=1</span> before the <span className="hash">#</span> of its address. The embedded form keeps the map, the records and their sources, and adds a link that opens the same view here in a new tab. This is the overview:</p>
+        <pre className="snippet"><code>{embedCode(buildHash([]), APP_NAME)}</code></pre>
+        <p className="quiet">For a state, a case or a measure, open it here and copy the part of its address after the <span className="hash">#</span> into the snippet. An embedded view is the same site with the same data. It sets no cookies and loads nothing from third parties.</p>
       </Section>
 
       <Section title="Privacy">

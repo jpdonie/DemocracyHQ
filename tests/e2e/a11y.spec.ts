@@ -41,8 +41,9 @@ test.describe('Accessibility: automated WCAG 2.2 A and AA rules', () => {
     await page.getByRole('button', { name: 'Add to watchlist' }).click();
     const pressed = page.getByRole('button', { name: 'Remove from watchlist' });
     await pressed.hover();
-    await expect(pressed).toHaveCSS('color', 'rgb(255, 255, 255)');
-    await expect(pressed).toHaveCSS('background-color', 'rgb(36, 54, 92)');
+    // In the title block a pressed button is light with dark text, and stays so under the pointer.
+    await expect(pressed).toHaveCSS('color', 'rgb(10, 18, 34)');
+    await expect(pressed).toHaveCSS('background-color', 'rgb(214, 222, 238)');
     await page.waitForLoadState('networkidle');
     expect(await axeViolations(page)).toEqual([]);
   });

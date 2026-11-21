@@ -40,6 +40,12 @@ export function HomePanel() {
         <p className="lede">Election measures of Congress and the California Legislature, election cases in the Supreme Court and the federal courts of appeals, and Census Bureau boundaries for states, counties and congressional districts.</p>
       </header>
 
+      <Section title="Who governs">
+        <Async of={government} what="who holds office">
+          {(index) => <ControlTally index={index} shown={partyShown} mapHash={buildHash([], partyShown ? {} : { shade: 'party' })} nationHash={buildHash(['place', NATION_KEY], partyShown ? { shade: 'party' } : {})} />}
+        </Async>
+      </Section>
+
       <Section title="Start with a place">
         <p>Select a state on the map, or search for a place, court, case or bill. A state opens with the cases linked to it, its legislation, a dated timeline and its 2020 Census counts.</p>
         <p>
@@ -60,11 +66,6 @@ export function HomePanel() {
         ) : null}
       </Section>
 
-      <Section title="Who governs the states">
-        <Async of={government} what="who holds office">
-          {(index) => <ControlTally index={index} shown={partyShown} mapHash={buildHash([], partyShown ? {} : { shade: 'party' })} />}
-        </Async>
-      </Section>
 
       <Section title="What is in this release">
         <ul className="modules">

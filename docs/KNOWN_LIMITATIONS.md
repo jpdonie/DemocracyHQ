@@ -287,10 +287,14 @@ great deal of litigation.
 ## Accessibility
 
 The site aims at WCAG 2.2 AA and does not claim to conform. Automated axe checks
-with the WCAG 2.0 to 2.2 A and AA rule sets report no violations on sixteen
+with the WCAG 2.0 to 2.2 A and AA rule sets report no violations on nineteen
 desktop views (and with the search results open, with spelling suggestions shown
 and on a pressed watchlist button) and on six phone views (and with the
 related-geography lists opened on two of them). Keyboard paths are tested.
+The names of places drawn on the map are part of the canvas, so those checks do
+not read them. A rule in the code draws a name in dark ink wherever the light ink
+would have a contrast below 3 to 1 against the fill; the result was looked at in
+screenshots and is not measured by a tool.
 Automated tests also check that no control that takes focus is fully hidden
 behind the bars at 342 x 164, 342 x 192 and 320 x 256 CSS pixels, sizes like a
 laptop screen at 400% zoom; on such screens the page scrolls as one document.
