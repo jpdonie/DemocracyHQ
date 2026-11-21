@@ -1,0 +1,63 @@
+{
+ "contentHash": "335ca3b1638f15cc36d985fa4ae5b8bd779fa4046bffccca2fcddb57321fa710",
+ "counts": {
+  "bills": 132,
+  "cases": 25,
+  "events": 1053,
+  "geographicUnits": 4173,
+  "relationships": 38
+ },
+ "generatedAt": "2026-11-20T22:05:28Z",
+ "reviewQueue": {
+  "byKind": {},
+  "items": 0
+ },
+ "schemaVersion": 1,
+ "sources": {
+  "ca-leginfo-bulk": {
+   "lastAttempt": "2026-11-20T22:05:28Z",
+   "lastSuccessfulCheck": "2026-11-20T22:05:28Z",
+   "processingStatus": "ok"
+  },
+  "census-cb-2025": {
+   "lastAttempt": "2026-11-20T22:05:28Z",
+   "lastSuccessfulCheck": "2026-11-20T22:05:28Z",
+   "processingStatus": "ok"
+  },
+  "census-cd119-sf": {
+   "lastAttempt": "2026-11-20T22:05:28Z",
+   "lastSuccessfulCheck": "2026-11-20T22:05:28Z",
+   "processingStatus": "ok"
+  },
+  "census-cd120-page": {
+   "lastAttempt": "2026-11-20T22:05:28Z",
+   "lastSuccessfulCheck": "2026-11-20T22:05:28Z",
+   "processingStatus": "ok"
+  },
+  "census-pl-2020": {
+   "lastAttempt": "2026-11-20T22:05:28Z",
+   "lastSuccessfulCheck": "2026-11-20T22:05:28Z",
+   "processingStatus": "ok"
+  },
+  "census-tiger-2026-cd120": {
+   "lastAttempt": "2026-11-20T22:05:28Z",
+   "lastSuccessfulCheck": "2026-11-20T22:05:28Z",
+   "processingStatus": "ok"
+  },
+  "courtlistener-api": {
+   "lastAttempt": "2026-11-20T22:05:28Z",
+   "lastSuccessfulCheck": null,
+   "processingStatus": "credential_missing"
+  },
+  "openstates-api": {
+   "lastAttempt": "2026-11-20T22:05:28Z",
+   "lastSuccessfulCheck": null,
+   "processingStatus": "credential_missing"
+  },
+  "scotus-docket": {
+   "lastAttempt": "2026-11-20T22:05:28Z",
+   "lastSuccessfulCheck": "2026-11-20T22:05:28Z",
+   "processingStatus": "ok"
+  }
+ }
+}

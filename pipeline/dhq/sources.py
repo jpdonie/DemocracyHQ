@@ -1,0 +1,140 @@
+"""Registry of upstream sources (static facts; run status is merged in at publish)."""
+
+from __future__ import annotations
+
+PUBLIC_DOMAIN_US = "U.S. Government work; not subject to copyright in the United States (17 U.S.C. § 105)."
+#: The Court's own docket pages, orders and opinions are U.S. Government works. The Questions Presented text and the
+#: passages quoted from filings are the filers' words; a State's or a private party's words are not covered by § 105.
+SCOTUS_LICENSE = ("The Court's docket pages, orders and opinions are U.S. Government works, not subject to copyright in the United "
+                  "States (17 U.S.C. § 105). The Questions Presented text, shown in full, usually reproduces the words of the party "
+                  "that sought review, and the short passages quoted from filings are the filers' own words. Words written by a State "
+                  "or a private party are not U.S. Government works; they are shown for reference. Filings are linked, not mirrored.")
+
+SOURCES: dict[str, dict] = {
+    "census-cb-2025": dict(
+        name="2025 Cartographic Boundary Files (states, counties, 119th Congressional Districts), 1:5,000,000",
+        url="https://www2.census.gov/geo/tiger/GENZ2025/shp/",
+        sourceType="official_bulk", authority="U.S. Census Bureau", license=PUBLIC_DOMAIN_US,
+        attribution="U.S. Census Bureau, 2025 Cartographic Boundary Files",
+        geographicCoverage="50 states, District of Columbia, Puerto Rico and Island Areas",
+        temporalCoverage="Boundaries as of January 1, 2025; districts of the 119th Congress (January 2025 - January 2027)",
+        updateCadence="Annual release; checked weekly",
+        staleAfterDays=400,
+        knownLimitations=[
+            "Generalised by the Census Bureau for small-scale mapping and further simplified by DemocracyHQ for the web. Not suitable for determining where a boundary legally lies.",
+            "Connecticut is shown as planning regions (county equivalents since 2022), which have no 2020 Census county counts.",
+        ],
+    ),
+    "census-tiger-2026-cd120": dict(
+        name="2026 TIGER/Line Shapefiles, 120th Congressional Districts",
+        url="https://www2.census.gov/geo/tiger/TIGER2026/CD/",
+        sourceType="official_bulk", authority="U.S. Census Bureau", license=PUBLIC_DOMAIN_US,
+        attribution="U.S. Census Bureau, 2026 TIGER/Line Shapefiles (derivative: clipped to the 2025 cartographic shoreline and simplified by DemocracyHQ)",
+        geographicCoverage="50 states, District of Columbia, Puerto Rico and Island Areas",
+        temporalCoverage="District plans in effect for the 2026 election cycle (120th Congress, from January 2027), as submitted by state liaisons to the Redistricting Data Program",
+        updateCadence="Annual release with corrections; checked weekly",
+        staleAfterDays=120,
+        knownLimitations=[
+            "DemocracyHQ derivative: TIGER/Line polygons extend over water, so they are clipped to the 2025 cartographic state shoreline (1:500,000) and simplified. Use the official files for analysis.",
+            "The Census Bureau corrected the Missouri file on November 10, 2026 (TIGER/Line User Note 2). Files downloaded before that regeneration are wrong for Missouri.",
+            "The 2020 Census 120th Congressional District Summary File has not been released, so the Census Bureau has not yet tabulated counts for redrawn districts.",
+        ],
+    ),
+    "census-cd120-page": dict(
+        name="Census Redistricting Data Program: Congressional Districts, 120th Congress (web page)",
+        url="https://www.census.gov/programs-surveys/decennial-census/about/rdo/congressional-districts.120th_Congress.html",
+        sourceType="official_web", authority="U.S. Census Bureau", license=PUBLIC_DOMAIN_US,
+        attribution="U.S. Census Bureau, Redistricting and Voting Rights Data Office",
+        geographicCoverage="United States", temporalCoverage="2026 election cycle",
+        updateCadence="Irregular; checked weekly", staleAfterDays=30,
+        knownLimitations=["The list of states with new boundaries is parsed from a sentence on this page. If the wording changes, this source is marked failed and the list last published is kept; if new boundary files arrived in the same run, they are not published either, so boundaries and list stay together."],
+    ),
+    "census-pl-2020": dict(
+        name="2020 Census Redistricting Data (P.L. 94-171) Summary Files",
+        url="https://www2.census.gov/programs-surveys/decennial/2020/data/01-Redistricting_File--PL_94-171/",
+        sourceType="official_bulk", authority="U.S. Census Bureau", license=PUBLIC_DOMAIN_US,
+        attribution="U.S. Census Bureau, 2020 Census Redistricting Data (Public Law 94-171) Summary File",
+        geographicCoverage="States, District of Columbia, Puerto Rico; counties and county equivalents as of the 2020 Census",
+        temporalCoverage="Census Day, April 1, 2020", updateCadence="Static (decennial); checked weekly", staleAfterDays=3650,
+        knownLimitations=[
+            "Counts are for 2020 Census geography. They are joined to 2025 boundaries by GEOID; where a county equivalent changed after 2020 (all of Connecticut) no count is shown.",
+            "2020 Census statistics include statistical noise from the Bureau's disclosure avoidance system; small counts are less reliable.",
+        ],
+    ),
+    "census-cd119-sf": dict(
+        name="2020 Census 119th Congressional District Summary File (CD119), v. 2024-12-05",
+        url="https://www2.census.gov/programs-surveys/decennial/2020/data/119th-congressional-district-summary-file/",
+        sourceType="official_bulk", authority="U.S. Census Bureau", license=PUBLIC_DOMAIN_US,
+        attribution="U.S. Census Bureau, 2020 Census 119th Congressional District Summary File",
+        geographicCoverage="Congressional districts of the 119th Congress in the 50 states, DC delegate district and Puerto Rico",
+        temporalCoverage="2020 Census counts retabulated for 119th Congress districts", updateCadence="Static; checked weekly", staleAfterDays=3650,
+        knownLimitations=[
+            "Not available for Island Area delegate districts.",
+            "Applies to 119th Congress boundaries only. For the states that redrew districts for 2026 (listed on the site's redistricting panel), these counts do not describe the new districts.",
+        ],
+    ),
+    "scotus-docket": dict(
+        name="Supreme Court of the United States, public docket pages",
+        url="https://www.supremecourt.gov/docket/docket.aspx",  # docket search; each record links its own docket page
+        sourceType="official_web", authority="Supreme Court of the United States", license=SCOTUS_LICENSE,
+        attribution="Supreme Court of the United States, electronic docket",
+        geographicCoverage="A curated list of U.S. Supreme Court dockets. Lower federal courts and state courts are not covered by this source.",
+        temporalCoverage="The dockets in the seed list, all numbered 16- or later. Earlier dockets have not been tried.",
+        updateCadence="Each docket re-checked on every pipeline run (scheduled daily), requests at least 1.1 seconds apart", staleAfterDays=7,
+        knownLimitations=[
+            "Coverage is a hand-curated seed list (pipeline/seeds/cases.json), not every election-law case, and not every election case the Court has heard.",
+            "The record is read from the Court's docket web page, so a change to that page's layout stops the import until the reader is updated. The last verified copy stays published.",
+            "The Court's JSON files for the same dockets are not used: its robots.txt asks robots to stay out of the folder they are in.",
+            "Docket entries are classified by keyword rules; DemocracyHQ never derives an overall case status.",
+            "Filing links are published as the docket gives them and are not individually tested. Only the opinion and order links inside entries are tested on each run.",
+            "The absence of a case here says nothing about whether litigation exists.",
+        ],
+    ),
+    "ca-leginfo-bulk": dict(
+        name="California Legislative Information, public bulk data (pubinfo)",
+        url="https://downloads.leginfo.legislature.ca.gov/",
+        sourceType="official_bulk", authority="Legislative Counsel of California",
+        license="Published for public access under Cal. Gov. Code § 10248. Bill text is a government edict; DemocracyHQ republishes extracted text with attribution and does not redistribute the CAML XML files, which carry a Legislative Counsel Bureau copyright notice.",
+        attribution="California Legislative Information (leginfo.legislature.ca.gov), Legislative Counsel of California",
+        geographicCoverage="California only",
+        temporalCoverage="2025-2026 Regular Session",
+        updateCadence="Archive rebuilt by the source weekly (daily increments available); checked daily", staleAfterDays=10,
+        knownLimitations=[
+            "Only bills whose latest official subject line matches selection rule ca-select-2 (after its exclusion pattern is applied) are included; an election-related bill with a different subject line is missed.",
+            "Effective dates and ballot outcomes are not in the source and are not asserted.",
+            "The public site leginfo.legislature.ca.gov blocks automated requests, so links to it are constructed from official identifiers and are not machine-checked.",
+            "Extraordinary sessions and prior sessions are not yet ingested.",
+        ],
+    ),
+    "courtlistener-api": dict(
+        name="CourtListener / RECAP Archive REST API v4 (Free Law Project)",
+        url="https://www.courtlistener.com/api/rest/v4/",
+        sourceType="secondary_api", authority="Free Law Project (non-official aggregator)",
+        license="CourtListener data is provided by Free Law Project; see its terms. Records imported from it are labelled 'Imported from secondary source'.",
+        attribution="CourtListener, a project of Free Law Project",
+        geographicCoverage="Federal district and appellate dockets present in the RECAP Archive (incomplete by design)",
+        temporalCoverage="Varies by docket", updateCadence="Daily when a token is configured", staleAfterDays=7,
+        credentialEnv="COURTLISTENER_API_TOKEN",
+        knownLimitations=[
+            "Requires an API token; anonymous requests are refused (HTTP 401, tested 2026-11-20).",
+            "The RECAP Archive is not a complete or real-time mirror of PACER. A missing entry does not mean nothing was filed.",
+            "This adapter has been exercised only against synthetic test responses shaped like the documented API. It has never been run against the live API.",
+            "Records it imports are written to a separate file for maintainer review and are not shown on the site yet.",
+        ],
+    ),
+    "openstates-api": dict(
+        name="Open States / Plural Open API v3",
+        url="https://v3.openstates.org/",
+        sourceType="secondary_api", authority="Plural Policy (non-official aggregator)",
+        license="Open States data is offered under a public-domain dedication unless otherwise noted; attribution appreciated.",
+        attribution="Open States / Plural Policy",
+        geographicCoverage="All states (bill metadata only in DemocracyHQ)", temporalCoverage="Current sessions",
+        updateCadence="Daily when a key is configured", staleAfterDays=7, credentialEnv="OPENSTATES_API_KEY",
+        knownLimitations=[
+            "Requires an API key.",
+            "Secondary source: records are labelled 'Imported from secondary source' and carry links to the official bill page.",
+            "This adapter has been exercised only against synthetic test responses shaped like the documented API. It has never been run against the live API.",
+            "Records it imports are written to a separate file for maintainer review and are not shown on the site yet.",
+        ],
+    ),
+}

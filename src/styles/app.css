@@ -1,0 +1,731 @@
+/* ==========================================================================
+   DemocracyHQ interface styles. Tokens live in tokens.css.
+   Layout: a full-height workspace (map + context panel) on regular screens,
+   a map with a bottom sheet and tab bar on compact screens (< 900px).
+   ========================================================================== */
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+/* The app frame is exactly the viewport. Only the panel (and the map) scroll; the document never scrolls up or down.
+   Sideways overflow is left scrollable, so if anything ever overflows at a large text size it stays reachable. */
+html, body { height: 100%; }
+html { overflow-y: hidden; }
+
+body {
+  margin: 0;
+  background: var(--sheet);
+  color: var(--ink);
+  font-family: var(--font-ui);
+  font-size: var(--text-md);
+  line-height: var(--leading-ui);
+  font-stretch: 96%;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, h4, p, ul, ol, dl, dd, figure, blockquote, fieldset { margin: 0; padding: 0; }
+ul, ol { list-style: none; }
+fieldset { border: 0; min-width: 0; }
+table { border-collapse: collapse; width: 100%; }
+button, input, select { font: inherit; color: inherit; }
+img, svg { display: block; }
+
+a { color: var(--ink); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 0.18em; text-decoration-color: var(--rule-strong); }
+a:hover { text-decoration-color: currentColor; }
+
+:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; border-radius: var(--radius-1); }
+/* Chromium stops matching :focus-visible while Tab moves between a date field's day, month and year parts,
+   and its calendar button matches only :focus-within. */
+input[type="date"]:focus-within { outline: 3px solid var(--focus); outline-offset: 2px; border-radius: var(--radius-1); }
+h1:focus { outline: none; }
+.panel:focus { outline: none; }
+
+.sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.quiet { color: var(--ink-3); font-size: var(--text-sm); }
+.hint { color: var(--ink-2); font-size: var(--text-sm); margin-top: var(--s-4); }
+.icon { display: inline-block; flex: none; vertical-align: -0.14em; }
+.hash, .geoid { font-variant-numeric: tabular-nums; font-stretch: 88%; letter-spacing: 0.01em; overflow-wrap: anywhere; }
+
+.skip-link { position: absolute; left: var(--s-3); top: -4rem; z-index: 50; background: var(--ink); color: #fff; padding: var(--s-2) var(--s-3); border-radius: var(--radius-1); }
+.skip-link:focus { top: var(--s-2); }
+
+.boot { max-width: 38rem; margin: 18vh auto 0; padding: 0 var(--s-5); font-family: var(--font-text); font-size: var(--text-lg); }
+.boot h1 { font-family: var(--font-ui); font-size: var(--text-2xl); margin-bottom: var(--s-3); }
+.boot p { margin-bottom: var(--s-3); }
+
+/* ---------- app frame ---------- */
+
+.app { display: grid; grid-template-rows: var(--nav-h) minmax(0, 1fr); height: 100vh; height: 100dvh; }
+
+.topnav {
+  display: flex; align-items: center; gap: var(--s-5);
+  padding: 0 var(--s-4);
+  background: var(--ink); color: #fff;
+  min-width: 0;
+}
+.topnav a { color: #fff; text-decoration: none; }
+.brand { display: flex; align-items: center; gap: var(--s-2); font-weight: 700; font-size: var(--text-lg); font-stretch: 108%; letter-spacing: -0.01em; flex: none; }
+.brand-mark { color: #fff; }
+.topnav-links, .topnav-meta { display: flex; align-items: stretch; gap: var(--s-1); height: 100%; flex: none; }
+.topnav-links a, .topnav-meta a {
+  display: flex; align-items: center; padding: 0 var(--s-3);
+  font-weight: 550; border-bottom: 3px solid transparent; border-top: 3px solid transparent;
+  white-space: nowrap;
+}
+.topnav-meta a { font-weight: 450; color: #d9deea; }
+.topnav-links a:hover, .topnav-meta a:hover { border-bottom-color: rgb(255 255 255 / 0.45); }
+.topnav a[aria-current='page']:not(.brand) { border-bottom-color: #fff; color: #fff; }
+.topnav :focus-visible { outline-color: #fff; }
+
+.search { position: relative; flex: 1 1 14rem; min-width: 8rem; max-width: 30rem; display: flex; align-items: center; color: var(--ink-2); }
+.search > .icon { position: absolute; left: 0.6rem; pointer-events: none; }
+.search input {
+  width: 100%; height: 2.125rem; padding: 0 var(--s-3) 0 2rem;
+  border: 1px solid transparent; border-radius: var(--radius-1);
+  background: #fff; color: var(--ink);
+}
+.search input { text-overflow: ellipsis; }
+.search input::placeholder { color: var(--ink-3); opacity: 1; }
+.search-results {
+  position: absolute; top: calc(100% + 6px); left: 0; right: 0; z-index: 40;
+  min-width: min(26rem, 92vw);
+  max-height: min(70vh, 34rem); overflow: auto;
+  background: var(--surface); color: var(--ink);
+  border-radius: var(--radius-2); box-shadow: var(--elev-2);
+  padding: var(--s-2) 0;
+}
+.search-group-title { padding: var(--s-2) var(--s-3) var(--s-1); font-size: var(--text-xs); font-weight: 600; color: var(--ink-3); }
+.search-group + .search-group { border-top: var(--border); margin-top: var(--s-1); padding-top: var(--s-1); }
+.search-option { display: grid; gap: 1px; padding: var(--s-2) var(--s-3) var(--s-2) calc(var(--s-3) + 9px); cursor: pointer; border-left: 3px solid transparent; }
+.search-option.is-active { background: var(--sunk); }
+.search-place .search-option.is-active { border-left-color: var(--geo); }
+.search-case .search-option.is-active { border-left-color: var(--case); }
+.search-bill .search-option.is-active { border-left-color: var(--law); }
+.search-detail { color: var(--ink-3); font-size: var(--text-sm); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.search-empty { padding: var(--s-3); color: var(--ink-2); }
+.search-empty.search-error { color: var(--error); }
+.search-suggest { padding-bottom: 0; }
+
+.workspace { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) var(--panel-w); min-height: 0; }
+
+/* ---------- map stage ---------- */
+
+.mapstage { position: relative; min-width: 0; min-height: 0; overflow: hidden; background: var(--water); }
+.mapstage::after { content: ''; position: absolute; inset: 0; border: 1px solid var(--ink); border-top: 0; pointer-events: none; z-index: 3; }
+.mapstage > .map-canvas, .mapstage > .map-canvas.maplibregl-map { position: absolute; inset: 0; }
+.map-canvas canvas:focus-visible { outline: 3px solid var(--focus); outline-offset: -4px; }
+
+.graticule { position: absolute; inset: 0; z-index: 2; pointer-events: none; overflow: visible; }
+.graticule line { stroke: var(--ink); stroke-width: 1; }
+.graticule text { font-family: var(--font-ui); font-size: 10.5px; font-stretch: 86%; font-weight: 500; fill: var(--ink-2); paint-order: stroke; stroke: var(--water); stroke-width: 3px; stroke-linejoin: round; font-variant-numeric: tabular-nums; }
+
+.map-loading { position: absolute; left: 50%; top: 45%; transform: translate(-50%, -50%); z-index: 4; padding: var(--s-2) var(--s-3); background: var(--surface); box-shadow: var(--elev-1); border-radius: var(--radius-2); }
+.map-fallback { position: absolute; inset: 0; display: grid; align-content: center; justify-items: start; gap: var(--s-3); padding: var(--s-6); max-width: 36rem; }
+.map-fallback h2 { font-size: var(--text-xl); }
+
+.map-tooltip {
+  position: absolute; left: 0; top: 0; z-index: 6; pointer-events: none;
+  display: grid; gap: 2px; max-width: 15rem;
+  padding: var(--s-2) var(--s-3);
+  background: var(--ink); color: #fff; border-radius: var(--radius-2);
+  font-size: var(--text-sm); line-height: 1.3;
+}
+.map-tooltip[hidden] { display: none; }
+.map-tooltip span { color: #d9deea; }
+
+.map-zoom { position: absolute; right: var(--s-4); top: 2rem; z-index: 5; display: grid; border-radius: var(--radius-2); box-shadow: var(--elev-1); background: var(--surface); }
+.map-zoom button { width: 2.25rem; height: 2.25rem; border: 0; background: transparent; font-size: 1.25rem; line-height: 1; cursor: pointer; }
+.map-zoom button + button { border-top: var(--border); }
+.map-zoom button:hover { background: var(--sunk); }
+
+.layer-control { position: absolute; left: 3.5rem; top: 2rem; z-index: 5; display: grid; gap: var(--s-2); padding: var(--s-2) var(--s-3) var(--s-3); background: var(--surface); border-radius: var(--radius-2); box-shadow: var(--elev-1); }
+.layer-control legend { font-size: var(--text-xs); font-weight: 600; color: var(--ink-2); padding: 0 0 3px; }
+.seg, .segmented-options { display: inline-flex; border: var(--border-control); border-radius: var(--radius-1); overflow: hidden; background: var(--surface); flex-wrap: wrap; }
+.seg label, .segmented-options label { position: relative; display: flex; cursor: pointer; }
+.seg label + label, .segmented-options label + label { border-left: var(--border-control); }
+.seg input, .segmented-options input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+.seg span, .segmented-options span { padding: 0.3rem 0.65rem; font-size: var(--text-sm); font-weight: 500; white-space: nowrap; }
+.seg label.is-on span, .segmented-options label.is-on span { background: var(--ink); color: #fff; }
+.seg label:not(.is-on):hover span, .segmented-options label:not(.is-on):hover span { background: var(--sunk); }
+.seg input:focus-visible + span, .segmented-options input:focus-visible + span { outline: 3px solid var(--focus); outline-offset: -3px; }
+
+.map-insets { position: absolute; left: 3.5rem; bottom: var(--s-4); z-index: 5; display: flex; align-items: stretch; justify-content: flex-start; gap: var(--s-2); flex-wrap: wrap; max-width: calc(100% - 22rem); }
+.inset { display: grid; justify-items: center; gap: 2px; padding: var(--s-1) var(--s-2); background: var(--surface); border: 0; border-radius: var(--radius-2); box-shadow: var(--elev-1); cursor: pointer; font-size: var(--text-xs); font-weight: 500; color: var(--ink-2); }
+.inset:hover { color: var(--ink); background: var(--land); }
+.inset path { fill: var(--geo-tint); stroke: var(--ink); stroke-width: 0.8; stroke-linejoin: round; }
+.inset-text { align-content: center; max-width: 6.5rem; }
+.inset-select { display: flex; flex: none; }
+.inset-select select { height: 100%; width: auto; max-width: 7.5rem; min-height: 2.25rem; padding: 0 var(--s-2); border: 0; border-radius: var(--radius-2); box-shadow: var(--elev-1); background: var(--surface); font-size: var(--text-xs); font-weight: 500; color: var(--ink-2); cursor: pointer; }
+.inset-compact-only { display: none; }
+
+.legend { position: absolute; right: var(--s-4); bottom: var(--s-4); z-index: 5; width: min(19rem, calc(100% - 2rem)); background: var(--surface); border-radius: var(--radius-2); box-shadow: var(--elev-1); font-size: var(--text-sm); }
+.legend summary { padding: var(--s-2) var(--s-3); font-weight: 600; cursor: pointer; }
+.legend[open] summary { border-bottom: var(--border); }
+/* The closed legend's summary carries a small key: the ramp, then the plain and hatched swatches. */
+.legend-key { display: inline-flex; align-items: center; gap: 3px; margin-left: var(--s-2); vertical-align: -0.12em; }
+.legend-key .swatch { width: 0.625rem; height: 0.75rem; margin: 0; }
+.legend-key-ramp { display: inline-flex; }
+.legend-key-ramp .swatch + .swatch { border-left: 0; }
+.legend[open] .legend-key { display: none; }
+.legend-body { display: grid; gap: var(--s-2); padding: var(--s-3); }
+.legend-title { font-weight: 600; }
+.legend-classes { display: grid; gap: var(--s-1); }
+.legend-classes li { display: grid; grid-template-columns: 1.1rem 1fr; gap: var(--s-2); align-items: start; line-height: 1.3; }
+.swatch { width: 1.1rem; height: 0.9rem; margin-top: 2px; border: 1px solid var(--ink-3); }
+.swatch-plain { background: var(--land); }
+.swatch-hatch, .gap-notice::before { background: repeating-linear-gradient(135deg, transparent 0 3px, rgb(95 106 128 / 0.75) 3px 4.2px) var(--land); }
+.legend-note, .legend-vintage { color: var(--ink-2); font-size: var(--text-xs); line-height: 1.35; }
+.legend-vintage { display: grid; grid-template-columns: 1.1rem 1fr; gap: var(--s-2); }
+.legend-more { border-top: var(--border); padding-top: var(--s-2); font-size: var(--text-xs); }
+.legend-more summary { padding: 0; font-weight: 550; color: var(--ink-2); border: 0 !important; }
+.legend-more[open] summary { margin-bottom: var(--s-2); }
+.legend-more > p + p { margin-top: var(--s-2); }
+.line-sample { height: 0; margin-top: 0.5em; border-top: 2px solid var(--ink); }
+.line-county { border-top: 1px solid var(--ink-3); }
+.line-cd119, .line-cd120 { border-top-color: var(--geo); }
+.legend-fresh { font-size: var(--text-xs); color: var(--ink-2); }
+.legend-error { color: var(--error); font-size: var(--text-xs); }
+.fresh-stale, .fresh-failed, .fresh-never_checked { color: var(--stale); }
+.fresh-credential_missing { color: var(--ink-3); }
+
+/* ---------- panel ---------- */
+
+/* The panel stacks its parts. The view grows to fill it, so the site footer sits at the foot of a short view and after a long one. */
+.panel { position: relative; display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow-y: auto; overscroll-behavior: contain; background: var(--surface); border-left: 1px solid var(--ink); scroll-padding-top: var(--s-4); }
+.panel > * { flex: none; }
+.panel > .view, .panel > .view-wrap { flex: 1 0 auto; }
+.view-wrap { display: flex; flex-direction: column; }
+.view-wrap > * { flex: 1 0 auto; }
+
+.site-foot { padding: var(--s-3) var(--s-5) var(--s-4); border-top: var(--border); background: var(--surface); font-size: var(--text-sm); color: var(--ink-2); }
+.site-foot p { max-width: var(--measure); }
+.sheet-bar { display: none; }
+.tabbar { display: none; }
+
+.view { padding: var(--s-5) var(--s-5) var(--s-7); }
+.view > * + * { margin-top: var(--s-4); }
+.view-head { display: grid; gap: var(--s-2); }
+.view-head h1 { font-size: var(--text-2xl); line-height: var(--leading-tight); font-weight: 650; font-stretch: 90%; letter-spacing: -0.01em; text-wrap: balance; }
+.view-head h1.case-name { font-family: var(--font-text); font-style: italic; font-weight: 500; font-stretch: normal; letter-spacing: 0; font-size: var(--text-2xl); }
+/* The home headline: display type is the sans, widened, at a size on the scale. */
+.view-head h1.display { font-weight: 650; font-stretch: 108%; font-size: var(--text-2xl); line-height: var(--leading-tight); letter-spacing: -0.015em; }
+.lede { font-family: var(--font-text); font-size: var(--text-lg); line-height: 1.45; color: var(--ink-2); max-width: var(--measure); }
+
+.type-mark { display: inline-flex; align-items: center; gap: 0.45rem; font-size: var(--text-sm); font-weight: 600; color: var(--ink-2); }
+.type-mark::before { content: ''; width: 0.7rem; height: 0.7rem; background: var(--data); }
+.type-case::before { background: var(--case); }
+.type-bill::before { background: var(--law); }
+.type-place::before { background: var(--geo); border-radius: 50%; }
+
+.back-link { display: inline-flex; align-items: center; gap: 0.2rem; font-size: var(--text-sm); color: var(--ink-2); text-decoration: none; margin-left: -0.2rem; }
+.back-link:hover { color: var(--ink); text-decoration: underline; }
+
+/* One column as wide as the panel: a wide child (a table) cannot widen the heading and notes with it. */
+.section { padding-top: var(--s-4); border-top: var(--border); display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--s-3); align-content: start; }
+.view > .section { margin-top: var(--s-5); }
+.section > h2 { font-size: var(--text-base); font-weight: 650; }
+.section h3 { font-size: var(--text-md); font-weight: 650; margin-top: var(--s-2); }
+.section h4 { font-size: var(--text-sm); font-weight: 650; }
+.section-note { color: var(--ink-2); font-size: var(--text-sm); margin-top: calc(var(--s-2) * -1); max-width: var(--measure); }
+.section p { max-width: var(--measure); }
+
+.case-name { font-family: var(--font-text); font-style: italic; font-size: 1.0625em; }
+.bill-id { font-weight: 700; font-stretch: 90%; font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+.facts { display: grid; gap: var(--s-2); }
+.facts > div { display: grid; grid-template-columns: minmax(8rem, 0.42fr) 1fr; gap: var(--s-3); padding-bottom: var(--s-2); border-bottom: 1px dotted var(--rule); }
+.facts > div:last-child { border-bottom: 0; padding-bottom: 0; }
+.facts dt { color: var(--ink-2); font-size: var(--text-sm); }
+.facts dd { min-width: 0; overflow-wrap: anywhere; }
+.facts-tight { gap: var(--s-1); font-size: var(--text-sm); }
+.facts-tight > div { border-bottom: 0; padding-bottom: 0; }
+
+.rows { display: grid; }
+.row { display: grid; gap: 3px; padding: var(--s-3) 0; border-top: var(--border); }
+.rows > .row:first-child { border-top: 0; padding-top: 0; }
+.row-title { font-size: var(--text-base); font-weight: 500; line-height: 1.3; }
+a.row-title { text-decoration-color: transparent; }
+a.row-title:hover { text-decoration-color: currentColor; }
+.row-title.case-name { font-size: 1.125rem; font-weight: 500; }
+.row-meta, .row-foot { color: var(--ink-3); font-size: var(--text-sm); }
+.row-note { font-size: var(--text-sm); color: var(--ink-2); padding-left: var(--s-2); border-left: 2px solid var(--geo); }
+.row-line { font-size: var(--text-sm); color: var(--ink-2); }
+.row-line q { font-family: var(--font-text); font-size: 1.04em; color: var(--ink); }
+.row-date { font-variant-numeric: tabular-nums; font-weight: 550; color: var(--ink); }
+.row-split { grid-template-columns: 1fr auto; align-items: start; gap: var(--s-3); }
+
+.tags { display: flex; flex-wrap: wrap; gap: var(--s-1); margin-top: 2px; }
+.tag { display: inline-block; padding: 0.05rem 0.4rem; border: 1px solid var(--rule-strong); border-radius: var(--radius-1); font-size: var(--text-xs); font-weight: 500; font-stretch: 90%; color: var(--ink-2); text-decoration: none; background: var(--surface); }
+a.tag:hover { border-color: var(--ink); color: var(--ink); }
+
+.coverage-note { padding: var(--s-3); background: var(--sunk); font-size: var(--text-sm); color: var(--ink-2); border-radius: var(--radius-1); }
+.gap-notice { position: relative; padding: var(--s-1) 0 var(--s-1) calc(var(--s-3) + 8px); font-size: var(--text-sm); color: var(--ink-2); }
+.gap-notice::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 8px; border: 1px solid var(--rule-strong); }
+.gap-notice strong { color: var(--ink); font-weight: 600; }
+
+.state { padding: var(--s-3); font-size: var(--text-md); border-radius: var(--radius-1); display: grid; gap: var(--s-2); }
+.state-loading { color: var(--ink-2); padding-left: 0; }
+.state-loading::after { content: '\2026'; }
+.state-error { background: var(--error-tint); color: var(--error); border-left: 4px solid var(--error); }
+.state-error .quiet { color: var(--error); }
+.state-empty { background: var(--sunk); }
+.release-notice-wrap:empty { display: none; }
+.release-notice { margin: var(--s-3) var(--s-4) 0; padding: var(--s-2) var(--s-3); font-size: var(--text-md); background: var(--data-tint); color: var(--ink); border-left: 4px solid var(--data); }
+.unavailable { display: grid; gap: var(--s-2); padding: var(--s-3); border: 1px dashed var(--rule-strong); border-radius: var(--radius-1); background: repeating-linear-gradient(135deg, transparent 0 7px, rgb(95 106 128 / 0.08) 7px 8px); }
+.vintage-note { font-size: var(--text-sm); padding: var(--s-2) var(--s-3); background: var(--geo-tint); border-left: 3px solid var(--geo); }
+
+/* ---------- forms ---------- */
+
+.filters { display: grid; gap: var(--s-3); padding: var(--s-3); background: var(--sheet); border-radius: var(--radius-1); }
+.filters-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s-3); }
+.filters-inline { grid-template-columns: repeat(2, minmax(0, 16rem)) auto; align-items: end; justify-content: start; }
+.filters-status { font-size: var(--text-sm); color: var(--ink-2); }
+.filters-status .btn-clear { margin-left: var(--s-1); vertical-align: baseline; }
+.filters-status:focus-visible { outline-offset: 4px; }
+/* Phones: the selects fold away behind one disclosure (see MoreFilters). */
+.filters-more > summary { cursor: pointer; font-size: var(--text-sm); font-weight: 600; color: var(--ink-2); padding-block: calc((2.75rem - 1.4em) / 2); }
+.filters-more[open] > summary { margin-bottom: var(--s-2); }
+.field { display: grid; gap: 3px; min-width: 0; }
+.field label, .segmented legend, .checks legend { font-size: var(--text-xs); font-weight: 600; color: var(--ink-2); }
+.field input, .field select { width: 100%; height: 2.125rem; padding: 0 var(--s-2); border: var(--border-control); border-radius: var(--radius-1); background: var(--surface); min-width: 0; }
+.field select { padding-right: var(--s-1); }
+.check { display: inline-flex; align-items: center; gap: var(--s-2); font-size: var(--text-sm); cursor: pointer; min-height: 2.125rem; }
+.check input { width: 1rem; height: 1rem; accent-color: var(--ink); margin: 0; }
+.checks { display: flex; flex-wrap: wrap; gap: var(--s-1) var(--s-4); align-items: center; }
+.checks legend { float: left; margin-right: var(--s-3); line-height: 2.125rem; }
+.cat-label { padding-left: 0.5rem; border-left: 4px solid var(--data); }
+.cat-label.cat-litigation { border-left-color: var(--case); }
+.cat-label.cat-legislation { border-left-color: var(--law); }
+.cat-label.cat-geography { border-left-color: var(--geo); }
+.segmented { display: grid; gap: 3px; }
+.segmented > .segmented-options { justify-self: start; }
+.toolbar { display: flex; flex-wrap: wrap; gap: var(--s-3) var(--s-4); }
+
+.btn { display: inline-flex; align-items: center; gap: 0.4rem; min-height: 2.125rem; padding: 0.3rem 0.7rem; border: var(--border-control); border-radius: var(--radius-1); background: var(--surface); font-size: var(--text-sm); font-weight: 550; cursor: pointer; text-decoration: none; color: var(--ink); }
+/* Hover styles only where a pointer can hover: on a touch screen the hover state stays after a tap. A pressed button
+   keeps its dark fill under the pointer, so its white text never lands on the light hover fill. */
+@media (hover: hover) {
+  .btn:hover:not(:disabled, [aria-disabled='true'], [aria-pressed='true']) { background: var(--sunk); border-color: var(--ink-3); }
+}
+.btn:disabled, .btn[aria-disabled='true'] { color: var(--ink-3); cursor: default; opacity: 0.6; }
+.btn[aria-pressed='true'] { background: var(--ink); color: #fff; border-color: var(--ink); }
+.btn-quiet { border-color: transparent; background: transparent; }
+.btn-primary { background: var(--ink); color: #fff; border-color: var(--ink); }
+@media (hover: hover) {
+  .btn-primary:hover:not(:disabled), .btn[aria-pressed='true']:hover { background: #24365c; border-color: #24365c; }
+}
+.btn-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2); margin-top: var(--s-1); }
+.btn-status { font-size: var(--text-sm); color: var(--ink-2); overflow-wrap: anywhere; }
+.btn-status:empty { display: none; }
+.export { display: grid; gap: var(--s-2); padding: var(--s-4); border: var(--border); border-radius: var(--radius-1); margin-top: var(--s-5); }
+.export h3 { font-size: var(--text-base); font-weight: 650; }
+
+/* ---------- provenance ---------- */
+
+.badge { display: inline-flex; align-items: center; gap: 0.3rem; font-size: var(--text-sm); font-weight: 600; color: var(--data); white-space: nowrap; }
+.badge-imported_secondary, .badge-awaiting_review, .badge-stale { color: var(--stale); }
+.badge-disputed { color: var(--error); }
+.badge-outdated, .badge-unavailable { color: var(--ink-3); }
+.source-line { display: grid; gap: var(--s-2); padding: var(--s-3) var(--s-4); margin-top: var(--s-5); background: var(--data-tint); border-left: 4px solid var(--data); border-radius: 0 var(--radius-1) var(--radius-1) 0; }
+.source-line-head { display: flex; flex-wrap: wrap; gap: var(--s-3); }
+.source-line .facts > div { grid-template-columns: minmax(9rem, 0.5fr) 1fr; }
+.source-line-foot { display: flex; flex-wrap: wrap; gap: var(--s-2) var(--s-4); font-size: var(--text-sm); }
+.ext { overflow-wrap: anywhere; }
+.ext .icon { margin-left: 0.2em; color: var(--ink-3); }
+
+.quote-block { display: grid; gap: var(--s-2); padding-left: var(--s-4); border-left: 3px solid var(--case); }
+.quote-block blockquote { font-family: var(--font-text); font-size: var(--text-lg); line-height: 1.45; }
+.quote-block figcaption { font-size: var(--text-sm); color: var(--ink-2); }
+.reading { font-family: var(--font-text); font-size: 1.0625rem; line-height: var(--leading-text); max-width: var(--measure); }
+.reading p + p { margin-top: 0.8em; }
+.reading-details summary { cursor: pointer; font-weight: 550; padding: var(--s-1) 0; }
+.reading-details[open] summary { margin-bottom: var(--s-2); }
+
+.links { display: grid; gap: var(--s-3); }
+.link-item { display: grid; gap: var(--s-1); padding-left: var(--s-3); border-left: 2px solid var(--rule-strong); }
+.link-head { font-weight: 500; }
+.link-kind { color: var(--ink-2); font-weight: 400; }
+.link-scope, .link-support { font-size: var(--text-sm); color: var(--ink-2); }
+.link-support q { font-family: var(--font-text); color: var(--ink); font-size: 1.04em; }
+.link-foot { display: flex; flex-wrap: wrap; gap: var(--s-2); align-items: baseline; }
+
+/* ---------- tables and lists ---------- */
+
+.table { font-size: var(--text-sm); }
+.table caption { text-align: left; color: var(--ink-2); padding-bottom: var(--s-2); caption-side: top; }
+.table th, .table td { text-align: left; vertical-align: top; padding: var(--s-2) var(--s-3) var(--s-2) 0; border-bottom: var(--border); overflow-wrap: break-word; }
+/* Words in a table cell stay whole: "anywhere" would let the table squeeze a column below the width of a word.
+   Only hashes, identifiers and addresses (.hash, .geoid, .ext, .pack-url) may break mid-string. */
+.table thead th { font-size: var(--text-xs); font-weight: 600; color: var(--ink-2); border-bottom: 1px solid var(--ink-3); vertical-align: bottom; }
+.table tbody th { font-weight: 500; }
+.table .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; padding-right: 0; padding-left: var(--s-3); }
+.table-num td:last-child, .table-num th:last-child { padding-right: 0; }
+/* A text column that follows a right-aligned number needs its own gutter, or the two run together. */
+.table .num + td:not(.num), .table .num + th:not(.num) { padding-left: var(--s-4); }
+.table-scroll { overflow-x: auto; overscroll-behavior-x: contain; }
+/* A table wider than the panel (a narrow phone, a large text size) scrolls on its own (see TableScroll).
+   A shadow at an edge shows that more of the table lies that way; the covers move with the table and hide it at either end. */
+.table-scroll {
+  background:
+    linear-gradient(to right, var(--surface) 40%, rgb(255 255 255 / 0)) left / 1.5rem 100% no-repeat local,
+    linear-gradient(to left, var(--surface) 40%, rgb(255 255 255 / 0)) right / 1.5rem 100% no-repeat local,
+    radial-gradient(farthest-side at 0 50%, rgb(23 35 59 / 0.2), transparent) left / 0.6rem 100% no-repeat scroll,
+    radial-gradient(farthest-side at 100% 50%, rgb(23 35 59 / 0.2), transparent) right / 0.6rem 100% no-repeat scroll;
+}
+/* A rule description quotes patterns and file paths that have no break point of their own. */
+.table td.rule-text { overflow-wrap: anywhere; }
+.rule-pattern { font-size: var(--text-xs); font-stretch: 88%; color: var(--ink-2); overflow-wrap: anywhere; word-break: break-word; }
+.flag-yes { font-weight: 650; color: var(--geo); }
+
+.entries { display: grid; }
+.entry { display: grid; grid-template-columns: 6.2rem minmax(0, 1fr); gap: var(--s-3); padding: var(--s-2) 0; border-top: var(--border); }
+.entry time { font-size: var(--text-sm); font-variant-numeric: tabular-nums; color: var(--ink-2); padding-top: 1px; }
+.entry-text { overflow-wrap: anywhere; }
+.entry-major .entry-text { font-weight: 550; }
+.entry-major time { color: var(--ink); font-weight: 600; }
+.entry-kind { font-size: var(--text-xs); color: var(--ink-3); margin-top: 2px; }
+.entry-docs { display: grid; gap: 0; margin-top: var(--s-1); font-size: var(--text-sm); }
+/* Filing links sit one under another; each keeps a 24px target (WCAG 2.2, 2.5.8). */
+.entry-docs a { display: inline-block; padding-block: 5px; }
+
+.status-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border: var(--border); border-radius: var(--radius-1); }
+.status-cell { display: grid; gap: var(--s-1); align-content: start; padding: var(--s-3); border-bottom: var(--border); }
+.status-cell:nth-child(odd) { border-right: var(--border); }
+.status-cell:nth-last-child(-n + 2) { border-bottom: 0; }
+.status-cell.status-cell--wide { grid-column: 1 / -1; border-right: 0; }
+.status-cell.status-cell--wide:not(:last-child) { border-bottom: var(--border); }
+.status-cell .facts > div { grid-template-columns: minmax(0, 1fr); gap: 0; }
+.status-cell .facts dt { font-size: var(--text-xs); }
+.status-cell h3 { margin: 0; font-size: var(--text-xs); font-weight: 600; color: var(--ink-2); }
+.status-value { font-size: var(--text-base); font-weight: 600; line-height: 1.25; }
+/* Stacked links in a table cell: each line is tall enough to be its own 24px target. */
+.cell-links > span { display: block; min-height: 24px; line-height: 24px; }
+.cell-links > span > a { display: inline-block; min-height: 24px; }
+.cell-links > span:last-child > a { white-space: nowrap; }
+.table td.cell-date { white-space: nowrap; }
+.status-condition { margin: 0; padding: var(--s-2) 0 var(--s-2) var(--s-3); border-left: 3px solid var(--ink); font-size: var(--text-sm); color: var(--ink); }
+.status-met { margin: 0; font-size: var(--text-sm); font-weight: 600; color: var(--ink); }
+
+.tabs { display: flex; flex-wrap: wrap; gap: 0; border-bottom: 1px solid var(--ink-3); margin-top: var(--s-4); }
+.tabs button { flex: none; padding: var(--s-2) 0.45rem; border: 0; border-bottom: 3px solid transparent; background: transparent; font-size: var(--text-sm); font-weight: 550; color: var(--ink-2); cursor: pointer; white-space: nowrap; }
+.tabs button:hover { color: var(--ink); }
+.tabs button[aria-selected='true'] { color: var(--ink); border-bottom-color: var(--ink); }
+.tabs button:focus-visible { outline-offset: -3px; }
+.tabpanel { margin-top: 0; }
+.tabpanel:focus-visible { outline-offset: 4px; }
+.tabpanel > .section:first-child { border-top: 0; margin-top: var(--s-2); }
+.tabpanel > * + * { margin-top: var(--s-5); }
+
+.timeline { display: grid; }
+.timeline-year h3 { margin: var(--s-3) 0 var(--s-1); font-size: var(--text-lg); font-weight: 650; font-variant-numeric: tabular-nums; }
+.timeline-year:first-child h3 { margin-top: 0; }
+.timeline-item { display: grid; grid-template-columns: 6.2rem minmax(0, 1fr); gap: var(--s-3); padding: var(--s-2) 0 var(--s-2) var(--s-3); border-left: 3px solid var(--data); margin-bottom: var(--s-2); }
+.timeline-item.cat-litigation { border-left-color: var(--case); }
+.timeline-item.cat-legislation { border-left-color: var(--law); }
+.timeline-item.cat-geography { border-left-color: var(--geo); }
+.timeline-item time { font-size: var(--text-sm); font-variant-numeric: tabular-nums; font-weight: 600; }
+.timeline-head { font-size: var(--text-xs); color: var(--ink-2); font-weight: 500; }
+.timeline-cat { font-weight: 700; }
+.timeline-entity { font-weight: 500; }
+.timeline-text { font-size: var(--text-sm); color: var(--ink-2); overflow-wrap: anywhere; }
+.timeline-subject { font-size: var(--text-sm); color: var(--ink-2); font-style: italic; margin-top: 2px; }
+.timeline-foot { font-size: var(--text-sm); }
+/* The "Source" link is a target at least 24px tall (WCAG 2.2, 2.5.8). */
+.timeline-foot a { display: inline-block; padding-block: 4px; }
+.timeline-foot:empty { display: none; }
+
+.plain-list { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--s-1); padding-left: 1.1rem; list-style: disc; }
+.plain-list.spaced { gap: var(--s-2); }
+.plain-list li { max-width: var(--measure); }
+.inline-links { display: flex; flex-wrap: wrap; gap: var(--s-1) var(--s-3); }
+.unit-list summary { cursor: pointer; font-weight: 500; padding: var(--s-1) 0; }
+.unit-list ul { display: grid; grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr)); gap: 2px var(--s-3); padding: var(--s-2) 0 var(--s-2) var(--s-4); font-size: var(--text-sm); max-height: 18rem; overflow: auto; }
+/* Each link is a row at least 24px tall (WCAG 2.2, 2.5.8). */
+.unit-list li a { display: inline-block; padding-block: 5px; }
+
+.modules { display: grid; gap: var(--s-3); }
+.module { padding-left: var(--s-3); border-left: 4px solid var(--data); display: grid; gap: 2px; }
+.module > a { font-size: var(--text-base); font-weight: 650; }
+.module p { font-size: var(--text-sm); color: var(--ink-2); }
+.module-case { border-left-color: var(--case); }
+.module-bill { border-left-color: var(--law); }
+.module-place { border-left-color: var(--geo); }
+.view-foot { display: grid; gap: var(--s-2); margin-top: var(--s-6); padding-top: var(--s-4); border-top: 1px solid var(--ink-3); font-size: var(--text-sm); color: var(--ink-2); }
+/* Each link is a target at least 24px tall, clear of the next line's links (WCAG 2.2, 2.5.8). */
+.view-foot a { display: inline-block; padding-block: 4px; margin-right: var(--s-4); }
+
+/* ---------- document views (full width) ---------- */
+
+.app.is-wide .mapstage { position: absolute; inset: 0 auto 0 0; width: calc(100% - var(--panel-w)); visibility: hidden; }
+.app.is-wide .panel { grid-column: 1 / -1; border-left: 0; background: var(--sheet); }
+.view-wide { width: 100%; max-width: 64rem; margin: 0 auto; background: var(--surface); border-inline: var(--border); padding-inline: clamp(var(--s-4), 4vw, var(--s-7)); }
+/* On a document view the footer continues the page's column. */
+.app.is-wide .site-foot { width: 100%; max-width: 64rem; margin-inline: auto; border-inline: var(--border); padding-inline: clamp(var(--s-4), 4vw, var(--s-7)); }
+.view-wrap > .view-wide { margin: 0 auto; }
+.toc { display: flex; flex-wrap: wrap; gap: var(--s-2) var(--s-4); font-size: var(--text-sm); margin-top: var(--s-2); }
+.toc a { padding-block: 3px; }
+.definitions { display: grid; gap: var(--s-3); }
+.definitions > div { display: grid; grid-template-columns: minmax(11rem, 0.32fr) 1fr; gap: var(--s-4); padding-bottom: var(--s-3); border-bottom: var(--border); }
+.definitions dt { font-weight: 600; }
+.definitions dd { max-width: var(--measure); }
+.source-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 26rem), 1fr)); gap: var(--s-4); }
+.source-card { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--s-2); align-content: start; padding: var(--s-4); border: var(--border); border-top: 4px solid var(--data); border-radius: var(--radius-1); overflow-wrap: break-word; }
+.source-card h3 { margin: 0; font-size: var(--text-base); }
+.source-card.fresh-stale, .source-card.fresh-failed { border-top-color: var(--stale); }
+.source-card.fresh-credential_missing, .source-card.fresh-never_checked { border-top-color: var(--rule-strong); border-top-style: dashed; color: var(--ink-2); }
+.source-card { color: var(--ink); }
+.fresh-line { font-weight: 600; font-size: var(--text-sm); }
+.fresh-line.fresh-fresh { color: var(--data); }
+
+/* ---------- redline ---------- */
+
+ins { text-decoration: underline; text-decoration-thickness: 1.5px; text-underline-offset: 0.16em; background: var(--ins-bg); color: var(--ins-ink); }
+del { text-decoration: line-through; background: var(--del-bg); color: var(--del-ink); }
+.diff { max-width: 46rem; display: grid; gap: var(--s-3); }
+.diff-changes, .diff-same { display: grid; gap: 0.7em; }
+.blk { overflow-wrap: anywhere; }
+.blk-section { font-family: var(--font-ui); font-size: var(--text-md); font-weight: 700; margin-top: 0.6em; }
+.blk-heading { font-family: var(--font-ui); font-weight: 650; font-size: var(--text-base); margin-top: 0.4em; }
+.blk-amend { font-style: italic; }
+.blk-ins, .blk-del, .blk-chg { padding-left: var(--s-3); border-left: 3px solid transparent; }
+.blk-ins { border-left-color: var(--ins-ink); }
+.blk-del { border-left-color: var(--del-ink); }
+.blk-chg { border-left-color: var(--ink-3); }
+.blk-ins ins, .blk-del del { display: inline; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
+/* A removal directly followed by its replacement: set apart by a margin, not by a character, so the text stays exact. */
+.blk-chg ins.adjoins, .blk-chg del.adjoins { margin-inline-start: 0.3em; }
+/* Assistive technology reads where each change starts and ends, so a removed word and the added word after it are not
+   read as one. The words are generated by CSS and hidden from view: they are not part of the page's text or of a copy. */
+.diff-changes ins::before, .diff-changes ins::after, .diff-changes del::before, .diff-changes del::after {
+  position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap;
+}
+.diff-changes ins::before { content: ' [start of added text] '; }
+.diff-changes ins::after { content: ' [end of added text] '; }
+.diff-changes del::before { content: ' [start of removed text] '; }
+.diff-changes del::after { content: ' [end of removed text] '; }
+.diff-skip { font-family: var(--font-ui); border-block: 1px dashed var(--rule-strong); text-align: center; }
+.diff-more { font-family: var(--font-ui); font-size: var(--text-md); }
+.diff-summary { display: grid; gap: var(--s-2); padding: var(--s-3) var(--s-4); background: var(--sheet); border-radius: var(--radius-1); }
+.diff-key { display: flex; gap: var(--s-4); font-size: var(--text-sm); }
+.diff-key ins, .diff-key del { padding: 0 0.3em; }
+.source-inline { max-width: var(--measure); }
+
+/* ---------- print summary ---------- */
+
+.pack-kicker { font-size: var(--text-sm); font-weight: 600; color: var(--ink-2); }
+.pack-notice { font-size: var(--text-sm); }
+.pack-items { display: grid; gap: var(--s-3); list-style: decimal; padding-left: 1.4rem; }
+ul.pack-items { list-style: disc; }
+.pack-items li { display: list-item; break-inside: avoid; min-width: 0; overflow-wrap: break-word; }
+.pack-items li > * + * { margin-top: 2px; }
+.pack-title { font-weight: 600; }
+.pack-detail { font-family: var(--font-text); font-size: var(--text-base); max-width: none; }
+.pack-shortened { font-family: var(--font-ui); font-size: var(--text-sm); font-style: italic; color: var(--ink-2); }
+.pack-section-note { font-size: var(--text-sm); color: var(--ink-2); margin-bottom: var(--s-2); }
+.pack-url, .pack-link { overflow-wrap: anywhere; font-stretch: 90%; }
+
+/* ---------- compact layout: map, bottom sheet, tab bar ---------- */
+
+.motif { margin: 0; display: grid; gap: var(--s-3); max-width: 34rem; }
+.motif img { width: 100%; height: auto; background: var(--sheet); border: 1px solid var(--ink); padding: var(--s-4); }
+.motif figcaption { font-size: var(--text-sm); color: var(--ink-2); max-width: var(--measure); }
+
+@media (max-width: 1150px) {
+  .topnav { gap: var(--s-3); }
+  /* Watchlist and GitHub give way to the search box (the overview links to the watchlist, and About to the source code). */
+  .topnav-meta a:nth-child(2), .topnav-meta a:nth-child(4) { display: none; }
+}
+
+@media (max-width: 899px) {
+  /* The home-indicator inset adds to the tab bar's row instead of eating into its links. */
+  .app { --safe-bottom: env(safe-area-inset-bottom, 0px); grid-template-rows: var(--nav-h) minmax(0, 1fr) calc(var(--tabbar-h) + var(--safe-bottom)); }
+  /* The top bar's spacing is in pixels: it does not grow with the text size, so at a large text size the search box keeps room for its placeholder. */
+  .topnav { padding: 0 12px; gap: 12px; }
+  .search > .icon { left: 10px; }
+  .search input { padding: 0 12px 0 32px; }
+  .topnav-links, .topnav-meta { display: none; }
+  .brand span { display: none; }
+  .search { max-width: none; min-width: 0; }
+  /* The results list spans the screen, not the search box, so it never pushes the page sideways. */
+  .search-results { position: fixed; top: calc(var(--nav-h) + 2px); left: var(--s-3); right: var(--s-3); min-width: 0; max-height: min(70vh, calc(100dvh - var(--nav-h) - var(--tabbar-h) - var(--safe-bottom) - 1rem)); }
+
+  /* Pages that are not in the tab bar (watchlist, about) sit behind one button in the top bar. */
+  .topnav-more { position: relative; flex: none; }
+  .topnav-more > summary { display: flex; align-items: center; gap: 5px; min-height: 44px; padding: 0 8px; list-style: none; cursor: pointer; font-weight: 550; color: #fff; border-radius: var(--radius-1); }
+  .topnav-more > summary::-webkit-details-marker { display: none; }
+  .topnav-more[open] > summary .icon { transform: rotate(180deg); }
+  .topnav-more > nav { position: absolute; right: 0; top: calc(100% + 4px); z-index: 45; display: grid; min-width: 14rem; padding: var(--s-1) 0; background: var(--surface); border-radius: var(--radius-2); box-shadow: var(--elev-2); }
+  .topnav .topnav-more > nav a { display: flex; align-items: center; min-height: 2.75rem; padding: 0 var(--s-4); color: var(--ink); border: 0; font-weight: 500; }
+  .topnav .topnav-more > nav a[aria-current='page'] { color: var(--ink); font-weight: 650; box-shadow: inset 3px 0 0 var(--ink); }
+  .topnav .topnav-more > nav a:hover { background: var(--sunk); }
+  .topnav .topnav-more > nav :focus-visible { outline-color: var(--focus); outline-offset: -3px; }
+
+  /* The map takes exactly the area above the sheet, so nothing on the map is ever hidden behind it.
+     At half height the sheet leaves the map at least 17.5rem on short phones, and never drops below the peek size. */
+  .app { --peek-h: 8.5rem; --sheet-h: clamp(var(--peek-h), calc(100dvh - var(--nav-h) - var(--tabbar-h) - var(--safe-bottom) - 17.5rem), 52dvh); }
+  .app[data-sheet='peek'] { --sheet-h: var(--peek-h); }
+  .workspace { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) var(--sheet-h); }
+  .mapstage { grid-row: 1; }
+  .mapstage::after { border-inline: 0; }
+
+  .panel { grid-row: 2; border-left: 0; border-top: 1px solid var(--ink); }
+  /* Keyboard focus never lands under the sticky sheet bar (WCAG 2.2, 2.4.11). */
+  .app:not(.is-wide) .panel { scroll-padding-top: 4rem; }
+  .app[data-sheet='peek'] .panel { overflow: hidden; }
+  .app[data-sheet='full'] .mapstage, .app.is-wide .mapstage { position: absolute; inset: 0; width: 100%; visibility: hidden; }
+  .app[data-sheet='full'] .panel, .app.is-wide .panel { grid-row: 1 / -1; border-top: 0; }
+
+  .sheet-bar { position: sticky; top: 0; z-index: 2; display: flex; justify-content: space-between; align-items: center; gap: var(--s-2); padding: var(--s-1) var(--s-3); background: var(--surface); border-bottom: var(--border); container-type: inline-size; }
+  .sheet-grip { display: none; }
+
+  .tabbar { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); background: var(--ink); z-index: 30; padding-bottom: var(--safe-bottom); }
+  /* Each label keeps its own column. At a large text size a label grows only as far as its column allows ("Litigation", the
+     longest, is about 4.1em wide; a column is a fifth of the screen), so no word is broken; "anywhere" is only a last resort. */
+  .tabbar a { display: grid; place-items: center; min-width: 0; padding-inline: 2px; text-align: center; line-height: 1.15; overflow-wrap: anywhere; color: #d9deea; text-decoration: none; font-size: min(var(--text-sm), calc(4.6vw - 1px)); font-weight: 550; border-top: 3px solid transparent; }
+  .tabbar a[aria-current='page'] { color: #fff; border-top-color: #fff; }
+  .tabbar :focus-visible { outline-color: #fff; outline-offset: -4px; }
+
+  .view { padding: var(--s-4) var(--s-4) var(--s-6); }
+  .view-head h1 { font-size: var(--text-xl); }
+  .view-head h1.case-name, .view-head h1.display { font-size: var(--text-xl); }
+  .view-wide, .app.is-wide .site-foot { border-inline: 0; }
+  .site-foot { padding-inline: var(--s-4); }
+
+  .layer-control { left: var(--s-3); top: var(--s-3); padding: var(--s-1); gap: var(--s-1); }
+  .layer-control legend { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  .map-zoom { right: auto; top: auto; left: calc(var(--s-3) + 7.5rem + var(--s-2)); bottom: var(--s-3); display: flex; }
+  .map-zoom button + button { border-top: 0; border-left: var(--border); }
+  .legend-summary-rest { display: none; }
+  .graticule { display: none; }
+  .map-insets { left: var(--s-3); bottom: var(--s-3); max-width: 7.5rem; }
+  .inset-select select { min-height: 2.75rem; }
+  .map-insets .inset:not(.inset-text) { display: none; }
+  .inset-text { display: none; }
+  .legend { right: var(--s-3); bottom: var(--s-3); width: auto; max-width: calc(100% - 15rem); max-height: calc(100% - 1.5rem); overflow-y: auto; }
+  .legend[open] { width: min(17rem, calc(100% - 1.5rem)); max-width: none; z-index: 6; }
+  .legend summary { padding: var(--s-2) var(--s-3); }
+  /* An open legend on a short map scrolls: its summary (which closes it) stays at the top, and a shadow at the bottom edge
+     shows that more lies below. The cover moves with the content and hides the shadow at the end. */
+  /* The key takes a line of its own under "Legend", inside the same 44px summary. */
+  .legend:not([open]) > summary.has-key { padding-block: 0.3rem; }
+  .legend-key { display: flex; width: max-content; margin: 2px 0 0 1.1em; }
+  .legend[open] > summary { position: sticky; top: 0; z-index: 1; background: var(--surface); }
+  .legend {
+    background:
+      linear-gradient(rgb(255 255 255 / 0), var(--surface) 60%) bottom / 100% 1.5rem no-repeat local,
+      radial-gradient(farthest-side at 50% 100%, rgb(23 35 59 / 0.22), transparent) bottom / 100% 0.6rem no-repeat scroll,
+      var(--surface);
+  }
+  /* On a short map the legend scrolls: the hatched no-data class comes first so it is never the part cut off. */
+  .legend-classes .legend-hatch { order: -1; }
+
+  .filters-grid, .status-grid { grid-template-columns: minmax(0, 1fr); }
+  .filters-inline { grid-template-columns: minmax(0, 1fr); }
+  .status-cell:nth-child(odd) { border-right: 0; }
+  .status-cell:nth-last-child(2) { border-bottom: var(--border); }
+  .definitions > div, .facts > div, .source-line .facts > div { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+  .entry, .timeline-item { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+  .table { font-size: var(--text-xs); }
+  /* Narrower gutters, and number headers that may wrap, so the tables fit a phone screen; wider ones scroll on their own. */
+  .table th, .table td { padding-right: var(--s-2); }
+  .table .num { padding-left: var(--s-2); }
+  .table thead th.num { white-space: normal; }
+  /* A verification badge may wrap at a large text size rather than widen the panel. */
+  .badge { white-space: normal; }
+  .segmented-options span { white-space: normal; }
+  .unit-list ul { grid-template-columns: minmax(0, 1fr); max-height: none; overflow: visible; }
+}
+
+/* The narrowest phones: "Official version" may take two lines, so the text versions table still fits without scrolling. */
+@media (max-width: 359px) {
+  .cell-links > span:last-child > a { white-space: normal; }
+  /* The closed legend has 5rem between the zoom buttons and the edge: "Legend" and its key each keep one line. */
+  .legend > summary { padding-inline: var(--s-2); }
+  .legend-key { margin-left: 0; }
+}
+
+/* At large text sizes the sheet bar keeps one row: its buttons show their icons and keep their names for assistive technology. */
+@container (max-width: 22em) {
+  .sheet-label { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .sheet-bar .icon { width: 1.25em; height: 1.25em; }
+}
+
+/* A very short compact screen, such as a 1366 x 768 laptop screen at 400% zoom (about 342 x 164 CSS pixels). Fixed bars
+   would leave almost nothing between them and could cover the control that has keyboard focus (WCAG 2.2, 2.4.11), so the
+   page scrolls as one document: the top bar, the map, the panel and the tab bar follow each other, and nothing is fixed or
+   sticky over the content. Keep the height in step with TINY_COMPACT_QUERY in media.ts. */
+@media (max-width: 899px) and (max-height: 300px) {
+  html, body { height: auto; }
+  html { overflow-y: auto; }
+  /* The section links follow the top bar (App.tsx puts them there in this layout), so they are reached without going
+     through the whole page. */
+  .app { height: auto; min-height: 100vh; min-height: 100dvh; grid-template-rows: var(--nav-h) var(--tabbar-h) 1fr; }
+  .tabbar { padding-bottom: 0; }
+  .workspace { display: block; }
+  /* The map, when shown, takes the rest of the first screen (at least 8rem); the panel follows it. The mouse wheel
+     scrolls the page here, not the map (MapView.tsx); the zoom buttons and keys still zoom it. */
+  .mapstage { height: calc(100dvh - var(--nav-h) - var(--tabbar-h)); min-height: 8rem; }
+  .app[data-sheet='full'] .mapstage, .app.is-wide .mapstage { bottom: auto; height: calc(100dvh - var(--nav-h) - var(--tabbar-h)); }
+  .panel, .app[data-sheet='peek'] .panel { overflow: visible; }
+  .app:not(.is-wide) .panel { scroll-padding-top: 0; }
+  .sheet-bar { position: static; }
+  .search-results { max-height: calc(100dvh - var(--nav-h) - 0.5rem); }
+}
+
+/* A phone held sideways: the stage is short and wide. There is no half-height sheet (see App.tsx), the lowered sheet is
+   smaller, and the map controls sit in one column on the left, the legend at the bottom right. */
+@media (max-width: 899px) and (max-height: 500px) {
+  .app { --peek-h: 6rem; }
+  .layer-control { padding: var(--s-1); }
+}
+
+@media (pointer: coarse) {
+  .btn, .field input, .field select, .search input { min-height: 2.75rem; }
+  .tabs button { padding-block: var(--s-3); }
+  /* The map's layer control stays compact so it covers less of the map; the panel's controls get a 44px row. */
+  .seg span { padding: 0.6rem 0.75rem; }
+  .segmented-options label { min-height: 2.75rem; }
+  .segmented-options span { display: flex; align-items: center; padding: 0 0.75rem; }
+  .map-zoom button { width: 2.75rem; height: 2.75rem; }
+  /* Fields at 16px or more: iOS Safari zooms the page into any smaller field that takes focus. */
+  input, select, .inset-select select { font-size: max(16px, 1em); }
+  /* Larger touch targets where it costs no layout: the home link, back links, check rows, the legend and source links. */
+  .brand { min-width: 44px; min-height: 44px; justify-content: center; }
+  .back-link { min-height: 2.75rem; margin-block: -0.5rem; }
+  .check { min-height: 2.75rem; }
+  .legend summary { padding-block: calc((2.75rem - 1.4em) / 2); }
+  .source-line-foot a { display: inline-flex; align-items: center; min-height: 2.75rem; }
+  /* Stacked filing links each get a 44px row. */
+  .entry-docs a { display: inline-flex; align-items: center; min-height: 2.75rem; padding-block: 0; }
+  /* A timeline's "Source" link ends a line of text: its hit area grows to 44px without moving the text. */
+  .timeline-foot a { position: relative; }
+  .timeline-foot a::after { content: ''; position: absolute; inset: -15px -6px; }
+  .tag { padding-block: 0.25rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { scroll-behavior: auto !important; }
+  .panel { transition: none; }
+}
+
+@media (forced-colors: active) {
+  .type-mark::before, .swatch { forced-color-adjust: none; }
+  .seg label.is-on span, .segmented-options label.is-on span { outline: 2px solid CanvasText; outline-offset: -2px; }
+}
+
+@media print {
+  html, body { height: auto; }
+  html { overflow-y: visible; }
+  .topnav, .tabbar, .mapstage, .no-print, .sheet-bar, .skip-link { display: none !important; }
+  .app, .workspace, .panel { display: block; height: auto; overflow: visible; position: static; background: #fff; border: 0; box-shadow: none; }
+  .view, .view-wide { max-width: none; padding: 0; border: 0; }
+  body { background: #fff; font-size: 10.5pt; }
+  a { text-decoration: none; }
+  .section { break-inside: auto; }
+  /* A heading and its note stay on the page with the first entry under them (block flow, where page breaks can be steered). */
+  .pack .section { display: block; }
+  .pack .section > * + * { margin-top: var(--s-3); }
+  .pack h2, .pack .pack-section-note { break-after: avoid; }
+  .pack .section > h2 + ol > li:first-child, .pack .section > .pack-section-note + ol > li:first-child { break-before: avoid; }
+  .ext .icon { display: none; }
+}

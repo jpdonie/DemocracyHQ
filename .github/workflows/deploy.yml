@@ -1,0 +1,97 @@
+name: Deploy to GitHub Pages
+
+# Builds the static site and publishes it with GitHub Pages.
+# One-time setup: Settings > Pages > Build and deployment > Source: "GitHub Actions".
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      ref:
+        description: Branch, tag or commit to build. Defaults to the commit that started the run.
+        type: string
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: read
+      pages: read  # configure-pages reads the Pages settings; a private repository needs this permission for that
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          cache: npm
+      # No package needs its install script for the build or the tests (the only ones with scripts are optional
+      # native add-ons of mapshaper and msgpackr, which the site does not use).
+      - run: npm ci --ignore-scripts
+      - name: Find the address this site will be served from
+        id: pages
+        uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
+      - name: Type check
+        run: npm run typecheck
+      - name: Unit tests
+        run: npm test
+      # A release with invalid data is never published, nor one with any file under public/data other than the
+      # .json files the data refers to (Vite copies that folder into the site as it is).
+      - name: Validate the published data
+        run: npm run data:validate
+      - name: Build
+        run: npm run build
+        env:
+          # Public values only. The site has no credentials of any kind.
+          VITE_REPO_URL: https://github.com/${{ github.repository }}
+          VITE_SITE_URL: ${{ steps.pages.outputs.base_url }}
+      # Nothing goes live without loading in a browser, including data releases committed by the ingest workflow
+      # (they start no other workflow, so CI's full browser suite never sees them). This is a short smoke run of
+      # the build that is about to be uploaded: every view opened cold under a sub-path, as on GitHub Pages.
+      # CI runs the full browser suite on pull requests and pushes.
+      - name: Install the test browser
+        run: npx playwright install --with-deps chromium
+      - name: Browser smoke test of this build, served under a sub-path
+        env:
+          E2E_DIST: dist
+        run: npx playwright test tests/e2e/subpath.spec.ts --project=desktop --grep "Static hosting under a sub-path"
+      - name: Keep the browser test report when the smoke test fails
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: playwright-report-deploy
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
+          retention-days: 7
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1

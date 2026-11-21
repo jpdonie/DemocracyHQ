@@ -1,0 +1,534 @@
+/**
+ * Legal Source Pack: a portable list of the records behind a place, case or
+ * bill, each with its source link, the dates involved and its verification
+ * state. Built entirely from data already on the page; nothing is fetched or
+ * generated at export time.
+ */
+import type {
+  CourtDocument, EntityRef, EntityRelationship, ExpiryClause, LegalCase, LegalCaseSummary, LegislativeInstrument, LegislativeInstrumentSummary, Manifest,
+  SourceRecord, TimelineEvent, Verification, VerificationStatus,
+} from '../types/schemas';
+import { differentSubject, earlierSubject, earlierSubjectNote } from './billHistory';
+import { passageDeadlineNote, pendingAfterDeadline } from './caSession';
+import type { GeoIndex, GeoUnit } from './geo';
+import { stateKind, unitNoun } from './geo';
+import { relationshipLabel, reverseRelationshipLabel } from './labels';
+import type { LinkedRecord } from './relations';
+import { sameWords } from './relations';
+import type { PopulationResult } from './population';
+import { GROUP_KEYS, GROUP_LABELS } from './population';
+import { METHOD_LABELS, VERIFICATION_LABELS } from './verification';
+
+export const PACK_FORMAT = 'democracyhq-legal-source-pack';
+export const PACK_VERSION = 1;
+
+export const DISCLAIMER =
+  'DemocracyHQ is a research and educational tool. It is not legal advice and it is not an official government source. ' +
+  'Always confirm against the linked primary source before relying on a record.';
+export const GAP_NOTICE = 'Coverage is incomplete. A data gap is not evidence of absence.';
+
+/** Said in a pack when a file it draws on could not be loaded, so a missing section is never read as "none". */
+export const UNAVAILABLE_NOTICES = {
+  links: 'The links between records (relationships.json) could not be loaded, so this pack lists no links to places, cases or other measures. That says nothing about whether such links exist.',
+  cases: 'The court case index (litigation/index.json) could not be loaded, so this pack lists no court cases. That says nothing about whether any are linked.',
+  bills: 'The legislation index (legislation/index.json) could not be loaded, so this pack lists no legislation. That says nothing about whether any exists.',
+  events: 'The timeline (events.json) could not be loaded, so this pack lists no dated events. That says nothing about whether any exist.',
+  caseRecords: 'The court case index (litigation/index.json) could not be loaded, so linked court cases appear only as links, without their case records.',
+  /** For a place: a case is tied to a place only through a link, so without the links no case can be listed. */
+  placeLinks: 'The links between records (relationships.json) could not be loaded, so this pack lists no court cases for this place: a case is tied to a place only through a link. That says nothing about whether any are linked.',
+  population: 'The population counts could not be loaded, so this pack lists none.',
+  sources: 'The list of sources (sources.json) could not be loaded, so this pack does not name the sources or give their reuse terms. Each entry still carries its own source link where the record has one.',
+} as const;
+
+/** A sentence in a note that says whether a condition was met is not recorded ("… whether they were met is not recorded here."). */
+const MET_NOT_RECORDED = /\bwhether\b[^.]*\b(?:was|were)\s+met\b[^.]*\bnot recorded\b|\bnot record whether\b/i;
+
+/**
+ * The bill notes and the curated condition notes each repeat that whether a condition was met is not recorded.
+ * Where conditions are listed, the page and the pack drop those sentences and say it once with `metCaveat`.
+ */
+export function withoutMetCaveat(text: string): string {
+  return text.split(/(?<=\.)\s+/).filter((sentence) => !MET_NOT_RECORDED.test(sentence)).join(' ');
+}
+
+export function metCaveat(conditions: number): string {
+  return conditions === 1 ? 'Whether this condition was met is not recorded in this dataset.' : 'Whether these conditions were met is not recorded in this dataset.';
+}
+
+/** Said wherever whether a measure takes effect turns on a vote of the people, which this dataset does not record. */
+export const BALLOT_RESULTS_NOTE =
+  'DemocracyHQ does not track ballot or election results. Check the official results: the California Secretary of State’s Statement of Vote.';
+
+/**
+ * Whether a measure's taking effect turns on a ballot outcome: a constitutional amendment the Legislature adopted and
+ * filed (it takes effect only if the voters approve it), or a condition whose text or note mentions the voters or a ballot.
+ */
+export function turnsOnBallot(bill: Pick<LegislativeInstrument, 'measureType' | 'chapteredDate'>, conditionTexts: readonly (string | null | undefined)[]): boolean {
+  if (/Constitutional Amendment/.test(bill.measureType) && bill.chapteredDate) return true;
+  return conditionTexts.some((text) => Boolean(text) && /\bvoters?\b|\bballots?\b|\belectorate\b/i.test(text!));
+}
+
+/**
+ * What an expiry clause applies to. The clause repeals the provision its sentence names, which may be only part of the
+ * measure, and a measure that was not enacted (or adopted) repeals nothing.
+ */
+export function expiryScope(inForce: boolean, adopted = false): string {
+  return inForce
+    ? 'It applies to the provision that sentence names, which may be only part of the measure.'
+    : `It applies to the provision that sentence names, and would apply only if this measure were ${adopted ? 'adopted' : 'enacted'}.`;
+}
+
+/** The pack's account of one expiry clause, quoted with its rule and version. */
+function expiryText(clause: ExpiryClause, versionLabel: string, inForce: boolean, adopted: boolean): string {
+  return ` Expiry stated in the text${clause.date ? ` (${clause.date})` : ''}, found by rule ${clause.ruleId} in version ${versionLabel}: “${clause.text}” ${expiryScope(inForce, adopted)}`;
+}
+
+export type PackSection = 'subject' | 'court_case' | 'court_document' | 'legislation' | 'text_version' | 'population' | 'event' | 'link';
+
+export interface PackItem {
+  section: PackSection;
+  id: string;
+  title: string;
+  /** The date the thing happened, as stated by the source. */
+  date: string | null;
+  /** What `date` means, e.g. "Latest docket activity reported by the court". */
+  dateMeaning: string | null;
+  detail: string | null;
+  sourceName: string | null;
+  sourceUrl: string | null;
+  lastCheckedAt: string | null;
+  verification: VerificationStatus | null;
+  verificationLabel: string | null;
+  appUrl: string | null;
+  /** How the record was checked, in words (METHOD_LABELS). */
+  verificationMethod: string | null;
+  /** The record's own caveat about that check, for example that a link's check does not test its description. */
+  verificationNote: string | null;
+  /** For a court docket entry with a filed document: whether that document's link works (public_link, restricted or unavailable). */
+  documentAvailability: CourtDocument['availability'] | null;
+  /** Why a document is unavailable, with the address the court gives as text: it is never exported as a working link. */
+  documentAvailabilityNote: string | null;
+  /**
+   * A page on the legislature's own site, built from the bill identifier. It is not machine-checked (the site blocks
+   * automated requests); the record was checked against the official bulk data named in sourceName and sourceUrl.
+   */
+  pageUrl: string | null;
+}
+
+export interface SourcePack {
+  format: typeof PACK_FORMAT;
+  formatVersion: typeof PACK_VERSION;
+  generatedAt: string;
+  subject: { type: 'place' | 'case' | 'bill'; id: string; label: string; url: string };
+  dataRelease: { generatedAt: string; schemaVersion: number } | null;
+  notices: string[];
+  items: PackItem[];
+  sources: Array<{ id: string; name: string; url: string; license: string; attribution: string; lastSuccessfulCheck: string | null }>;
+}
+
+interface BaseInput {
+  now: string;
+  /** Maps a hash route to an absolute URL. */
+  link: (hash: string) => string;
+  manifest: Manifest | null;
+  /** The source list, or null when sources.json could not be loaded (the pack then says so). */
+  sources: readonly SourceRecord[] | null;
+  /**
+   * The name of a place, case or bill a link points to (see `entityNamer`). Without it a bill is named from its id and
+   * a place or case by its key.
+   */
+  nameOf?: (ref: EntityRef) => string | null | undefined;
+}
+
+function item(partial: Partial<PackItem> & Pick<PackItem, 'section' | 'id' | 'title'>): PackItem {
+  const verification = partial.verification ?? null;
+  return {
+    date: null, dateMeaning: null, detail: null, sourceName: null, sourceUrl: null, lastCheckedAt: null, appUrl: null,
+    verificationMethod: null, verificationNote: null, documentAvailability: null, documentAvailabilityNote: null, pageUrl: null,
+    ...partial,
+    verification,
+    verificationLabel: partial.verificationLabel ?? (verification ? VERIFICATION_LABELS[verification] : null),
+  };
+}
+
+/** The verification fields of a record or link: its state, how it was checked, and its own caveat. */
+function checked(v: Verification, method: string = v.method): Pick<PackItem, 'verification' | 'verificationMethod' | 'verificationNote'> {
+  return { verification: v.status, verificationMethod: METHOD_LABELS[method] ?? method, verificationNote: v.note ?? null };
+}
+
+function sourceName(sources: readonly SourceRecord[] | null, id: string | null | undefined): string | null {
+  return sources?.find((s) => s.id === id)?.name ?? null;
+}
+
+/** Pages on leginfo.legislature.ca.gov are built from identifiers and never fetched: the site blocks automated requests. */
+const UNCHECKED_PAGE = /^https:\/\/leginfo\.legislature\.ca\.gov\//;
+
+/** The official bulk archive that California records are read from. */
+const CA_BULK_ARCHIVE = /^https:\/\/downloads\.leginfo\.legislature\.ca\.gov\//;
+
+/**
+ * Where a legislative record was checked. A California record is read from the official bulk archive, so the pack names
+ * that archive as the source and gives the record's page on the Legislature's site separately, as not machine-checked.
+ * When the record names no source, the archive is found in the source list; when the source list could not be loaded
+ * either, the page itself is the only address the pack has, and it is still marked as not machine-checked in pageUrl.
+ */
+function legislatureSource(base: BaseInput, sourceId: string | null | undefined, url: string): Pick<PackItem, 'sourceName' | 'sourceUrl' | 'pageUrl'> {
+  const named = base.sources?.find((s) => s.id === sourceId);
+  if (!UNCHECKED_PAGE.test(url)) return { sourceName: named?.name ?? null, sourceUrl: url, pageUrl: null };
+  const source = named ?? base.sources?.find((s) => CA_BULK_ARCHIVE.test(s.url));
+  return { sourceName: source?.name ?? null, sourceUrl: source?.url ?? url, pageUrl: url };
+}
+
+/** "CA AB 604" from "ca-20252026-ab604", for a bill the bill index does not name. */
+function billLabelFromId(id: string): string | null {
+  const match = /^([a-z]{2})-\d{8}-([a-z]{2,3})(\d{1,5})$/.exec(id);
+  return match ? `${match[1]!.toUpperCase()} ${match[2]!.toUpperCase()} ${match[3]}` : null;
+}
+
+/** Names places, cases and bills from the files the page has loaded, for link titles in a pack. */
+export function entityNamer(files: {
+  geo?: Pick<GeoIndex, 'get'> | null;
+  bills?: readonly LegislativeInstrumentSummary[] | null;
+  cases?: readonly LegalCaseSummary[] | null;
+}): (ref: EntityRef) => string | null {
+  return (ref) => {
+    if (ref.type === 'geography') return files.geo?.get(ref.id)?.name ?? null;
+    if (ref.type === 'bill') {
+      const bill = files.bills?.find((b) => b.id === ref.id);
+      return bill ? `${bill.stateAbbr} ${bill.identifier}` : null;
+    }
+    const found = files.cases?.find((c) => c.id === ref.id);
+    return found ? `${found.caseName}, No. ${found.docketNumber}` : null;
+  };
+}
+
+function refName(ref: EntityRef, base: BaseInput): string {
+  return base.nameOf?.(ref) ?? (ref.type === 'bill' ? billLabelFromId(ref.id) : null) ?? `${ref.type === 'geography' ? 'place' : ref.type} ${ref.id}`;
+}
+
+/** "Concerns a congressional district plan of Louisiana", read from the end of the link the pack is about. */
+function linkTitle(r: EntityRelationship, self: EntityRef, base: BaseInput): string {
+  const outgoing = r.source.type === self.type && r.source.id === self.id;
+  const other = outgoing ? r.target : r.source;
+  const label = outgoing ? relationshipLabel(r.relationshipType) : reverseRelationshipLabel(r.relationshipType);
+  return `${label} ${refName(other, base)}`;
+}
+
+function packSources(sources: readonly SourceRecord[] | null, ids: Iterable<string | null | undefined>): SourcePack['sources'] {
+  const wanted = new Set([...ids].filter((id): id is string => Boolean(id)));
+  return (sources ?? [])
+    .filter((s) => wanted.has(s.id))
+    .map((s) => ({ id: s.id, name: s.name, url: s.url, license: s.license, attribution: s.attribution, lastSuccessfulCheck: s.lastSuccessfulCheck ?? null }));
+}
+
+function caseItem(c: LegalCaseSummary, base: BaseInput, detailPrefix = ''): PackItem {
+  const ruling = c.latestDispositiveEntry
+    ? `Latest ruling entry on the docket (${c.latestDispositiveEntry.date}): ${c.latestDispositiveEntry.text}`
+    : 'No ruling entry identified on the docket by DemocracyHQ’s rules.';
+  return item({
+    section: 'court_case', id: c.id, title: `${c.caseName}, No. ${c.docketNumber} (U.S.)`,
+    date: c.sourceLastActivity ?? null, dateMeaning: 'Latest docket activity reported by the court',
+    detail: `${detailPrefix}${ruling}`, sourceName: sourceName(base.sources, c.sourceId), sourceUrl: c.sourceUrl,
+    lastCheckedAt: c.lastCheckedAt, ...checked(c.verification), appUrl: base.link(`#/litigation/${c.id}`),
+  });
+}
+
+function billItem(b: LegislativeInstrumentSummary, base: BaseInput): PackItem {
+  const status = b.legislativeStatus.currentStatus ?? 'not recorded';
+  const textState = b.legislativeStatus.measureState && b.legislativeStatus.measureState !== status ? ` Latest text version: ${b.legislativeStatus.measureState}.` : '';
+  // A bill still in committee or on the floor after the last day to pass bills is not a live bill in the usual sense.
+  const asOf = base.manifest?.generatedAt ?? b.lastCheckedAt;
+  const deadline = pendingAfterDeadline(b, asOf) ? ` ${passageDeadlineNote(asOf)}` : '';
+  return item({
+    section: 'legislation', id: b.id, title: `${b.stateAbbr} ${b.identifier} (${b.session}): ${b.subject ?? b.title ?? 'no subject recorded'}`,
+    date: b.lastActionDate ?? null, dateMeaning: 'Latest legislative action reported by the legislature',
+    detail: `Status as reported: ${status}.${b.chapter?.citation ? ` ${b.chapter.citation}.` : ''}${textState} Last action: ${b.lastActionText ?? 'not recorded'}${deadline}`,
+    ...legislatureSource(base, b.sourceId, b.officialUrl), lastCheckedAt: b.lastCheckedAt,
+    ...checked(b.verification), appUrl: base.link(`#/laws/${b.id}`),
+  });
+}
+
+/**
+ * A timeline event. For a bill's action, `bill` is the bill's index entry: it gives the source the action was read from
+ * and the current subject line, so that an action taken under another subject says so, as on the bill page.
+ */
+function eventItem(e: TimelineEvent, base: BaseInput, bill?: LegislativeInstrumentSummary | null): PackItem {
+  const earlier = bill ? differentSubject(e.subjectInForce, bill.subject) : null;
+  return item({
+    section: 'event', id: e.id, title: e.entityLabel, date: e.date, dateMeaning: `Event date (${e.category}, ${e.eventType.replace(/_/g, ' ')})`,
+    detail: `${e.description}${earlier ? ` ${earlierSubjectNote(earlier)}` : ''}`, ...legislatureSource(base, bill?.sourceId, e.sourceUrl),
+    appUrl: e.entityType === 'case' ? base.link(`#/litigation/${e.entityId}`) : e.entityType === 'bill' ? base.link(`#/laws/${e.entityId}`) : base.link(`#/place/${e.entityId}`),
+  });
+}
+
+/**
+ * A link and the passage that supports it. The method and the link's own note travel with it: a curated link's check
+ * finds the quoted passage in the cited document and does not test the maintainer's description.
+ */
+function relationshipItem(r: EntityRelationship, label: string, base: BaseInput, textSourceId?: string | null): PackItem {
+  // Releases made before "maintainer_curated" existed give a curated link the method "rule_derived"; its label would
+  // contradict the link's own note that a maintainer wrote it.
+  const method = r.basis === 'curated' && r.verification.method === 'rule_derived' ? 'maintainer_curated' : r.verification.method;
+  return item({
+    section: 'link', id: r.id, title: label,
+    detail: `${r.scope.note ? `${r.scope.note} ` : ''}Supporting text${r.support.document ? ` (${r.support.document})` : ''}: “${r.support.quote ?? ''}”`,
+    // A passage of bill text is checked in the text mirrored from the bulk data, so the bill's source is named for it.
+    ...(UNCHECKED_PAGE.test(r.support.url)
+      ? legislatureSource(base, r.support.sourceId ?? textSourceId, r.support.url)
+      : { sourceName: sourceName(base.sources, r.support.sourceId), sourceUrl: r.support.url, pageUrl: null }),
+    lastCheckedAt: r.verification.checkedAt, ...checked(r.verification, method),
+  });
+}
+
+function finish(subject: SourcePack['subject'], items: PackItem[], base: BaseInput, sourceIds: Iterable<string | null | undefined>, extraNotices: string[] = []): SourcePack {
+  return {
+    format: PACK_FORMAT, formatVersion: PACK_VERSION, generatedAt: base.now, subject,
+    dataRelease: base.manifest ? { generatedAt: base.manifest.generatedAt, schemaVersion: base.manifest.schemaVersion } : null,
+    notices: [DISCLAIMER, GAP_NOTICE, ...extraNotices, ...(base.sources ? [] : [UNAVAILABLE_NOTICES.sources])],
+    items, sources: packSources(base.sources, sourceIds),
+  };
+}
+
+export interface PlacePackInput extends BaseInput {
+  unit: GeoUnit;
+  vintage: string;
+  geoSourceId: string;
+  /** Null when the files they come from could not be loaded; the pack then says so. */
+  cases: readonly LinkedRecord<LegalCaseSummary>[] | null;
+  /**
+   * What the pack says when `cases` is null. The cases need two files, the case index and the links; the notice names
+   * the one that failed (the case index notice when not given).
+   */
+  casesNotice?: string;
+  bills: readonly LegislativeInstrumentSummary[] | null;
+  events: readonly TimelineEvent[] | null;
+  population: PopulationResult | null;
+  billCoverageNote: string | null;
+  /** Further notices, such as a file that could not be loaded. */
+  extraNotices?: readonly string[];
+}
+
+export function packForPlace(input: PlacePackInput): SourcePack {
+  const { unit } = input;
+  const items: PackItem[] = [
+    item({
+      section: 'subject', id: unit.key, title: unit.name,
+      detail: `${unitNoun(unit)}. Census GEOID ${unit.geoid}. Boundary vintage: ${input.vintage}.`,
+      sourceName: sourceName(input.sources, input.geoSourceId), sourceUrl: input.sources?.find((s) => s.id === input.geoSourceId)?.url ?? null,
+      lastCheckedAt: input.sources?.find((s) => s.id === input.geoSourceId)?.lastSuccessfulCheck ?? null,
+      verification: 'verified_primary', appUrl: input.link(`#/place/${unit.key}`),
+    }),
+  ];
+  const sourceIds: Array<string | null | undefined> = [input.geoSourceId];
+  if (input.population?.status === 'available') {
+    const p = input.population;
+    // Exported counts carry the Bureau's own variable labels and codes, so a race group is never cited without "not Hispanic or Latino".
+    const labelled = (key: string) => {
+      const variable = p.variables.find((v) => v.key === key);
+      return `${variable?.label ?? GROUP_LABELS[key as keyof typeof GROUP_LABELS] ?? key}${variable ? ` (${variable.code})` : ''}: ${p.values[key] ?? 'n/a'}`;
+    };
+    const groups = GROUP_KEYS.map((key) => labelled(key)).join('; ');
+    const adultGroups = GROUP_KEYS.map((key) => labelled(`vap_${key}`)).join('; ');
+    items.push(item({
+      section: 'population', id: `${unit.key}:population`, title: `${p.dataset.title} (tables ${p.dataset.tables})`,
+      date: `${p.dataset.censusYear}-04-01`, dateMeaning: 'Census Day (reference date of the counts)',
+      detail: `${labelled('total')}. ${labelled('vap_total')}. ${groups}. ${adultGroups}. ${p.dataset.methodology}${p.note ? ` Note: ${p.note}` : ''}`,
+      sourceName: sourceName(input.sources, p.dataset.sourceId), sourceUrl: input.sources?.find((s) => s.id === p.dataset.sourceId)?.url ?? null,
+      lastCheckedAt: input.sources?.find((s) => s.id === p.dataset.sourceId)?.lastSuccessfulCheck ?? null, verification: 'verified_primary',
+    }));
+    sourceIds.push(p.dataset.sourceId);
+  } else if (input.population) {
+    items.push(item({ section: 'population', id: `${unit.key}:population`, title: 'Population counts', detail: `Unavailable. ${input.population.reason}`, verification: 'unavailable' }));
+  }
+  const kind = stateKind(unit.stateFips).toLowerCase();
+  const unavailable: string[] = [];
+  if (!input.cases) unavailable.push(input.casesNotice ?? UNAVAILABLE_NOTICES.cases);
+  if (!input.bills) unavailable.push(UNAVAILABLE_NOTICES.bills);
+  if (!input.events) unavailable.push(UNAVAILABLE_NOTICES.events);
+  // The place itself is always named, even without a name resolver.
+  const named: BaseInput = { ...input, nameOf: (ref) => input.nameOf?.(ref) ?? (ref.type === 'geography' && ref.id === unit.key ? unit.name : null) };
+  for (const linked of input.cases ?? []) {
+    const prefix = linked.via === 'statewide' ? `Linked to the whole ${kind}, not specifically to this unit. ` : linked.via === 'within' ? `Linked to a unit inside this ${kind}. ` : '';
+    items.push(caseItem(linked.record, input, prefix));
+    const r = linked.relationship;
+    const other = r.source.type === 'case' && r.source.id === linked.record.id ? r.target : r.source;
+    items.push(relationshipItem(r, `Why ${linked.record.caseName} is linked to ${refName(other, named)}`, input));
+    sourceIds.push(linked.record.sourceId);
+  }
+  for (const bill of input.bills ?? []) {
+    items.push(billItem(bill, input));
+    sourceIds.push(bill.sourceId);
+  }
+  const billsById = new Map((input.bills ?? []).map((b) => [b.id, b]));
+  for (const event of input.events ?? []) items.push(eventItem(event, input, event.entityType === 'bill' ? billsById.get(event.entityId) : null));
+  return finish(
+    { type: 'place', id: unit.key, label: unit.name, url: input.link(`#/place/${unit.key}`) }, items, input, sourceIds,
+    [...(input.billCoverageNote ? [input.billCoverageNote] : []), ...unavailable, ...(input.extraNotices ?? [])],
+  );
+}
+
+export interface CasePackInput extends BaseInput {
+  record: LegalCase;
+  /** The case's links, or null when relationships.json could not be loaded (the pack then says so). */
+  relationships: readonly EntityRelationship[] | null;
+  majorOnly?: boolean;
+}
+
+/**
+ * The document a docket entry links to in a pack. A document the court's link no longer serves (availability
+ * "unavailable") is never given as the entry's source: the entry then points to the docket page, and the address the
+ * docket gives is carried as text, with the note saying when it answered "not found".
+ */
+function entryDocument(docs: readonly (CourtDocument | undefined)[]): Pick<PackItem, 'documentAvailability' | 'documentAvailabilityNote'> & { url: string | null } {
+  const linked = docs.filter((d): d is CourtDocument => Boolean(d?.url));
+  const working = linked.find((d) => d.availability !== 'unavailable');
+  const dead = linked.filter((d) => d.availability === 'unavailable');
+  const note = dead.length > 0
+    ? dead.map((d) => `${d.title}: ${d.url}. ${d.accessNote ?? 'The court’s docket gives this address, which is marked unavailable in the data; no note was recorded.'}`).join(' ')
+    : null;
+  if (working) return { url: working.url ?? null, documentAvailability: working.availability, documentAvailabilityNote: note };
+  return { url: null, documentAvailability: dead.length > 0 ? 'unavailable' : null, documentAvailabilityNote: note };
+}
+
+export function packForCase(input: CasePackInput): SourcePack {
+  const c = input.record;
+  const self: EntityRef = { type: 'case', id: c.id };
+  const items: PackItem[] = [{ ...caseItem(c, input), section: 'subject' }];
+  if (c.questionsPresented) {
+    items.push(item({
+      section: 'court_document', id: `${c.id}:qp`, title: 'Questions presented (document published by the Court)',
+      sourceUrl: c.questionsPresented.url, detail: c.questionsPresented.text ?? null, lastCheckedAt: c.lastCheckedAt, ...checked(c.verification),
+    }));
+  }
+  for (const r of input.relationships ?? []) items.push(relationshipItem(r, linkTitle(r, self, input), input));
+  const documents = new Map(c.documents.map((d) => [d.id, d]));
+  for (const e of c.events) {
+    if (input.majorOnly && e.significance !== 'major') continue;
+    const doc = entryDocument(e.documentIds.map((id) => documents.get(id)));
+    items.push(item({
+      section: 'event', id: e.id, title: `Docket entry, ${e.eventType.replace(/_/g, ' ')}`, date: e.date, dateMeaning: 'Date of the docket entry',
+      detail: e.description, sourceUrl: doc.url ?? e.evidence.url, lastCheckedAt: c.lastCheckedAt, ...checked(c.verification),
+      documentAvailability: doc.documentAvailability, documentAvailabilityNote: doc.documentAvailabilityNote,
+    }));
+  }
+  return finish(
+    { type: 'case', id: c.id, label: `${c.caseName}, No. ${c.docketNumber}`, url: input.link(`#/litigation/${c.id}`) }, items, input, [c.sourceId],
+    input.relationships ? [] : [UNAVAILABLE_NOTICES.links],
+  );
+}
+
+export interface BillPackInput extends BaseInput {
+  record: LegislativeInstrument;
+  /** The bill's links, or null when relationships.json could not be loaded (the pack then says so). */
+  relationships: readonly EntityRelationship[] | null;
+  /** The linked cases, or null when the case index could not be loaded. */
+  linkedCases: readonly LegalCaseSummary[] | null;
+}
+
+export function packForBill(input: BillPackInput): SourcePack {
+  const b = input.record;
+  const self: EntityRef = { type: 'bill', id: b.id };
+  // Every row taken from the bill's record was checked against the official bulk data, not against the leginfo page.
+  const fromRecord = (url: string) => ({ ...legislatureSource(input, b.sourceId, url), lastCheckedAt: b.lastCheckedAt, ...checked(b.verification) });
+  const items: PackItem[] = [{ ...billItem(b, input), section: 'subject' }];
+  const dated: Array<[string | null | undefined, string]> = [
+    [b.introducedDate, 'Introduced'], [b.approvedDate, 'Approved by the Governor'], [b.chapteredDate, 'Chaptered by the Secretary of State'], [b.vetoedDate, 'Vetoed'],
+  ];
+  for (const [date, label] of dated) {
+    if (date) items.push(item({ section: 'event', id: `${b.id}:${label}`, title: label, date, dateMeaning: 'Date of the legislative action', ...fromRecord(b.officialUrl) }));
+  }
+  // A condition in the text travels with the date, so an exported row never reads as an unconditional effective date.
+  // As on the page, a condition found by rule that a curated link already quotes is listed once, and "not recorded" is said once.
+  const links = input.relationships ?? [];
+  const curatedLinks = links.filter((r) => /^operative_only_if/.test(r.relationshipType) && r.source.type === 'bill' && r.source.id === b.id);
+  const curated = curatedLinks.map((r) => ` Condition stated in the bill text: ${withoutMetCaveat(r.scope.note ?? `Operative only if ${r.target.id} takes effect.`)}${r.support.quote ? ` The text reads: “${r.support.quote}”` : ''}`);
+  const found = b.conditions
+    .filter((c) => !curatedLinks.some((r) => r.support.quote && sameWords(r.support.quote, c.text)))
+    .map((c) => ` Condition found in the text (rule ${c.ruleId}, version ${c.versionId}): “${c.text}”`);
+  const conditions = [...curated, ...found];
+  const inForce = Boolean(b.chapteredDate || b.approvedDate);
+  const adopted = b.chapter?.type === 'CHR' || /Resolution|Constitutional Amendment/.test(b.measureType);
+  const versionLabel = (id: string) => b.versions.find((v) => v.id === id)?.label ?? id;
+  const expiries = b.expiryClauses.map((c) => expiryText(c, versionLabel(c.versionId), inForce, adopted)).join('');
+  const ballot = turnsOnBallot(b, [...curatedLinks.flatMap((r) => [r.scope.note, r.support.quote]), ...b.conditions.map((c) => c.text)]) ? ` ${BALLOT_RESULTS_NOTE}` : '';
+  const derived = b.effective.basis === 'immediate_effect_flag';
+  items.push(item({
+    section: 'legislation', id: `${b.id}:effective`, title: 'Effective date', date: b.effective.date ?? null,
+    dateMeaning: b.effective.date ? `Effective date (basis: ${b.effective.basis.replace(/_/g, ' ')})` : null,
+    detail: `${conditions.length > 0 ? `${withoutMetCaveat(b.effective.note)}${conditions.join('')} ${metCaveat(conditions.length)}` : b.effective.note}${expiries}${ballot}`,
+    ...legislatureSource(input, b.sourceId, b.officialUrl),
+    // A date derived by rule is not a date the source states, so it does not carry the record's verification label.
+    verification: derived ? null : b.effective.basis === 'not_verified' ? 'unavailable' : null,
+    verificationLabel: derived ? 'Derived by rule from official data' : b.effective.basis === 'not_verified' ? null : 'Not applicable',
+  }));
+  items.push(item({ section: 'legislation', id: `${b.id}:courts`, title: 'Judicial enforceability', detail: b.judicialNote }));
+  for (const v of b.versions) {
+    const text = v.textAvailability === 'mirrored'
+      ? `${v.sourceMember ? `Text extracted from ${v.sourceMember} in the official bulk archive. ` : ''}SHA-256 hash of the extracted text, not of the official file: ${v.textHash}.${v.sourceHash ? ` SHA-256 hash of ${v.sourceMember ?? 'the official file'} as read from the archive: ${v.sourceHash}.` : ''}`
+      : 'Text not mirrored; see the official link.';
+    items.push(item({
+      section: 'text_version', id: v.id, title: `Text version: ${v.label}`, date: v.versionDate, dateMeaning: 'Date of the text version',
+      detail: `Official subject line: ${v.subject?.trim() || 'not recorded'}${v.subject && /[.?!]$/.test(v.subject.trim()) ? '' : '.'} ${text}${v.diff ? ` Compared with the previous version: ${v.diff.blocksAdded} paragraph(s) added or changed, ${v.diff.blocksRemoved} removed or replaced.` : ''}`,
+      ...fromRecord(v.officialUrl),
+    }));
+  }
+  for (const c of input.linkedCases ?? []) items.push(caseItem(c, input));
+  for (const r of links) items.push(relationshipItem(r, linkTitle(r, self, input), input, b.sourceId));
+  b.actions.forEach((a, index) => {
+    const subject = earlierSubject(b, a);
+    items.push(item({
+      section: 'event', id: `${b.id}:h${a.historyId ?? index}`, title: `Legislative history: ${a.eventType.replace(/_/g, ' ')}`, date: a.date, dateMeaning: 'Date of the legislative action',
+      detail: `${a.text}${a.status ? ` (${a.status.toLowerCase()} in the official record)` : ''}${a.location ? ` Location after this action: ${a.location}.` : ''}${subject ? ` ${earlierSubjectNote(subject)}` : ''}`,
+      ...fromRecord(b.officialUrl),
+    }));
+  });
+  const unavailable: string[] = [];
+  if (!input.relationships) unavailable.push(UNAVAILABLE_NOTICES.links);
+  // Without the case index a linked case is still listed through its link, but not as a case record.
+  else if (!input.linkedCases && links.some((r) => r.source.type === 'case' || r.target.type === 'case')) unavailable.push(UNAVAILABLE_NOTICES.caseRecords);
+  return finish(
+    { type: 'bill', id: b.id, label: `${b.stateAbbr} ${b.identifier} (${b.session})`, url: input.link(`#/laws/${b.id}`) }, items, input,
+    [b.sourceId, ...(input.linkedCases ?? []).map((c) => c.sourceId)], unavailable,
+  );
+}
+
+/** The first eleven columns keep their places from earlier packs; the columns added later follow them. */
+const CSV_COLUMNS: Array<[keyof PackItem, string]> = [
+  ['section', 'section'], ['id', 'id'], ['title', 'title'], ['date', 'date'], ['dateMeaning', 'date_meaning'], ['detail', 'detail'],
+  ['sourceName', 'source_name'], ['sourceUrl', 'source_url'], ['lastCheckedAt', 'last_checked_at'], ['verificationLabel', 'verification'], ['appUrl', 'democracyhq_url'],
+  ['verificationMethod', 'verification_method'], ['verificationNote', 'verification_note'],
+  ['documentAvailability', 'document_availability'], ['documentAvailabilityNote', 'document_availability_note'],
+  ['pageUrl', 'official_page_url_not_machine_checked'],
+];
+
+/** Quote a CSV cell. Cells that a spreadsheet would run as a formula are prefixed so they stay text. */
+export function csvCell(value: string | null | undefined): string {
+  let text = value ?? '';
+  if (/^[=+\-@\t\r]/.test(text)) text = `'${text}`;
+  return `"${text.replace(/"/g, '""')}"`;
+}
+
+export function packToCsv(pack: SourcePack): string {
+  const lines = [CSV_COLUMNS.map(([, header]) => header).join(',')];
+  for (const row of pack.items) lines.push(CSV_COLUMNS.map(([key]) => csvCell(row[key] as string | null)).join(','));
+  lines.push('');
+  for (const notice of pack.notices) lines.push(csvCell(`Notice: ${notice}`));
+  lines.push(csvCell(`Generated ${pack.generatedAt} from ${pack.subject.url}`));
+  return `﻿${lines.join('\r\n')}\r\n`;
+}
+
+export function packFileName(pack: SourcePack, extension: 'json' | 'csv'): string {
+  const slug = pack.subject.id.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  return `democracyhq-source-pack-${slug}-${pack.generatedAt.slice(0, 10)}.${extension}`;
+}
+
+export function downloadText(fileName: string, mime: string, text: string): void {
+  const url = URL.createObjectURL(new Blob([text], { type: mime }));
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = fileName;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+}

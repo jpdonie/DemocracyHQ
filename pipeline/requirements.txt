@@ -1,0 +1,6 @@
+# Runtime dependencies of the data pipeline (Python 3.13, the version CI uses; requirements-lock.txt pins them with hashes).
+# The pipeline also calls two external programs:
+#   - mapshaper (installed by `npm ci`, used for the boundary files)
+#   - pdftotext from poppler-utils (used to read court filings for the evidence check)
+requests>=2.31,<3
+pydantic>=2.6,<3

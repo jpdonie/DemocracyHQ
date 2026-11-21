@@ -1,0 +1,958 @@
+<!DOCTYPE html>
+<!--
+    Isoline Assembly: generative identity study for DemocracyHQ.
+    Built from templates/viewer.html of the algorithmic-art skill, which is licensed under the
+    Apache License, Version 2.0 (see NOTICE); this file is a modified version of it. The layout,
+    sidebar structure, seed controls, fonts and interface colour values are the template's; the
+    colour variables were renamed to this project's neutral role names.
+    The algorithm, the parameters and their controls are this piece's own.
+    The philosophy it expresses is in isoline-assembly.md, next to this file.
+-->
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Isoline Assembly</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.7.0/p5.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&family=Lora:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        /* Interface colours: the template's values, unchanged, named by role (the first four names match src/styles/tokens.css) */
+        :root {
+            --ink: #141413;
+            --sheet: #faf9f5;
+            --ink-3: #b0aea5;
+            --rule: #e8e6dc;
+            --accent: #d97757;
+            --accent-blue: #6a9bcc;
+            --accent-green: #788c5d;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Poppins', sans-serif;
+            background: linear-gradient(135deg, var(--sheet) 0%, #f5f3ee 100%);
+            min-height: 100vh;
+            color: var(--ink);
+        }
+
+        .container {
+            display: flex;
+            min-height: 100vh;
+            padding: 20px;
+            gap: 20px;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            width: 320px;
+            flex-shrink: 0;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            padding: 24px;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(20, 20, 19, 0.1);
+            overflow-y: auto;
+            overflow-x: hidden;
+        }
+
+        .sidebar h1 {
+            font-family: 'Lora', serif;
+            font-size: 24px;
+            font-weight: 500;
+            color: var(--ink);
+            margin-bottom: 8px;
+        }
+
+        .sidebar .subtitle {
+            color: var(--ink-3);
+            font-size: 14px;
+            margin-bottom: 32px;
+            line-height: 1.4;
+        }
+
+        /* Control Sections */
+        .control-section {
+            margin-bottom: 32px;
+        }
+
+        .control-section h3 {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--ink);
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .control-section h3::before {
+            content: '•';
+            color: var(--accent);
+            font-weight: bold;
+        }
+
+        /* Seed Controls */
+        .seed-input {
+            width: 100%;
+            background: var(--sheet);
+            padding: 12px;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            margin-bottom: 12px;
+            border: 1px solid var(--rule);
+            text-align: center;
+        }
+
+        .seed-input:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 2px rgba(217, 119, 87, 0.1);
+            background: white;
+        }
+
+        .seed-controls {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+
+        .regen-button {
+            margin-bottom: 0;
+        }
+
+        /* Parameter Controls */
+        .control-group {
+            margin-bottom: 20px;
+        }
+
+        .control-group label {
+            display: block;
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--ink);
+            margin-bottom: 8px;
+        }
+
+        .slider-container {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .slider-container input[type="range"] {
+            flex: 1;
+            height: 4px;
+            background: var(--rule);
+            border-radius: 2px;
+            outline: none;
+            -webkit-appearance: none;
+        }
+
+        .slider-container input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 16px;
+            height: 16px;
+            background: var(--accent);
+            border-radius: 50%;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .slider-container input[type="range"]::-webkit-slider-thumb:hover {
+            transform: scale(1.1);
+            background: #c86641;
+        }
+
+        .slider-container input[type="range"]::-moz-range-thumb {
+            width: 16px;
+            height: 16px;
+            background: var(--accent);
+            border-radius: 50%;
+            border: none;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .value-display {
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            color: var(--ink-3);
+            min-width: 60px;
+            text-align: right;
+        }
+
+        /* Color Pickers */
+        .color-group {
+            margin-bottom: 16px;
+        }
+
+        .color-group label {
+            display: block;
+            font-size: 12px;
+            color: var(--ink-3);
+            margin-bottom: 4px;
+        }
+
+        .color-picker-container {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .color-picker-container input[type="color"] {
+            width: 32px;
+            height: 32px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            background: none;
+            padding: 0;
+        }
+
+        .color-value {
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            color: var(--ink-3);
+        }
+
+        /* Buttons */
+        .button {
+            background: var(--accent);
+            color: white;
+            border: none;
+            padding: 10px 16px;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            width: 100%;
+        }
+
+        .button:hover {
+            background: #c86641;
+            transform: translateY(-1px);
+        }
+
+        .button:active {
+            transform: translateY(0);
+        }
+
+        .button.secondary {
+            background: var(--accent-blue);
+        }
+
+        .button.secondary:hover {
+            background: #5a8bb8;
+        }
+
+        .button.tertiary {
+            background: var(--accent-green);
+        }
+
+        .button.tertiary:hover {
+            background: #6b7b52;
+        }
+
+        .button-row {
+            display: flex;
+            gap: 8px;
+        }
+
+        .button-row .button {
+            flex: 1;
+        }
+
+        /* Canvas Area */
+        .canvas-area {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 0;
+        }
+
+        #canvas-container {
+            width: 100%;
+            max-width: 1000px;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 20px 40px rgba(20, 20, 19, 0.1);
+            background: white;
+        }
+
+        #canvas-container canvas {
+            display: block;
+            width: 100% !important;
+            height: auto !important;
+        }
+
+        /* Loading State */
+        .loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            color: var(--ink-3);
+        }
+
+        /* Responsive - Stack on mobile */
+        @media (max-width: 600px) {
+            .container {
+                flex-direction: column;
+            }
+
+            .sidebar {
+                width: 100%;
+            }
+
+            .canvas-area {
+                padding: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Control Sidebar -->
+        <div class="sidebar">
+            <!-- Headers -->
+            <h1>Isoline Assembly</h1>
+            <div class="subtitle">Concentric benches begin as noise and settle until none of them cross. Where a bench is not recorded it is hachured, never guessed.</div>
+
+            <!-- Seed Section (ALWAYS KEEP THIS) -->
+            <div class="control-section">
+                <h3>Seed</h3>
+                <input type="number" id="seed-input" class="seed-input" value="1848" onchange="updateSeed()">
+                <div class="seed-controls">
+                    <button class="button secondary" onclick="previousSeed()">← Prev</button>
+                    <button class="button secondary" onclick="nextSeed()">Next →</button>
+                </div>
+                <button class="button tertiary regen-button" onclick="randomSeedAndUpdate()">↻ Random</button>
+            </div>
+
+            <!-- Parameters Section -->
+            <div class="control-section">
+                <h3>Parameters</h3>
+
+                <div class="control-group">
+                    <label>Benches</label>
+                    <div class="slider-container">
+                        <input type="range" id="rings" min="6" max="44" step="1" value="24" oninput="updateParam('rings', this.value)">
+                        <span class="value-display" id="rings-value">24</span>
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <label>Opening of the arc</label>
+                    <div class="slider-container">
+                        <input type="range" id="span" min="120" max="320" step="2" value="252" oninput="updateParam('span', this.value)">
+                        <span class="value-display" id="span-value">252°</span>
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <label>Disturbance</label>
+                    <div class="slider-container">
+                        <input type="range" id="disturbance" min="0" max="1" step="0.01" value="0.6" oninput="updateParam('disturbance', this.value)">
+                        <span class="value-display" id="disturbance-value">0.60</span>
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <label>Grain of the terrain</label>
+                    <div class="slider-container">
+                        <input type="range" id="grain" min="0.4" max="4" step="0.05" value="1.6" oninput="updateParam('grain', this.value)">
+                        <span class="value-display" id="grain-value">1.60</span>
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <label>Tension</label>
+                    <div class="slider-container">
+                        <input type="range" id="tension" min="0" max="1" step="0.01" value="0.5" oninput="updateParam('tension', this.value)">
+                        <span class="value-display" id="tension-value">0.50</span>
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <label>Absence (not recorded)</label>
+                    <div class="slider-container">
+                        <input type="range" id="absence" min="0" max="0.45" step="0.01" value="0.14" oninput="updateParam('absence', this.value)">
+                        <span class="value-display" id="absence-value">14%</span>
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <label>Seats</label>
+                    <div class="slider-container">
+                        <input type="range" id="seats" min="0" max="1" step="0.01" value="0.45" oninput="updateParam('seats', this.value)">
+                        <span class="value-display" id="seats-value">0.45</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Colors Section: paper and the three plates -->
+            <div class="control-section">
+                <h3>Colors</h3>
+
+                <div class="color-group">
+                    <label>Paper</label>
+                    <div class="color-picker-container">
+                        <input type="color" id="paper" value="#f1f4ef" onchange="updateColor('paper', this.value)">
+                        <span class="color-value" id="paper-value">#f1f4ef</span>
+                    </div>
+                </div>
+
+                <div class="color-group">
+                    <label>Ground plate (inner benches)</label>
+                    <div class="color-picker-container">
+                        <input type="color" id="inkGround" value="#85551b" onchange="updateColor('inkGround', this.value)">
+                        <span class="color-value" id="inkGround-value">#85551b</span>
+                    </div>
+                </div>
+
+                <div class="color-group">
+                    <label>Planted plate (middle benches)</label>
+                    <div class="color-picker-container">
+                        <input type="color" id="inkPlanted" value="#0c6557" onchange="updateColor('inkPlanted', this.value)">
+                        <span class="color-value" id="inkPlanted-value">#0c6557</span>
+                    </div>
+                </div>
+
+                <div class="color-group">
+                    <label>Revision plate (outer benches)</label>
+                    <div class="color-picker-container">
+                        <input type="color" id="inkRevised" value="#6a2c6e" onchange="updateColor('inkRevised', this.value)">
+                        <span class="color-value" id="inkRevised-value">#6a2c6e</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Actions Section (ALWAYS KEEP THIS) -->
+            <div class="control-section">
+                <h3>Actions</h3>
+                <div class="button-row">
+                    <button class="button" onclick="regenerate()">Regenerate</button>
+                    <button class="button" onclick="resetParameters()">Reset</button>
+                </div>
+                <div class="button-row" style="margin-top: 8px;">
+                    <button class="button secondary" onclick="downloadPNG()">Download PNG</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Canvas Area -->
+        <div class="canvas-area">
+            <div id="canvas-container">
+                <div class="loading">Releasing the assembly...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ═══════════════════════════════════════════════════════════════════════
+        // GENERATIVE ART PARAMETERS
+        // ═══════════════════════════════════════════════════════════════════════
+
+        let params = {
+            seed: 1848,
+            rings: 24,          // benches
+            span: 252,          // opening of the arc, degrees
+            disturbance: 0.6,   // how far the terrain pushes a bench off its radius
+            grain: 1.6,         // frequency of the terrain
+            tension: 0.5,       // stiffness along each bench
+            absence: 0.14,      // exact share of the drawing that is not recorded
+            seats: 0.45,        // density of seats on the seated benches
+            paper: '#f1f4ef',
+            inkGround: '#85551b',
+            inkPlanted: '#0c6557',
+            inkRevised: '#6a2c6e'
+        };
+
+        let defaultParams = {...params}; // Store defaults for reset
+
+        const NUMERIC_PARAMS = ['rings', 'span', 'disturbance', 'grain', 'tension', 'absence', 'seats'];
+        const COLOR_PARAMS = ['paper', 'inkGround', 'inkPlanted', 'inkRevised'];
+        const FRAME_INK = '#17233b';
+        const STEPS_PER_FRAME = 1;
+
+        // ═══════════════════════════════════════════════════════════════════════
+        // THE PROCESS (pure functions, shared with the Node export script)
+        // ═══════════════════════════════════════════════════════════════════════
+
+        // <motif-core>
+        // Everything between the motif-core markers is plain JavaScript with no p5 or DOM
+        // dependency, so design/export-motif.mjs can run the identical process in Node.
+
+        function mulberry32(seed) {
+            let a = (seed >>> 0) || 1;
+            return function () {
+                a = (a + 0x6D2B79F5) | 0;
+                let t = Math.imul(a ^ (a >>> 15), 1 | a);
+                t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+                return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+            };
+        }
+
+        // Seeded 2D value noise on a 256 lattice with quintic interpolation, range 0..1.
+        function makeNoise(seed) {
+            const rnd = mulberry32(seed * 7919 + 13);
+            const perm = new Uint8Array(512);
+            const vals = new Float64Array(256);
+            for (let i = 0; i < 256; i++) { perm[i] = i; vals[i] = rnd(); }
+            for (let i = 255; i > 0; i--) {
+                const j = Math.floor(rnd() * (i + 1));
+                const t = perm[i]; perm[i] = perm[j]; perm[j] = t;
+            }
+            for (let i = 0; i < 256; i++) perm[i + 256] = perm[i];
+            const fade = (t) => t * t * t * (t * (t * 6 - 15) + 10);
+            const at = (x, y) => vals[perm[(x & 255) + perm[y & 255]]];
+            return function (x, y) {
+                const x0 = Math.floor(x), y0 = Math.floor(y);
+                const u = fade(x - x0), v = fade(y - y0);
+                const a = at(x0, y0), b = at(x0 + 1, y0), c = at(x0, y0 + 1), d = at(x0 + 1, y0 + 1);
+                return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v;
+            };
+        }
+
+        function fbm(noise, x, y, octaves) {
+            let sum = 0, amp = 0.5, norm = 0, f = 1;
+            for (let o = 0; o < octaves; o++) {
+                sum += amp * noise(x * f, y * f);
+                norm += amp;
+                amp *= 0.5;
+                f *= 2.03;
+            }
+            return sum / norm;
+        }
+
+        const INNER_RADIUS = 0.17;
+        const OUTER_RADIUS = 1.0;
+
+        // Build the unsettled assembly. Radii are in unit space (outer bench = 1).
+        function createAssembly(p) {
+            const rnd = mulberry32(p.seed);
+            const terrain = makeNoise(p.seed);
+            const absence = makeNoise(p.seed + 5003);
+            const n = Math.max(2, Math.round(p.rings));
+            const m = Math.max(12, Math.round(p.samples || 200));
+            const spanRad = (p.span * Math.PI) / 180;
+            const a0 = -Math.PI / 2 - spanRad / 2;
+            // The innermost bench sits at INNER_RADIUS unless a frame asks for a wider floor.
+            const innerRadius = p.inner === undefined ? INNER_RADIUS : p.inner;
+            const spacing = (OUTER_RADIUS - innerRadius) / (n - 1);
+            const amplitude = p.disturbance * spacing * 2.6;
+            const rings = [];
+            const gapValues = [];
+            let seatedRun = 0;
+            for (let i = 0; i < n; i++) {
+                const base = innerRadius + spacing * i;
+                const r = new Float64Array(m + 1);
+                const v = new Float64Array(m + 1);
+                const target = new Float64Array(m + 1);
+                const gapField = new Float64Array(m + 1);
+                // A slow per-bench drift so that the opening tangle has structure, not static.
+                const driftPhase = rnd() * Math.PI * 2;
+                const driftFreq = 2 + rnd() * 5;
+                for (let j = 0; j <= m; j++) {
+                    const t = j / m;
+                    const theta = a0 + spanRad * t;
+                    // The terrain is tapered at both ends so the open side closes on clean aisles.
+                    const taper = Math.pow(Math.sin(Math.PI * t), 0.6);
+                    // Two readings of the same terrain: a broad lean shared by neighbouring benches,
+                    // and a finer one that changes from bench to bench, so that lines bunch and part.
+                    const nx = Math.cos(theta) * base * p.grain * 2.1 + 17.3;
+                    const ny = Math.sin(theta) * base * p.grain * 2.1 + 9.1;
+                    const lean = fbm(terrain, nx, ny, 3) - 0.5;
+                    const local = fbm(terrain, theta * p.grain * 1.7 + 41.9, base * 9.5 + 3.3, 3) - 0.5;
+                    target[j] = base + amplitude * taper * (lean * 1.5 + local * 1.1);
+                    const scatter = (rnd() - 0.5) * spacing * 3.0 + Math.sin(driftPhase + t * driftFreq * Math.PI) * spacing * 2.6;
+                    r[j] = base + scatter * (0.3 + 0.7 * taper);
+                    const g = fbm(absence, i * 0.31 + 3.7, t * (2.2 + n * 0.05) * (p.span / 180) + i * 0.045, 3);
+                    gapField[j] = g;
+                    gapValues.push(g);
+                }
+                // Seated benches come singly or in pairs, never as a solid block.
+                const wantsSeats = rnd() < 0.44;
+                const seated = wantsSeats && seatedRun < 2;
+                seatedRun = seated ? seatedRun + 1 : 0;
+                rings.push({ index: i, base: base, r: r, v: v, target: target, gapField: gapField, gap: new Uint8Array(m + 1), seated: seated, seatOffset: rnd() });
+            }
+            // Absence is set by quantile, so the requested share of the drawing is exactly what is missing.
+            const sorted = Float64Array.from(gapValues).sort();
+            const cut = p.absence <= 0 ? -1 : sorted[Math.min(sorted.length - 1, Math.floor(p.absence * sorted.length))];
+            for (const ring of rings) {
+                for (let j = 0; j <= m; j++) ring.gap[j] = ring.gapField[j] < cut ? 1 : 0;
+            }
+            return { p: p, n: n, m: m, a0: a0, spanRad: spanRad, spacing: spacing, innerRadius: innerRadius, rings: rings, step: 0, energy: Infinity, settled: false };
+        }
+
+        const MAX_STEPS = 420;
+        const RELEASE_STEPS = 150;
+
+        // One relaxation step: pull toward the terrain, tension along the line, damping,
+        // then the rule that benches never cross. The rule is brought in gradually over
+        // the first RELEASE_STEPS, so the opening tangle is combed out instead of snapped.
+        function stepAssembly(state) {
+            if (state.settled) return state;
+            const m = state.m, n = state.n;
+            const tension = 0.03 + state.p.tension * 0.3;
+            const pull = 0.022;
+            const damping = 0.86;
+            const ramp = Math.min(1, state.step / RELEASE_STEPS);
+            const ease = ramp * ramp * (3 - 2 * ramp);
+            const minGap = state.spacing * (0.32 * ease - 1.6 * (1 - ease));
+            let energy = 0;
+            for (let i = 0; i < n; i++) {
+                const ring = state.rings[i];
+                const r = ring.r, v = ring.v, target = ring.target;
+                for (let j = 0; j <= m; j++) {
+                    const left = r[j > 0 ? j - 1 : j + 1];
+                    const right = r[j < m ? j + 1 : j - 1];
+                    const force = pull * (target[j] - r[j]) + tension * (left + right - 2 * r[j]);
+                    v[j] = (v[j] + force) * damping;
+                }
+                for (let j = 0; j <= m; j++) {
+                    r[j] += v[j];
+                    energy += v[j] * v[j];
+                }
+            }
+            for (let i = 0; i < n; i++) {
+                const r = state.rings[i].r;
+                const inner = i > 0 ? state.rings[i - 1].r : null;
+                for (let j = 0; j <= m; j++) {
+                    const floor = inner ? inner[j] + minGap : state.innerRadius * 0.6;
+                    if (r[j] < floor) { r[j] = floor; state.rings[i].v[j] *= 0.3; }
+                }
+            }
+            state.step += 1;
+            state.energy = energy / (n * (m + 1));
+            if (state.step >= MAX_STEPS || (state.step > RELEASE_STEPS && state.energy < 4e-12)) state.settled = true;
+            return state;
+        }
+
+        function settle(state) {
+            while (!state.settled) stepAssembly(state);
+            return state;
+        }
+
+        // Which plate a bench prints on: 0 ground, 1 planted, 2 revised.
+        function inkOf(state, index) {
+            return Math.min(2, Math.floor((index / state.n) * 3));
+        }
+
+        function isIndexLine(index) {
+            return index % 5 === 0;
+        }
+
+        function pointAt(state, ring, j) {
+            const theta = state.a0 + state.spanRad * (j / state.m);
+            return [Math.cos(theta) * ring.r[j], Math.sin(theta) * ring.r[j]];
+        }
+
+        // Drawn runs of a bench: arrays of [x, y] in unit space, broken wherever the record is absent.
+        function ringRuns(state, ring) {
+            const runs = [];
+            let run = null;
+            for (let j = 0; j <= state.m; j++) {
+                if (ring.gap[j]) { if (run && run.length > 1) runs.push(run); run = null; continue; }
+                if (!run) run = [];
+                run.push(pointAt(state, ring, j));
+            }
+            if (run && run.length > 1) runs.push(run);
+            return runs;
+        }
+
+        // Hachures across an absent stretch: short radial strokes, every other sample.
+        function ringHachures(state, ring) {
+            const out = [];
+            const half = state.spacing * 0.21;
+            for (let j = 1; j < state.m; j += 2) {
+                if (!ring.gap[j]) continue;
+                const theta = state.a0 + state.spanRad * (j / state.m);
+                const c = Math.cos(theta), s = Math.sin(theta);
+                out.push([c * (ring.r[j] - half), s * (ring.r[j] - half), c * (ring.r[j] + half), s * (ring.r[j] + half)]);
+            }
+            return out;
+        }
+
+        // Seats at equal arc length along a bench, none where the record is absent.
+        function ringSeats(state, ring, density) {
+            if (!ring.seated || density <= 0) return [];
+            const out = [];
+            const pitch = state.spacing * (2.6 - density * 1.9);
+            const arc = ring.base * state.spanRad;
+            const count = Math.floor(arc / pitch);
+            for (let k = 0; k < count; k++) {
+                const t = (k + 0.5 + (ring.seatOffset - 0.5) * 0.6) / count;
+                const j = Math.max(0, Math.min(state.m, Math.round(t * state.m)));
+                if (ring.gap[j]) continue;
+                out.push(pointAt(state, ring, j));
+            }
+            return out;
+        }
+
+        // Bounding box of the fan in unit space, for fitting it to a page.
+        function fanBounds(state) {
+            const reach = OUTER_RADIUS + state.spacing * 1.2;
+            let minX = 0, maxX = 0, minY = 0, maxY = 0;
+            for (let k = 0; k <= 180; k++) {
+                const theta = state.a0 + state.spanRad * (k / 180);
+                const x = Math.cos(theta) * reach, y = Math.sin(theta) * reach;
+                if (x < minX) minX = x; if (x > maxX) maxX = x;
+                if (y < minY) minY = y; if (y > maxY) maxY = y;
+            }
+            return { minX: minX, maxX: maxX, minY: minY, maxY: maxY };
+        }
+
+        // Centripetal-free Catmull-Rom through the points, as an SVG path of cubic segments.
+        // p5's curveVertex draws the same curve, so the page and the exported files agree.
+        function runToPath(points, tx, digits) {
+            const f = (value) => Number(value.toFixed(digits === undefined ? 2 : digits));
+            const P = points.map(tx);
+            let d = 'M' + f(P[0][0]) + ' ' + f(P[0][1]);
+            for (let k = 0; k < P.length - 1; k++) {
+                const p0 = P[Math.max(0, k - 1)], p1 = P[k], p2 = P[k + 1], p3 = P[Math.min(P.length - 1, k + 2)];
+                d += 'C' + f(p1[0] + (p2[0] - p0[0]) / 6) + ' ' + f(p1[1] + (p2[1] - p0[1]) / 6) + ' '
+                    + f(p2[0] - (p3[0] - p1[0]) / 6) + ' ' + f(p2[1] - (p3[1] - p1[1]) / 6) + ' ' + f(p2[0]) + ' ' + f(p2[1]);
+            }
+            return d;
+        }
+        // </motif-core>
+
+        // ═══════════════════════════════════════════════════════════════════════
+        // P5.JS SKETCH: release the assembly and draw every frame of its settling
+        // ═══════════════════════════════════════════════════════════════════════
+
+        let assembly = null;
+        let pageFit = null;
+
+        function setup() {
+            let canvas = createCanvas(1200, 1200);
+            canvas.parent('canvas-container');
+
+            initializeSystem();
+
+            // Remove loading message
+            document.querySelector('.loading').style.display = 'none';
+        }
+
+        function initializeSystem() {
+            // Seed the randomness for reproducibility. The geometry itself draws from the
+            // generator inside createAssembly so that Node reproduces it exactly.
+            randomSeed(params.seed);
+            noiseSeed(params.seed);
+
+            assembly = createAssembly({
+                seed: params.seed,
+                rings: params.rings,
+                span: params.span,
+                disturbance: params.disturbance,
+                grain: params.grain,
+                tension: params.tension,
+                absence: params.absence,
+                samples: 220
+            });
+            pageFit = fitToPage(assembly, width, height, 150);
+            loop();
+        }
+
+        function fitToPage(state, w, h, margin) {
+            const box = fanBounds(state);
+            const scale = Math.min((w - margin * 2) / (box.maxX - box.minX), (h - margin * 2) / (box.maxY - box.minY));
+            return {
+                scale: scale,
+                ox: w / 2 - ((box.minX + box.maxX) / 2) * scale,
+                oy: h / 2 - ((box.minY + box.maxY) / 2) * scale
+            };
+        }
+
+        function draw() {
+            for (let k = 0; k < STEPS_PER_FRAME; k++) stepAssembly(assembly);
+            renderSheet();
+            if (assembly.settled) noLoop();
+        }
+
+        function renderSheet() {
+            background(params.paper);
+            drawNeatline();
+
+            const inks = [params.inkGround, params.inkPlanted, params.inkRevised];
+            const tx = (pt) => [pageFit.ox + pt[0] * pageFit.scale, pageFit.oy + pt[1] * pageFit.scale];
+            const pitch = assembly.spacing * pageFit.scale;
+
+            // Absent stretches first: hachures, lighter than the lines they stand in for.
+            strokeCap(SQUARE);
+            for (const ring of assembly.rings) {
+                const ink = color(inks[inkOf(assembly, ring.index)]);
+                ink.setAlpha(150);
+                stroke(ink);
+                strokeWeight(Math.max(0.9, pitch * 0.055));
+                for (const h of ringHachures(assembly, ring)) {
+                    const a = tx([h[0], h[1]]), b = tx([h[2], h[3]]);
+                    line(a[0], a[1], b[0], b[1]);
+                }
+            }
+
+            // The benches. Every fifth is an index line and prints heavier.
+            noFill();
+            strokeCap(ROUND);
+            strokeJoin(ROUND);
+            for (const ring of assembly.rings) {
+                stroke(inks[inkOf(assembly, ring.index)]);
+                strokeWeight(isIndexLine(ring.index) ? Math.max(2.2, pitch * 0.13) : Math.max(1.05, pitch * 0.062));
+                for (const run of ringRuns(assembly, ring)) {
+                    beginShape();
+                    const first = tx(run[0]);
+                    curveVertex(first[0], first[1]);
+                    for (const pt of run) {
+                        const q = tx(pt);
+                        curveVertex(q[0], q[1]);
+                    }
+                    const last = tx(run[run.length - 1]);
+                    curveVertex(last[0], last[1]);
+                    endShape();
+                }
+            }
+
+            // Seats, at equal arc length, never on an absent stretch.
+            noStroke();
+            for (const ring of assembly.rings) {
+                fill(inks[inkOf(assembly, ring.index)]);
+                const radius = Math.max(2.2, pitch * 0.17);
+                for (const seat of ringSeats(assembly, ring, params.seats)) {
+                    const q = tx(seat);
+                    circle(q[0], q[1], radius * 2);
+                }
+            }
+        }
+
+        // A survey sheet's neatline: two rules and ticks, with no numbers to claim.
+        function drawNeatline() {
+            const outer = 54, inner = 70;
+            noFill();
+            stroke(FRAME_INK);
+            strokeCap(SQUARE);
+            strokeWeight(1);
+            rect(outer, outer, width - outer * 2, height - outer * 2);
+            strokeWeight(2.4);
+            rect(inner, inner, width - inner * 2, height - inner * 2);
+            strokeWeight(1);
+            const divisions = 24;
+            for (let k = 1; k < divisions; k++) {
+                const t = inner + ((width - inner * 2) * k) / divisions;
+                const len = k % 6 === 0 ? inner - outer : (inner - outer) * 0.5;
+                line(t, inner, t, inner - len);
+                line(t, height - inner, t, height - inner + len);
+                line(inner, t, inner - len, t);
+                line(width - inner, t, width - inner + len, t);
+            }
+        }
+
+        // ═══════════════════════════════════════════════════════════════════════
+        // UI CONTROL HANDLERS
+        // ═══════════════════════════════════════════════════════════════════════
+
+        function formatParam(paramName, value) {
+            if (paramName === 'rings') return String(Math.round(value));
+            if (paramName === 'span') return Math.round(value) + '°';
+            if (paramName === 'absence') return Math.round(value * 100) + '%';
+            return Number(value).toFixed(2);
+        }
+
+        function updateParam(paramName, value) {
+            params[paramName] = parseFloat(value);
+            document.getElementById(paramName + '-value').textContent = formatParam(paramName, params[paramName]);
+            // Seats are placed on the settled benches, so they need no new settling.
+            if (paramName === 'seats' && assembly && assembly.settled) redraw();
+            else initializeSystem();
+        }
+
+        function updateColor(colorId, value) {
+            params[colorId] = value;
+            document.getElementById(colorId + '-value').textContent = value;
+            redraw();
+        }
+
+        function regenerate() {
+            initializeSystem();
+        }
+
+        function downloadPNG() {
+            saveCanvas('isoline-assembly-seed-' + params.seed, 'png');
+        }
+
+        // ═══════════════════════════════════════════════════════════════════════
+        // SEED CONTROL FUNCTIONS - ALWAYS KEEP THESE
+        // ═══════════════════════════════════════════════════════════════════════
+
+        function updateSeedDisplay() {
+            document.getElementById('seed-input').value = params.seed;
+        }
+
+        function updateSeed() {
+            let input = document.getElementById('seed-input');
+            let newSeed = parseInt(input.value);
+            if (newSeed && newSeed > 0) {
+                params.seed = newSeed;
+                initializeSystem();
+            } else {
+                // Reset to current seed if invalid
+                updateSeedDisplay();
+            }
+        }
+
+        function previousSeed() {
+            params.seed = Math.max(1, params.seed - 1);
+            updateSeedDisplay();
+            initializeSystem();
+        }
+
+        function nextSeed() {
+            params.seed = params.seed + 1;
+            updateSeedDisplay();
+            initializeSystem();
+        }
+
+        function randomSeedAndUpdate() {
+            params.seed = Math.floor(Math.random() * 999999) + 1;
+            updateSeedDisplay();
+            initializeSystem();
+        }
+
+        function resetParameters() {
+            params = {...defaultParams};
+
+            // Update UI elements
+            for (const name of NUMERIC_PARAMS) {
+                document.getElementById(name).value = params[name];
+                document.getElementById(name + '-value').textContent = formatParam(name, params[name]);
+            }
+
+            // Reset colors
+            for (const name of COLOR_PARAMS) {
+                document.getElementById(name).value = params[name];
+                document.getElementById(name + '-value').textContent = params[name];
+            }
+
+            updateSeedDisplay();
+            initializeSystem();
+        }
+
+        // Initialize UI on load
+        window.addEventListener('load', function() {
+            updateSeedDisplay();
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,44 @@
+# Weekly version updates. Minor and patch updates come grouped in a few small pull requests;
+# each major update comes on its own. CI runs on every one of them.
+#
+# The actions in .github/workflows are pinned to full commit SHAs with the version in a comment;
+# Dependabot updates the SHA and the comment together.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ['*']
+        update-types: [minor, patch]
+
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      # The test runner, its browser and the accessibility checker move together.
+      playwright:
+        patterns: ['@playwright/test', 'playwright', 'playwright-core', '@axe-core/playwright']
+      site:
+        dependency-type: production
+        update-types: [minor, patch]
+      tooling:
+        dependency-type: development
+        update-types: [minor, patch]
+
+  # pipeline/requirements-lock.txt and requirements-dev-lock.txt pin every package with its hashes;
+  # requirements.txt and requirements-dev.txt hold the ranges used for local development.
+  - package-ecosystem: pip
+    directory: /pipeline
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 3
+    groups:
+      # pydantic pins pydantic-core exactly, so the pipeline's packages are updated in one pull request.
+      pipeline:
+        patterns: ['*']
+        update-types: [minor, patch]

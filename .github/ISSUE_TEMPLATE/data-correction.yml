@@ -1,0 +1,38 @@
+name: Data correction
+description: Report a record that is wrong, out of date or missing.
+title: "Correction: "
+# GitHub adds this label only if it exists in the repository; otherwise the issue is opened without it.
+# Create it once (Issues > Labels > New label: data-correction).
+labels: [data-correction]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you. DemocracyHQ takes its records from official sources. It also adds its own labels,
+        issue tags and links between records, made by published rules or chosen and described by
+        maintainers; a problem with any of these is worth reporting too. A link to the primary source
+        that shows the correct information is the most useful thing you can add.
+        Please do not include personal information about any individual voter. To report a security
+        problem, use the repository's private vulnerability reporting instead (see SECURITY.md).
+  - type: input
+    id: record
+    attributes:
+      label: Record
+      description: The docket number, bill number or place, and the page address if you have it.
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: What is wrong or missing?
+    validations:
+      required: true
+  - type: input
+    id: source
+    attributes:
+      label: Primary source
+      description: >-
+        A link to the court, legislature or Census page that shows the correct information.
+        For a problem with a DemocracyHQ label, tag or link, a link to the document it relies on.
+    validations:
+      required: true

@@ -1,0 +1,117 @@
+/*
+ * Design tokens. See design/DESIGN_PLAN.md for the reasoning.
+ *
+ * The three record inks borrow from the print separations of a topographic
+ * quadrangle: brown for the land itself (geography), green for what grows on it
+ * by statute (legislation), purple for revisions overprinted later (litigation).
+ * They encode record type only and are never used as decoration. Map fills
+ * avoid red and blue so nothing reads as a party colour.
+ */
+:root {
+  /* Surfaces */
+  --sheet: #f1f4ef;        /* application background, survey paper */
+  --surface: #ffffff;      /* panels and controls */
+  --sunk: #e7ebe4;         /* inset areas, table headers */
+  --land: #fbfcf9;         /* map land */
+  --water: #d6e1e4;        /* map water */
+
+  /* Ink */
+  --ink: #17233b;          /* text, state lines */
+  --ink-2: #414d66;        /* secondary text */
+  --ink-3: #5f6a80;        /* tertiary text, still 4.5:1 on white and on sheet */
+  --rule: #cdd4ca;         /* hairlines */
+  --rule-strong: #9aa497;  /* control borders, 3:1 on white */
+
+  /* Record inks */
+  --geo: #85551b;          /* geography: contour brown */
+  --geo-tint: #f3e9d9;
+  --law: #0c6557;          /* legislation: statute green */
+  --law-tint: #dcefe9;
+  --case: #6a2c6e;         /* litigation: revision purple */
+  --case-tint: #f0e2f0;
+  --data: #46546f;         /* sources and provenance: slate */
+  --data-tint: #e6eaf1;
+
+  /* Signals */
+  --stale: #8a4b00;
+  --stale-tint: #fdf1d7;
+  --error: #9b231b;
+  --error-tint: #fbe6e3;
+  --focus: #1f4fd6;
+
+  /* Redline */
+  --ins-bg: #d9f0e1;
+  --ins-ink: #0a4a37;
+  --del-bg: #f8dedb;
+  --del-ink: #7c1d17;
+
+  /* Map thematic ramp (single hue, light to dark; brown plate) */
+  --ramp-1: #f4ead9;
+  --ramp-2: #e4cda6;
+  --ramp-3: #cfa86f;
+  --ramp-4: #b0813f;
+  --ramp-5: #85551b;
+  --selected: #17233b;
+  --hover: #17233b;
+
+  /* Type */
+  --font-ui: 'Archivo Variable', 'Archivo', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-text: 'Newsreader Variable', 'Newsreader', 'Iowan Old Style', Georgia, serif;
+  --text-xs: 0.75rem;      /* 12 */
+  --text-sm: 0.8125rem;    /* 13 */
+  --text-md: 0.875rem;     /* 14 */
+  --text-base: 1rem;       /* 16 */
+  --text-lg: 1.125rem;     /* 18 */
+  --text-xl: 1.3125rem;    /* 21 */
+  --text-2xl: 1.625rem;    /* 26 */
+  --text-3xl: 2.125rem;    /* 34 */
+  --leading-tight: 1.2;
+  --leading-ui: 1.4;
+  --leading-text: 1.58;
+  --measure: 66ch;
+
+  /* Space (4px base) */
+  --s-1: 0.25rem;
+  --s-2: 0.5rem;
+  --s-3: 0.75rem;
+  --s-4: 1rem;
+  --s-5: 1.5rem;
+  --s-6: 2rem;
+  --s-7: 3rem;
+
+  /* Shape */
+  --radius-1: 2px;         /* tags, inputs */
+  --radius-2: 4px;         /* floating map controls */
+  --radius-sheet: 12px;    /* mobile bottom sheet top corners */
+  --border: 1px solid var(--rule);
+  --border-control: 1px solid var(--rule-strong);
+
+  /* Elevation: only things that float above the map get a shadow */
+  --elev-1: 0 1px 2px rgb(23 35 59 / 0.14), 0 0 0 1px rgb(23 35 59 / 0.06);
+  --elev-2: 0 6px 24px rgb(23 35 59 / 0.18), 0 0 0 1px rgb(23 35 59 / 0.08);
+
+  /* Motion */
+  --dur-1: 120ms;
+  --dur-2: 240ms;
+  --ease: cubic-bezier(0.2, 0, 0, 1);
+
+  /* Layout */
+  --nav-h: 3.25rem;
+  --panel-w: 27.5rem;
+  --tabbar-h: 3.5rem;
+  /* Breakpoints (documented; media queries cannot read custom properties):
+     compact < 900px (bottom sheet + tab bar), regular >= 900px, wide >= 1280px, very wide >= 1600px. */
+}
+
+@media (min-width: 1280px) {
+  :root { --panel-w: 30rem; }
+}
+
+/* Very wide screens: the reading panel grows toward the 66-character measure instead of staying a 480px column. */
+@media (min-width: 1600px) {
+  :root { --panel-w: clamp(30rem, 34vw, 42rem); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root { --dur-1: 0ms; --dur-2: 0ms; }
+}

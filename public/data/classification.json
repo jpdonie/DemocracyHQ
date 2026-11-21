@@ -1,0 +1,423 @@
+{
+ "curatedRuleId": "tag-curated-1",
+ "docketEntryRules": [
+  {
+   "eventType": "not_accepted",
+   "pattern": "\\bnot accepted for filing\\b",
+   "ruleId": "sc-not-accepted",
+   "rulesOn": null,
+   "significance": "routine"
+  },
+  {
+   "eventType": "conference_distribution",
+   "pattern": "\\bDISTRIBUTED for Conference\\b|^Rescheduled|^CIRCULATED",
+   "ruleId": "sc-distributed",
+   "rulesOn": null,
+   "significance": "routine"
+  },
+  {
+   "eventType": "response_requested",
+   "pattern": "^Response\\b.*\\brequested\\b|^Response Requested",
+   "ruleId": "sc-response-requested",
+   "rulesOn": null,
+   "significance": "routine"
+  },
+  {
+   "eventType": "motion_ruling",
+   "pattern": "^(Joint m|M)otions?\\b.*\\b(GRANTED|DENIED|granted|denied|dismissed)\\b.*\\(Detached [Oo]pinion\\)|^(Joint m|M)otions?\\b.*\\b(recall|stay) the (judgment|mandate)\\b.*\\b(GRANTED|DENIED|granted|denied)\\b",
+   "ruleId": "sc-motion-ruling-noted",
+   "rulesOn": null,
+   "significance": "major"
+  },
+  {
+   "eventType": "motion_ruling",
+   "pattern": "^(Joint m|M)otions?\\b.*\\b(GRANTED|DENIED|granted|denied|dismissed|is extended|are extended)\\b",
+   "ruleId": "sc-motion-ruling",
+   "rulesOn": null,
+   "significance": "routine"
+  },
+  {
+   "eventType": "motion",
+   "pattern": "^(Joint m|M)otions?\\b",
+   "ruleId": "sc-motion",
+   "rulesOn": null,
+   "significance": "routine"
+  },
+  {
+   "eventType": "procedural_application",
+   "pattern": "^Application\\b.{0,80}?\\([0-9A-Z]+\\).{0,220}?(extend(ing)? the time|word limit|in excess of|leave to file|to file a consolidated)",
+   "ruleId": "sc-procedural-app",
+   "rulesOn": null,
+   "significance": "routine"
+  },
+  {
+   "eventType": "decision",
+   "pattern": "\\bdelivered the opinion\\b|\\bOpinion per curiam\\b",
+   "ruleId": "sc-opinion",
+   "rulesOn": "case",
+   "significance": "major"
+  },
+  {
+   "eventType": "summary_disposition",
+   "pattern": "^Petition GRANTED\\.\\s+Judgment (VACATED|REVERSED)|\\bwe (reverse|affirm|vacate) the\\b|\\bsummarily (affirmed|reversed)\\b|^(Judgments?|Adjudged to be)\\b.*\\b(AFFIRMED|REVERSED|VACATED|DISMISSED|affirmed|reversed|vacated)\\b",
+   "ruleId": "sc-summary",
+   "rulesOn": "case",
+   "significance": "major"
+  },
+  {
+   "eventType": "application_ruling",
+   "pattern": "^(\\[See Detached Opinion[^\\]]*\\]\\s*)?(The )?[Aa]pplication\\b.*\\b(granted|denied|dismissed|GRANTED|DENIED)\\b|\\b[Tt]he application\\b[^.]*\\breferred to the Court is (granted|denied|dismissed)\\b",
+   "ruleId": "sc-app-ruling",
+   "rulesOn": "application",
+   "significance": "major"
+  },
+  {
+   "eventType": "interim_order",
+   "pattern": "^Order (entered|issued) by|administratively stayed|^The stays? heretofore entered",
+   "ruleId": "sc-interim-order",
+   "rulesOn": null,
+   "significance": "major"
+  },
+  {
+   "eventType": "question_order",
+   "pattern": "\\b[Qq]uestions? presented\\b[^.:]*\\b(is|are)\\b( amended)?( as follows)?:|\\b(is|are) (directed|invited) to file (a )?supplemental\\b",
+   "ruleId": "sc-question-order",
+   "rulesOn": null,
+   "significance": "major"
+  },
+  {
+   "eventType": "jurisdiction_postponed",
+   "pattern": "^Further consideration of the question of jurisdiction is (POSTPONED|postponed)",
+   "ruleId": "sc-jurisdiction-postponed",
+   "rulesOn": "review",
+   "significance": "major"
+  },
+  {
+   "eventType": "review_granted",
+   "pattern": "^Petition GRANTED|(?i:\\bprobable jurisdiction (is )?noted\\b)",
+   "ruleId": "sc-review-granted",
+   "rulesOn": "review",
+   "significance": "major"
+  },
+  {
+   "eventType": "rehearing_ruling",
+   "pattern": "^(Petition for )?[Rr]ehearing\\b.*\\b(DENIED|GRANTED|denied|granted)\\b",
+   "ruleId": "sc-rehearing",
+   "rulesOn": null,
+   "significance": "major"
+  },
+  {
+   "eventType": "review_denied",
+   "pattern": "^Petition DENIED",
+   "ruleId": "sc-review-denied",
+   "rulesOn": "case",
+   "significance": "major"
+  },
+  {
+   "eventType": "dismissed",
+   "pattern": "^(Petition|Appeal|The appeal|Case|Writ of certiorari)\\b.*\\b(DISMISSED|dismissed)\\b",
+   "ruleId": "sc-dismissed",
+   "rulesOn": "case",
+   "significance": "major"
+  },
+  {
+   "eventType": "argued",
+   "pattern": "^(Argued|Reargued)\\.",
+   "ruleId": "sc-argued",
+   "rulesOn": null,
+   "significance": "major"
+  },
+  {
+   "eventType": "judgment_issued",
+   "pattern": "^(Judgment|JUDGMENT)( and mandate)? (Issued|issued|ISSUED)|^Mandate issued",
+   "ruleId": "sc-judgment-issued",
+   "rulesOn": null,
+   "significance": "major"
+  },
+  {
+   "eventType": "restored_for_reargument",
+   "pattern": "restored to the calendar for reargument",
+   "ruleId": "sc-reargument",
+   "rulesOn": null,
+   "significance": "major"
+  },
+  {
+   "eventType": "argument_scheduled",
+   "pattern": "^SET FOR (RE)?ARGUMENT|^ARGUMENT SET FOR",
+   "ruleId": "sc-set-argument",
+   "rulesOn": null,
+   "significance": "routine"
+  },
+  {
+   "eventType": "initiating_filing",
+   "pattern": "^Petition for a writ of certiorari( before judgment)? filed|^Statement as to jurisdiction filed|^Application\\b.{0,80}?\\([0-9A-Z]+\\).*(submitted to|filed)",
+   "ruleId": "sc-initiating",
+   "rulesOn": null,
+   "significance": "major"
+  },
+  {
+   "eventType": "application_referred",
+   "pattern": "^Application \\([0-9A-Z]+\\) referred to the Court",
+   "ruleId": "sc-app-referred",
+   "rulesOn": null,
+   "significance": "routine"
+  },
+  {
+   "eventType": "time_extension",
+   "pattern": "extend(ing)? the time|extension of time|^Order extending time",
+   "ruleId": "sc-time-ext",
+   "rulesOn": null,
+   "significance": "routine"
+  },
+  {
+   "eventType": "amicus_brief",
+   "pattern": "^Briefs? amic(us|i) curiae|^Amic(us|i) briefs?\\b",
+   "ruleId": "sc-amicus",
+   "rulesOn": null,
+   "significance": "routine"
+  },
+  {
+   "eventType": "filing",
+   "pattern": "^(Brief|Reply|Response|Opposition|Supplemental|Appendix|Joint appendix|Joint Appendix|Sur-reply|Notice|Notification|Consolidated brief|Petition for (a )?rehearing)\\b",
+   "ruleId": "sc-filing",
+   "rulesOn": null,
+   "significance": "routine"
+  },
+  {
+   "eventType": "scheduling_notice",
+   "pattern": "^Because the Court has consolidated|briefs on the merits are to be filed|^Any motion pertaining to the oral argument|^Th(is|ese) cases? (is|are) consolidated",
+   "ruleId": "sc-scheduling",
+   "rulesOn": null,
+   "significance": "routine"
+  },
+  {
+   "eventType": "record",
+   "pattern": "^Record |^The record |^Letter |^Waiver\\b|^Blanket [Cc]onsent|^Joint Blanket Consent|^Consent to the filing|electronically received",
+   "ruleId": "sc-record",
+   "rulesOn": null,
+   "significance": "routine"
+  }
+ ],
+ "issueRules": [
+  {
+   "label": "Voting Rights Act (federal)",
+   "pattern": "(?<!California )(?<!State )Voting Rights Act|52 U\\.\\s?S\\.\\s?C\\.\\s?§\\s?1030[1-9]",
+   "ruleId": "tag-vra-3",
+   "tag": "voting-rights-act"
+  },
+  {
+   "label": "State voting rights acts",
+   "pattern": "California Voting Rights Act|\\bstate voting rights act",
+   "ruleId": "tag-svra-1",
+   "tag": "state-voting-rights-act"
+  },
+  {
+   "label": "Redistricting",
+   "pattern": "redistrict\\w*|districting (plan|map)|congressional (map|district)|gerrymander\\w*|legislative districts?|reapportion\\w*",
+   "ruleId": "tag-redist-1",
+   "tag": "redistricting"
+  },
+  {
+   "label": "Racial gerrymandering claims",
+   "pattern": "racial(ly)? gerrymander\\w*|race predominated",
+   "ruleId": "tag-racial-2",
+   "tag": "racial-gerrymandering"
+  },
+  {
+   "label": "Partisan gerrymandering claims",
+   "pattern": "partisan(-| )gerrymander\\w*",
+   "ruleId": "tag-partisan-1",
+   "tag": "partisan-gerrymandering"
+  },
+  {
+   "label": "Mail and absentee voting",
+   "pattern": "vot(e|ing)(-| )by(-| )mail|mail(-in)? ballots?|absentee ballots?|ballots? (to be )?received .{0,40}after|early ballot|all-mailed ballot",
+   "ruleId": "tag-mail-2",
+   "tag": "mail-voting"
+  },
+  {
+   "label": "Voter registration",
+   "pattern": "voter registration|registration record|register(ed)? to vote|proof of citizenship|National Voter Registration Act|voter rolls?",
+   "ruleId": "tag-reg-1",
+   "tag": "registration"
+  },
+  {
+   "label": "Voter identification",
+   "pattern": "voter (identification|ID)\\b(?! envelopes?)|photo identification",
+   "ruleId": "tag-id-2",
+   "tag": "voter-id"
+  },
+  {
+   "label": "Ballot access and candidate qualification",
+   "pattern": "primary ballot|ballot access|excluded? from the .{0,40}ballot|nomination (papers|documents)|qualifications for office|ballot designation|elective office: |(eligib\\w+ (for|to hold)|disqualif\\w+ from( holding)?) .{0,30}(elective|public) office",
+   "ruleId": "tag-ballot-2",
+   "tag": "ballot-access"
+  },
+  {
+   "label": "Election administration",
+   "pattern": "out-of-\\s?precinct|polling places?|vote centers?|ballot-collection|provisional ballots?|precinct (maps?|boards?)|official canvass|poll workers?|signature (verification|comparison)|language (assistance|accessibility)|ballots?:? (processing|counting|curing|drop ?box(es)?)|voter information guides?|election materials|elections cybersecurity|conduct of (the |an )?elections?",
+   "ruleId": "tag-admin-2",
+   "tag": "election-administration"
+  },
+  {
+   "label": "Canvass, results and certification",
+   "pattern": "certif(y|ication|ied) .{0,30}(election|results|vote)|official canvass|results of (the|an|any) election|statement of (the )?vote|tie votes?",
+   "ruleId": "tag-cert-2",
+   "tag": "certification"
+  },
+  {
+   "label": "Voting technology",
+   "pattern": "voting (system|machine|technology)s?|ballot marking device|remote accessible vote by mail system",
+   "ruleId": "tag-tech-1",
+   "tag": "voting-technology"
+  },
+  {
+   "label": "Elections Clause and federal election timing",
+   "pattern": "Elections? (and Electors )?Clauses?|Manner of holding Elections|election-day statutes|federal Election Day",
+   "ruleId": "tag-clause-1",
+   "tag": "elections-clause"
+  },
+  {
+   "exclusionPattern": "\\bballot measure committees?\\b|\\bcommittees? for or against (a|an|any|the) (initiative or referendum|state or local ballot|ballot) measures?\\b|\\b(support(s|ed|ing)?|oppos(e|es|ed|ing)|support of|opposition to)\\b[^.;:]{0,60}?\\b(candidates?|offices?)\\b[^.;:]{0,40}?\\bballot measures?\\b|\\b(support(s|ed|ing)?|oppos(e|es|ed|ing)|support of|opposition to)\\b[^.;:]{0,60}?\\bballot measures?\\b[^.;:]{0,60}?\\b(candidates?|offices?)\\b|\\ban initiative measure (that authorizes the Legislature to amend|approved by the (electors|voters))\\b",
+   "label": "Initiatives, referenda and recalls",
+   "pattern": "\\brecall (elections?|petitions?)|\\brecalls? of .{0,40}?offic(ers?|ials?)\\b|\\b(statewide|local|voter|ballot|citizens?) initiatives?\\b|(?<!for or against any )\\binitiatives? (and|or) referend(um|a)\\b|(?<!1974, an )\\binitiative (measures?|petitions?|statutes?|constitutional amendments?)\\b|(^|: )initiatives?\\b|\\breferend(um|a)\\b|ballot measures?|local (tax |bond )?measures?|title and summary",
+   "ruleId": "tag-direct-3",
+   "tag": "direct-democracy"
+  },
+  {
+   "label": "Campaign finance and political advertising",
+   "pattern": "Political Reform Act|campaign (finance|financing|contributions?|mass mailing)|contributions? in|deceptive (media|audio)|advertisements?",
+   "ruleId": "tag-cf-1",
+   "tag": "campaign-finance"
+  }
+ ],
+ "legislativeActionRules": [
+  {
+   "eventType": "chaptered",
+   "pattern": "^Chaptered by Secretary of State",
+   "ruleId": "ca-chaptered",
+   "significance": "major"
+  },
+  {
+   "eventType": "approved_by_governor",
+   "pattern": "^Approved by the Governor",
+   "ruleId": "ca-approved",
+   "significance": "major"
+  },
+  {
+   "eventType": "vetoed",
+   "pattern": "^Vetoed by (the )?Governor",
+   "ruleId": "ca-vetoed",
+   "significance": "major"
+  },
+  {
+   "eventType": "veto_stands",
+   "pattern": "^Veto sustained|^Consideration of Governor's veto stricken from file",
+   "ruleId": "ca-veto-stands",
+   "significance": "major"
+  },
+  {
+   "eventType": "enrolled",
+   "pattern": "^Enrolled and (presented to the Governor|filed with the Secretary of State)",
+   "ruleId": "ca-enrolled",
+   "significance": "major"
+  },
+  {
+   "eventType": "action_rescinded",
+   "pattern": "^Action rescinded",
+   "ruleId": "ca-rescinded",
+   "significance": "major"
+  },
+  {
+   "eventType": "vote_failed",
+   "pattern": "refused to concur|Refused passage|[Ff]ailed passage",
+   "ruleId": "ca-vote-failed",
+   "significance": "major"
+  },
+  {
+   "eventType": "concurred",
+   "pattern": "(Senate|Assembly) amendments concurred in",
+   "ruleId": "ca-concurred",
+   "significance": "major"
+  },
+  {
+   "eventType": "passed_house",
+   "pattern": "Read third time(, amended)?\\. .*Passed\\.|^Read third time\\. Passed|Urgency clause adopted\\. Passed|^Read third time\\. Adopted|^Read\\. Adopted|Adopted\\. .*Ordered to the (Senate|Assembly)|^Adopted and to (Senate|Assembly)",
+   "ruleId": "ca-passed",
+   "significance": "major"
+  },
+  {
+   "eventType": "introduced",
+   "pattern": "^Introduced\\.|^Read first time\\. To print|^Introduced\\. (Read first time|To Com)",
+   "ruleId": "ca-introduced",
+   "significance": "major"
+  },
+  {
+   "eventType": "died",
+   "pattern": "^Died |^Died on|^From committee without further action|^From committee: Without further action|Died on (the )?(inactive |third reading )?file|^Returned to Secretary of Senate pursuant to Joint Rule|^From (Assembly|Senate) without further action|Art\\. IV, Sec\\. 10\\(c\\)",
+   "ruleId": "ca-died",
+   "significance": "major"
+  },
+  {
+   "eventType": "amended",
+   "pattern": "amended|Amended|author's amendments",
+   "ruleId": "ca-amended",
+   "significance": "routine"
+  },
+  {
+   "eventType": "committee_action",
+   "pattern": "^From committee|^Referred to|^Re-referred|^In committee|hearing|Withdrawn from committee",
+   "ruleId": "ca-committee",
+   "significance": "routine"
+  },
+  {
+   "eventType": "legislative_action",
+   "pattern": "(any action no rule above matches)",
+   "ruleId": "ca-other",
+   "significance": "routine"
+  }
+ ],
+ "note": "Tags are produced by case-insensitive keyword rules applied to the stated field. In a caption, the questions presented or a bill's subject line and title, one match assigns the tag. In a bill's digest one match assigns the tag too, but the sentences about state-mandated local costs are not read, because they name elections officials in almost every election bill. For the Voting Rights Act (federal) rule only the digest's sentences that contain the word 'would', which say what the bill would do, are read, because a digest also names the federal act when it describes existing law. For the Initiatives, referenda and recalls rule a match does not count inside a campaign-finance phrase, where a committee or a payment supports or opposes a candidate or a ballot measure, or inside the words with which a digest says that an act the bill amends was itself adopted by initiative; the phrases are those of this pattern: \\bballot measure committees?\\b|\\bcommittees? for or against (a|an|any|the) (initiative or referendum|state or local ballot|ballot) measures?\\b|\\b(support(s|ed|ing)?|oppos(e|es|ed|ing)|support of|opposition to)\\b[^.;:]{0,60}?\\b(candidates?|offices?)\\b[^.;:]{0,40}?\\bballot measures?\\b|\\b(support(s|ed|ing)?|oppos(e|es|ed|ing)|support of|opposition to)\\b[^.;:]{0,60}?\\bballot measures?\\b[^.;:]{0,60}?\\b(candidates?|offices?)\\b|\\ban initiative measure (that authorizes the Legislature to amend|approved by the (electors|voters))\\b . In text taken from a PDF (questions presented, filings and opinions), a word that the document breaks across two lines with a hyphen is joined again before the rules are applied; the hyphen is kept where the document also writes the word with one, or the first part is one of these words, which begin compounds: 'case', 'half', 'party', 'race', 'self', 'three', 'two', 'vote', 'voter', 'well'. Where a docket has no questions presented, the full text of its initiating filing or opinion is read instead, and a rule must be prominent there: at least 5 matches, and at least 15% as many as the rule that matches most often in that document. A tag with rule id tag-curated-1 was added by a maintainer where the rules miss the central subject of a case; it is shown with the passage it rests on, which is checked against the cited document on every run. Tags indicate subject matter only. They are not legal conclusions and can be wrong or incomplete.",
+ "otherRules": [
+  {
+   "appliesTo": "Which court cases are included, and which places they are linked to",
+   "description": "A maintainer lists the docket and the places it concerns in pipeline/seeds/cases.json, each with a short description and a passage quoted from a named document of that docket (the Court's Questions Presented document, the filing that opened the docket, or an opinion or order). On every run that refreshes the docket the pipeline fetches the document and checks that the passage is in it, ignoring white space, hyphens and dashes, letter case and the style of quotation marks, and reading Unicode compatibility characters (such as ligatures and superscript digits) as their plain forms, and that the passage names the place. The check shows that the document says this. It does not check the maintainer's description, and a passage from a party's filing is that party's account. A link whose passage is not found is not published; it is listed in the review queue.",
+   "ruleId": "cases-seed-2"
+  },
+  {
+   "appliesTo": "Dockets shown as coming from the same case below",
+   "description": "Two dockets in the dataset are shown as related when the Court's docket pages give both the same lower court and a lower-court case number for the same case. A district court case number is compared without its letter case and leading zeros, and its year, case type and sequence number must agree. Some districts number cases separately in each division, so two different prefixes of the same kind (two division numbers, or two sets of office letters) are read as two cases. Where one number has a division number and the other office letters, or only one has a prefix, the judges' initials after the number must be given on both and agree (so 3:21-cv-00259-DCG-JES-JVB and EP-21-CV-00259-DCG-JES-JVB agree). Other numbers must agree exactly. The Court does not state the relation; it is derived by this rule.",
+   "ruleId": "same-lower-court-2"
+  },
+  {
+   "appliesTo": "Links between a bill and another bill, a case or a place",
+   "description": "A maintainer lists the link in pipeline/seeds/relationships.json together with a passage quoted from the official text of the named bill version or from the named court document. On every run that has that text the pipeline checks that the passage is in it, ignoring white space, hyphens and dashes, letter case and the style of quotation marks, and reading Unicode compatibility characters (such as ligatures and superscript digits) as their plain forms; a passage that ties a bill or case to a place must also name the place. A link whose passage is not found, or does not name the place, is not published; it is listed in the review queue. The links are a hand-picked subset: the absence of a link does not mean two records are unrelated.",
+   "ruleId": "rel-seed-2"
+  },
+  {
+   "appliesTo": "Subject tags added by a maintainer",
+   "description": "Where the keyword rules miss the central subject of a case, a maintainer may add a tag in pipeline/seeds/cases.json with a passage quoted from a document of that docket. The passage is checked in the same way as a link's passage, and the tag is shown with it. A tag whose passage is not found is not published.",
+   "ruleId": "tag-curated-1"
+  },
+  {
+   "appliesTo": "Which California measures are included",
+   "description": "A measure is included when its latest official subject line matches the published keyword pattern, after the phrases of the published exclusion pattern have been removed from it. The words 'initiative' and 'recall' count only in an electoral sense, so a programme named an Initiative or a product recall is not included. Both patterns and the number of measures they were applied to are published in legislation/index.json and shown under Coverage and selection.",
+   "ruleId": "ca-select-2"
+  },
+  {
+   "appliesTo": "Conditions quoted beside a California measure's effective date",
+   "description": "A sentence of the latest mirrored text is quoted as a condition when it says that the measure, or a named part of it, shall become operative or take effect only if, when, upon or after something happens. The pattern is \\b(This|That) (act|bill|chapter|section|article|part|division|title|subdivision|paragraph|subparagraph)\\b[^.;]{0,80}?\\bshall (become (operative|effective)|take effect|be operative) only (if|when|upon|after)\\b|\\bSections? (?:[^.;]|\\.(?=\\d)){0,60}? of this (act|bill),? shall (become (operative|effective)|take effect) only (if|when|upon|after)\\b . Whether a condition was met is not recorded. A condition worded differently is not found, so the absence of a quoted condition does not mean there is none.",
+   "ruleId": "ca-cond-1"
+  },
+  {
+   "appliesTo": "Repeal dates quoted beside a California measure's effective date",
+   "description": "A sentence of the latest mirrored text is quoted when it says that the measure, or a named part of it ('This section', 'This chapter'), shall remain in effect until, or only until, a date or an event and as of that date is repealed. The clause applies to the provision the sentence names, not necessarily to the whole measure, and only if the measure is enacted. Where the sentence gives a calendar date it is recorded; where it names an event, no date is recorded. A sentence repeated in several sections is quoted once. The pattern is (\\b(This|That) (act|bill|chapter|section|article|part|division|title|subdivision|paragraph|subparagraph)\\b|\\bSections? (?:[^.;]|\\.(?=\\d)){0,60}? of this (act|bill)\\b)[^.;]{0,80}?\\bshall remain in effect (only )?until (?P<until>(?:(?!\\. [A-Z(])[^;]){1,300}?),? and,? as of (that|such) date,? (is|are) repealed . A sunset worded differently (for example 'is repealed on' or 'becomes inoperative on') is not found, so the absence of a quoted clause does not mean there is none, and a later statute may have changed the date.",
+   "ruleId": "ca-sunset-1"
+  },
+  {
+   "appliesTo": "Timeline entries for a changed text version",
+   "description": "A text version is listed as changed when the paragraph-level comparison with the previous official version adds or removes at least one paragraph. The counts come from a standard longest-common-subsequence comparison of the extracted paragraphs.",
+   "ruleId": "diff-meta-1"
+  }
+ ]
+}

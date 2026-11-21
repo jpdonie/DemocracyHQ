@@ -1,0 +1,401 @@
+{
+ "_readme": "Curated seed list of U.S. Supreme Court dockets. Selection rule (cases-seed-2): dockets a maintainer identified as election-law matters. Every place link quotes a passage from a named document of the docket; the pipeline checks on every run that the passage is in that document (ignoring line breaks, hyphenation and letter case) and that it names the place, and publishes the link only if both hold. 'evidence' is 'qp' (the Court's Questions Presented document), 'initiating' (first document linked from the docket) or 'opinion' (the opinion linked from the latest entry that links one); 'evidenceUrl' names a document linked from the docket instead, and 'evidenceLabel' says in words what that document is. Use […] inside a quote for words left out. 'tags' adds a subject tag the keyword rules miss, with a passage checked the same way. Notes are the maintainer's description and are not checked by machine. Choosing a passage: prefer the Court's own text (a per curiam opinion, an order or the opinion of the Court) or, where it does not name the place, a sentence that describes the facts, such as what a law provides or what a court held. Never use as a link's evidence a sentence in which a Justice or a party characterises another Justice's or another party's position or argument (for example a concurrence describing what the dissent would do, or one side's account of the other side's case), and avoid argumentative wording where a descriptive sentence in the same document names the place. Apply party labels symmetrically: a passage for a partisan-gerrymandering case names the political party that drew or benefited from a map only if the passages of every such case do; at present none does. When a passage comes from a separate opinion, 'evidenceLabel' says so.",
+ "cases": [
+  {
+   "docket": "24-109",
+   "evidence": "qp",
+   "geographies": [
+    {
+     "key": "state:22",
+     "scope": "statewide",
+     "relationship": "concerns_congressional_plan",
+     "note": "Louisiana's congressional districting plan enacted as S.B. 8 (2024). The map shows the boundaries in the Census files, which may differ from the plan at issue.",
+     "quote": "Louisiana likely violated Section 2 of the Voting Rights Act (VRA) by failing to create a second majority-Black congressional district […] In this case, a majority of a three-judge court sitting in the Western District of Louisiana enjoined S.B. 8 as an unconstitutional racial gerrymander."
+    }
+   ]
+  },
+  {
+   "docket": "24-110",
+   "evidence": "qp",
+   "geographies": [
+    {
+     "key": "state:22",
+     "scope": "statewide",
+     "relationship": "concerns_congressional_plan",
+     "note": "Louisiana's congressional districting plan enacted as Senate Bill 8 (2024). The map shows the boundaries in the Census files, which may differ from the plan at issue.",
+     "quote": "Louisiana's Legislature enacted Senate Bill 8 (\"SB8\"), a new plan with two majority-Black districts."
+    },
+    {
+     "key": "cd119:2206",
+     "scope": "congressional_district",
+     "relationship": "concerns_district",
+     "note": "The first question presented asks whether the District Court erred in concluding that race predominated in the design of S.B. 8's Congressional District 6 (CD6), which is the district shown for the 119th Congress. Louisiana's districts for 2026 may differ.",
+     "quote": "Did the District Court err in concluding that race predominated in the design of CD6"
+    }
+   ]
+  },
+  {
+   "docket": "25A1197",
+   "evidence": "opinion",
+   "geographies": [
+    {
+     "key": "state:22",
+     "scope": "statewide",
+     "relationship": "concerns_congressional_plan",
+     "note": "Application to issue the judgment forthwith in Louisiana v. Callais (Nos. 24-109 and 24-110), which concerns Louisiana's congressional map. The map shows the boundaries in the Census files, which may differ from the plan at issue.",
+     "quote": "Appellant Louisiana does not oppose this application. And while the Robinson appellants oppose it, they have not expressed any intent to ask this Court to reconsider its judgment. Thus, the application to issue the judgment forthwith presented to JUSTICE ALITO and by him referred to the Court is granted.",
+     "evidenceLabel": "the Court's order granting the application, issued with a concurring and a dissenting opinion; the passage is from the Court's order"
+    }
+   ]
+  },
+  {
+   "docket": "21-1086",
+   "evidence": "qp",
+   "geographies": [
+    {
+     "key": "state:01",
+     "scope": "statewide",
+     "relationship": "concerns_congressional_plan",
+     "note": "Alabama's 2021 redistricting plan for its seven U.S. House seats. The map shows the boundaries in the Census files, which may differ from the plan at issue.",
+     "quote": "WHETHER THE STATE OF ALABAMA'S 2021 REDISTRICTING PLAN FOR ITS SEVEN SEATS IN THE UNITED STATES HOUSE OF REPRESENTATIVES VIOLATED SECTION 2 OF THE VOTING RIGHTS ACT",
+     "evidenceLabel": "the Court's Questions Presented document for this docket; the passage is the question as amended by the Court's order of March 21, 2022, not a party's framing"
+    }
+   ]
+  },
+  {
+   "docket": "21-1087",
+   "evidence": "qp",
+   "geographies": [
+    {
+     "key": "state:01",
+     "scope": "statewide",
+     "relationship": "concerns_congressional_plan",
+     "note": "Alabama's 2021 redistricting plan for its seven U.S. House seats. The map shows the boundaries in the Census files, which may differ from the plan at issue.",
+     "quote": "WHETHER THE STATE OF ALABAMA'S 2021 REDISTRICTING PLAN FOR ITS SEVEN SEATS IN THE UNITED STATES HOUSE OF REPRESENTATIVES VIOLATED SECTION 2 OF THE VOTING RIGHTS ACT",
+     "evidenceLabel": "the Court's Questions Presented document for this docket; the passage is the question as amended by the Court's order of March 21, 2022, not a party's framing"
+    }
+   ]
+  },
+  {
+   "docket": "22-807",
+   "evidence": "qp",
+   "geographies": [
+    {
+     "key": "state:45",
+     "scope": "statewide",
+     "relationship": "concerns_congressional_plan",
+     "note": "South Carolina's congressional districting plan. The map shows the boundaries in the Census files, which may differ from the plan at issue.",
+     "quote": "South Carolina has seven congressional districts, and this case concerns two of them, Districts 1 and 6. District 1 covers the State’s southeast region, while District 6 covers its southwest and central regions.",
+     "evidenceUrl": "https://www.supremecourt.gov/opinions/23pdf/22-807_3e04.pdf",
+     "evidenceLabel": "the opinion of the Court in Alexander v. South Carolina State Conference of the NAACP (issued with an opinion concurring in part and a dissenting opinion); the passage is from the opinion of the Court"
+    },
+    {
+     "key": "cd119:4501",
+     "scope": "congressional_district",
+     "relationship": "concerns_district",
+     "note": "The opinion of the Court says this case concerns Districts 1 and 6 of South Carolina's congressional plan; the link is to District 1, whose lines the District Court had held unlawful. The boundary shown is the 119th Congress district, which may differ from the plan at issue.",
+     "quote": "South Carolina has seven congressional districts, and this case concerns two of them, Districts 1 and 6. District 1 covers the State’s southeast region, while District 6 covers its southwest and central regions.",
+     "evidenceUrl": "https://www.supremecourt.gov/opinions/23pdf/22-807_3e04.pdf",
+     "evidenceLabel": "the opinion of the Court in Alexander v. South Carolina State Conference of the NAACP (issued with an opinion concurring in part and a dissenting opinion); the passage is from the opinion of the Court"
+    }
+   ]
+  },
+  {
+   "docket": "21-1271",
+   "evidence": "qp",
+   "geographies": [
+    {
+     "key": "state:37",
+     "scope": "statewide",
+     "relationship": "concerns_congressional_plan",
+     "note": "Review of the North Carolina Supreme Court's decisions on the State's 2021 congressional map under the State Constitution; the question was the federal Elections Clause. The map shows the boundaries in the Census files, which may differ from the plan at issue.",
+     "quote": "Several groups of plaintiffs challenged North Carolina's congressional districting map as an impermissible partisan gerrymander.",
+     "evidenceUrl": "https://www.supremecourt.gov/opinions/22pdf/21-1271_3f14.pdf",
+     "evidenceLabel": "the opinion of the Court"
+    }
+   ],
+   "tags": [
+    {
+     "tag": "redistricting",
+     "evidenceUrl": "https://www.supremecourt.gov/opinions/22pdf/21-1271_3f14.pdf",
+     "evidenceLabel": "the opinion of the Court",
+     "quote": "Several groups of plaintiffs challenged North Carolina's congressional districting map as an impermissible partisan gerrymander."
+    },
+    {
+     "tag": "partisan-gerrymandering",
+     "evidenceUrl": "https://www.supremecourt.gov/opinions/22pdf/21-1271_3f14.pdf",
+     "evidenceLabel": "the opinion of the Court",
+     "quote": "Several groups of plaintiffs challenged North Carolina's congressional districting map as an impermissible partisan gerrymander."
+    }
+   ]
+  },
+  {
+   "docket": "25A608",
+   "evidence": "opinion",
+   "geographies": [
+    {
+     "key": "state:48",
+     "scope": "statewide",
+     "relationship": "concerns_congressional_plan",
+     "note": "Stay application concerning Texas's 2025 congressional map. The map shows the boundaries in the Census files, which may differ from the plan at issue.",
+     "quote": "Respondents in this case challenged the new Texas map, contending that the legislature's motive was predominantly racial."
+    }
+   ]
+  },
+  {
+   "docket": "25-845",
+   "evidence": "initiating",
+   "geographies": [
+    {
+     "key": "state:48",
+     "scope": "statewide",
+     "relationship": "concerns_congressional_plan",
+     "note": "Appeal concerning Texas's 2025 congressional map. The map shows the boundaries in the Census files, which may differ from the plan at issue.",
+     "quote": "Two days later, on July 9, Governor Abbott announced that the agenda for an upcoming special session of the Texas Legislature would include redrawing the State's congressional map."
+    }
+   ],
+   "tags": [
+    {
+     "tag": "racial-gerrymandering",
+     "evidence": "initiating",
+     "quote": "Did the district court err by finding circumstantial evidence of racial discrimination and when it failed to disentangle race from politics?"
+    }
+   ]
+  },
+  {
+   "docket": "25A839",
+   "evidence": "initiating",
+   "geographies": [
+    {
+     "key": "state:06",
+     "scope": "statewide",
+     "relationship": "concerns_congressional_plan",
+     "note": "Application for an injunction against California's congressional map adopted through Proposition 50. This is the applicants' request; see the docket for the Court's action.",
+     "quote": "Applicants therefore respectfully request an injunction pending appeal precluding California from conducting any congressional election under the map enacted through Proposition 50"
+    }
+   ]
+  },
+  {
+   "docket": "25-253",
+   "evidence": "initiating",
+   "geographies": [
+    {
+     "key": "state:38",
+     "scope": "statewide",
+     "relationship": "concerns_legislative_plan",
+     "note": "North Dakota's state legislative districting plan (not a congressional plan). The question presented is whether private plaintiffs can sue under Section 2 of the Voting Rights Act.",
+     "quote": "From 1990 to 2022, Native American voters in northeastern North Dakota were able to elect their candidates of choice from state legislative district 9"
+    }
+   ]
+  },
+  {
+   "docket": "18-422",
+   "evidence": "qp",
+   "geographies": [
+    {
+     "key": "state:37",
+     "scope": "statewide",
+     "relationship": "concerns_congressional_plan",
+     "note": "North Carolina's 2016 congressional map, a superseded plan. The map shows the boundaries in the Census files, which may differ from the plan at issue.",
+     "quote": "Voters and other plaintiffs in North Carolina and Maryland challenged their States’ congressional districting maps as unconstitutional partisan gerrymanders.",
+     "evidenceUrl": "https://www.supremecourt.gov/opinions/18pdf/18-422_9ol1.pdf",
+     "evidenceLabel": "the opinion of the Court in Rucho v. Common Cause, which decided Nos. 18-422 and 18-726 together (issued with a dissenting opinion); the passage is from the opinion of the Court"
+    }
+   ]
+  },
+  {
+   "docket": "18-726",
+   "evidence": "opinion",
+   "geographies": [
+    {
+     "key": "state:24",
+     "scope": "statewide",
+     "relationship": "concerns_congressional_plan",
+     "note": "Maryland's 2011 congressional redistricting plan, a superseded plan. The map shows the boundaries in the Census files, which may differ from the plan at issue.",
+     "quote": "Voters and other plaintiffs in North Carolina and Maryland challenged their States’ congressional districting maps as unconstitutional partisan gerrymanders.",
+     "evidenceLabel": "the opinion of the Court in Rucho v. Common Cause, which decided Nos. 18-422 and 18-726 together (issued with a dissenting opinion); the passage is from the opinion of the Court"
+    }
+   ],
+   "tags": [
+    {
+     "tag": "partisan-gerrymandering",
+     "evidence": "opinion",
+     "evidenceLabel": "the opinion of the Court in Rucho v. Common Cause, which decided Nos. 18-422 and 18-726 together (issued with a dissenting opinion); the passage is from the opinion of the Court",
+     "quote": "Voters and other plaintiffs in North Carolina and Maryland challenged their States’ congressional districting maps as unconstitutional partisan gerrymanders."
+    }
+   ]
+  },
+  {
+   "docket": "17-333",
+   "evidence": "qp",
+   "geographies": [
+    {
+     "key": "state:24",
+     "scope": "statewide",
+     "relationship": "concerns_congressional_plan",
+     "note": "Maryland's 2011 congressional redistricting plan, a superseded plan. The map shows the boundaries in the Census files, which may differ from the plan at issue.",
+     "quote": "This case is a First Amendment challenge to the partisan gerrymander of a single federal congressional district. Plaintiffs allege that state officials responsible for Maryland's 2011 congressional redistricting plan targeted them for vote dilution"
+    }
+   ]
+  },
+  {
+   "docket": "16-1161",
+   "evidence": "qp",
+   "geographies": [
+    {
+     "key": "state:55",
+     "scope": "statewide",
+     "relationship": "concerns_legislative_plan",
+     "note": "Wisconsin's state legislative redistricting plan, a superseded plan (not a congressional plan).",
+     "quote": "when it held that it had the authority to entertain a statewide challenge to Wisconsin's redistricting plan, instead of requiring a district-by-district analysis"
+    }
+   ]
+  },
+  {
+   "docket": "17-586",
+   "evidence": "qp",
+   "geographies": [
+    {
+     "key": "state:48",
+     "scope": "statewide",
+     "relationship": "concerns_congressional_plan",
+     "note": "Texas redistricting plans adopted in 2013, superseded plans. The map shows the boundaries in the Census files, which may differ from the plan at issue.",
+     "quote": "Whether the Texas Legislature acted with an unlawful purpose when it enacted a redistricting plan originally imposed by the district court"
+    }
+   ]
+  },
+  {
+   "docket": "23A449",
+   "evidence": "initiating",
+   "geographies": [
+    {
+     "key": "county:48167",
+     "scope": "county",
+     "relationship": "concerns_local_plan",
+     "note": "Galveston County, Texas commissioners court districting plan (a county plan, not a congressional or statewide plan).",
+     "quote": "Applicants won final judgment following a 10-day bench trial in which the district court enjoined Galveston County, Texas's commissioners court map as violating Section 2 of the Voting Rights Act."
+    },
+    {
+     "key": "state:48",
+     "scope": "county",
+     "relationship": "located_in_state",
+     "note": "The challenged plan is a county plan in Texas; this is not a statewide matter. It is listed on the Texas page only as concerning a county inside the state.",
+     "quote": "Applicants won final judgment following a 10-day bench trial in which the district court enjoined Galveston County, Texas's commissioners court map as violating Section 2 of the Voting Rights Act."
+    }
+   ]
+  },
+  {
+   "docket": "19-1257",
+   "evidence": "qp",
+   "geographies": [
+    {
+     "key": "state:04",
+     "scope": "statewide",
+     "relationship": "concerns_state_law",
+     "note": "Arizona's out-of-precinct policy and ballot-collection law (H.B. 2023).",
+     "quote": "1. Does Arizona's out-of-precinct policy violate Section 2 of the Voting Rights Act? 2. Does Arizona's ballot-collection law violate Section 2 of the Voting Rights Act or the Fifteenth Amendment?"
+    }
+   ]
+  },
+  {
+   "docket": "19-1258",
+   "evidence": "qp",
+   "geographies": [
+    {
+     "key": "state:04",
+     "scope": "statewide",
+     "relationship": "concerns_state_law",
+     "note": "Arizona's in-precinct voting requirement and limits on third-party ballot collection.",
+     "quote": "the Ninth Circuit held that Arizona violated § 2 by (1) requiring in-person voters to cast ballots in their assigned precincts; and (2) prohibiting \"ballot-harvesting,\" i.e., third-party collection and return of ballots."
+    }
+   ],
+   "tags": [
+    {
+     "tag": "mail-voting",
+     "evidence": "qp",
+     "quote": "Arizona gives all citizens an equal opportunity to vote in person or by mail, and authorizes ballots to be turned in by a family member, household member, or caregiver."
+    }
+   ]
+  },
+  {
+   "docket": "24-568",
+   "evidence": "qp",
+   "geographies": [
+    {
+     "key": "state:17",
+     "scope": "statewide",
+     "relationship": "concerns_state_law",
+     "note": "Illinois law allowing mail ballots to be received up to fourteen days after Election Day. The question presented is the candidates' standing to sue.",
+     "quote": "Petitioners sued to enjoin Illinois' law allowing ballots to be received up to fourteen days after Election Day."
+    }
+   ]
+  },
+  {
+   "docket": "24-1260",
+   "evidence": "qp",
+   "geographies": [
+    {
+     "key": "state:28",
+     "scope": "statewide",
+     "relationship": "concerns_state_law",
+     "note": "Mississippi law allowing mail-in absentee ballots to be received within five business days after election day.",
+     "quote": "Mississippi allows some of those timely cast ballots (mail-in absentee ballots, in Mississippi's case) to be counted if they are received by election officials a short time after election day (in Mississippi, within 5 business days after election day)."
+    }
+   ]
+  },
+  {
+   "docket": "24A164",
+   "evidence": "initiating",
+   "geographies": [
+    {
+     "key": "state:04",
+     "scope": "statewide",
+     "relationship": "concerns_state_law",
+     "note": "Arizona voter-registration provisions on documentary proof of citizenship.",
+     "quote": "Since 2004, Arizona has required newly registered voters to provide documentary proof of citizenship."
+    }
+   ]
+  },
+  {
+   "docket": "20-542",
+   "evidence": "initiating",
+   "geographies": [
+    {
+     "key": "state:42",
+     "scope": "statewide",
+     "relationship": "concerns_state_law",
+     "note": "Pennsylvania's deadline for receiving mail-in ballots in the 2020 general election. In the sentences left out of the passage, the dissent says that the Pennsylvania Democratic Party sued in state court and argued that the court could extend the deadline under the clause of the State Constitution providing that elections shall be “free and equal” (art. I, § 5); that is the argument the state court agreed with.",
+     "quote": "in October 2019, the Pennsylvania Legislature overhauled its election laws. Relevant here, it gave all voters the option of voting by mail, and it extended the deadline for officials to receive mail ballots by several days to 8 p.m. on election day. […] The Pennsylvania Supreme Court agreed. On September 17, it held that this “free and equal” provision enabled the court to extend the deadline three days to accommodate concerns about postal delays."
+    }
+   ],
+   "evidenceUrl": "https://www.supremecourt.gov/opinions/20pdf/20-542_2c83.pdf",
+   "evidenceLabel": "the Court's order denying review, issued with opinions dissenting from the denial; the passage is from Justice Thomas's dissent"
+  },
+  {
+   "docket": "24A407",
+   "evidence": "initiating",
+   "geographies": [
+    {
+     "key": "state:51",
+     "scope": "statewide",
+     "relationship": "concerns_state_practice",
+     "note": "Virginia's process for removing registrants identified as noncitizens from the voter rolls.",
+     "quote": "Virginia law requires \"general registrars to delete . . . the name of any voter who . . . is known not to be a United States citizen by reason of\" that person's self-declaration of noncitizen status"
+    }
+   ]
+  },
+  {
+   "docket": "23-719",
+   "evidence": "qp",
+   "geographies": [
+    {
+     "key": "state:08",
+     "scope": "statewide",
+     "relationship": "concerns_ballot",
+     "note": "Colorado's 2024 presidential primary ballot.",
+     "quote": "The state supreme court ruled that the Colorado Secretary of State should not list President Trump's name on the 2024 presidential primary ballot or count any write-in votes cast for him."
+    }
+   ]
+  }
+ ]
+}

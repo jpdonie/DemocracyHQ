@@ -1,0 +1,115 @@
+{
+  "_readme": "Curated links between records. Each quotes a passage from the named primary text ('evidenceIn': 'bill:<id>' is the latest mirrored version text of that bill; 'case:<id>' is that case's evidence document). Use […] inside a quote for words left out. The pipeline checks the passage on every run and publishes the link only if it is found. Notes are the maintainer's description and are not checked by machine. The links are a hand-picked subset: a missing link does not mean two records are unrelated. Choosing a passage: prefer the operative text of the bill, the Court's own text or a sentence that describes the facts. Never use as a link's evidence a sentence in which a Justice or a party characterises another Justice's or another party's position or argument, and apply party labels symmetrically: a passage names a political party only where the passages of comparable links do too. Curate links of one kind alike, whichever party's members wrote the measures: when a measure is linked because its text makes it depend on another, link the other measures in the dataset whose text makes them depend on it in the same way.",
+  "relationships": [
+    {
+      "source": "bill:ca-20252026-ab604",
+      "target": "bill:ca-20252026-aca8",
+      "relationshipType": "operative_only_if",
+      "scope": {
+        "kind": "statewide",
+        "note": "AB 604's district chapter becomes operative only if ACA 8 is approved by the voters and takes effect, and the section ACA 8 adds to the Constitution (art. XXI, § 4(b)) becomes operative. Whether these conditions were met is not recorded in this dataset."
+      },
+      "evidenceIn": "bill:ca-20252026-ab604",
+      "quote": "This chapter shall become operative only if Assembly Constitutional Amendment 8 of the 2025–26 Regular Session is approved by the voters and takes effect, and subdivision (b) of Section 4 of Article XXI of the California Constitution, as added by that constitutional amendment, becomes operative."
+    },
+    {
+      "source": "bill:ca-20252026-aca8",
+      "target": "bill:ca-20252026-ab604",
+      "relationshipType": "adopts_districts_from",
+      "scope": {
+        "kind": "statewide",
+        "note": "ACA 8 directs temporary use of the congressional districts reflected in AB 604."
+      },
+      "evidenceIn": "bill:ca-20252026-aca8",
+      "quote": "the single-member districts for Congress reflected in Assembly Bill 604 of the 2025–26 Regular Session"
+    },
+    {
+      "source": "bill:ca-20252026-ab604",
+      "target": "geography:state:06",
+      "relationshipType": "defines_congressional_districts",
+      "scope": {
+        "kind": "statewide",
+        "note": "The bill text defines every California congressional district by county, tract and block, until the Citizens Redistricting Commission certifies a new map. The map draws the Census Bureau's files, not the bill's definitions."
+      },
+      "evidenceIn": "bill:ca-20252026-ab604",
+      "quote": "This chapter sets forth the congressional districts. […] This chapter shall remain in effect only until a new map of congressional districts is certified by the Citizens Redistricting Commission pursuant to Section 2 of Article XXI of the California Constitution"
+    },
+    {
+      "source": "bill:ca-20252026-sb280",
+      "target": "bill:ca-20252026-aca8",
+      "relationshipType": "submits_to_voters",
+      "scope": {
+        "kind": "statewide",
+        "note": "SB 280 called a statewide special election for November 4, 2025, and directs the Secretary of State to submit ACA 8 to the voters at it. The result of that election is not recorded in this dataset from an official elections source."
+      },
+      "evidenceIn": "bill:ca-20252026-sb280",
+      "quote": "the Secretary of State shall submit Assembly Constitutional Amendment 8 of the 2025–26 Regular Session to the voters at the November 4, 2025, statewide special election."
+    },
+    {
+      "source": "bill:ca-20252026-sb280",
+      "target": "bill:ca-20252026-aca8",
+      "relationshipType": "operative_only_if",
+      "scope": {
+        "kind": "statewide",
+        "note": "One section of SB 280 becomes operative only on the same conditions as AB 604's districts."
+      },
+      "evidenceIn": "bill:ca-20252026-sb280",
+      "quote": "This section shall become operative only if Assembly Constitutional Amendment 8 of the 2025–26 Regular Session is approved by the voters and takes effect, and subdivision (b) of Section 4 of Article XXI of the California Constitution, as added by that constitutional amendment, becomes operative."
+    },
+    {
+      "source": "bill:ca-20252026-aca15",
+      "target": "bill:ca-20252026-aca8",
+      "relationshipType": "operative_only_if",
+      "scope": {
+        "kind": "statewide",
+        "note": "ACA 15 proposes adding Section 5 to Article XXI of the California Constitution, which would bar a Member of the Legislature who voted for ACA 8 from being a candidate for congressional office in a district adopted under subdivision (b) of Section 4, the provision ACA 8 adds. Section 5 would become operative only if ACA 8 is approved by the voters and takes effect and that subdivision becomes operative. ACA 15 itself would also need to be adopted by both houses and approved by the voters. Whether these conditions were met is not recorded in this dataset."
+      },
+      "evidenceIn": "bill:ca-20252026-aca15",
+      "quote": "This section shall become operative only if Assembly Constitutional Amendment 8 of the 2025–26 Regular Session is approved by the voters and takes effect and subdivision (b) of Section 4 becomes operative."
+    },
+    {
+      "source": "case:scotus-25a839",
+      "target": "bill:ca-20252026-ab604",
+      "relationshipType": "litigation_concerns_measure",
+      "scope": {
+        "kind": "statewide",
+        "note": "The application asks the Court to bar use of the congressional district boundaries enacted through Proposition 50 (AB 604). This is the applicants' request; see the docket for the Court's action on it."
+      },
+      "evidenceIn": "case:scotus-25a839",
+      "quote": "preclude the State of California from implementing or using the congressional district boundaries enacted through Proposition 50 (AB 604)"
+    },
+    {
+      "source": "case:scotus-25a839",
+      "target": "bill:ca-20252026-aca8",
+      "relationshipType": "litigation_concerns_measure",
+      "scope": {
+        "kind": "statewide",
+        "note": "The applicants describe Proposition 50 as a package of ACA 8, AB 604 and SB 280. The application also states that California voters approved Proposition 50; that statement is the applicants', and the ballot result is not recorded in this dataset from an official elections source."
+      },
+      "evidenceIn": "case:scotus-25a839",
+      "quote": "The package consisted of: (a) ACA 8 (Rivas & McGuire), a legislatively referred constitutional amendment authorizing use of a legislature-enacted congressional map through 2030 […] California voters approved Proposition 50."
+    },
+    {
+      "source": "case:scotus-25a839",
+      "target": "bill:ca-20252026-sb280",
+      "relationshipType": "litigation_concerns_measure",
+      "scope": {
+        "kind": "statewide",
+        "note": "The applicants describe SB 280 as part of the Proposition 50 package. The application does not ask the Court to act on SB 280 itself."
+      },
+      "evidenceIn": "case:scotus-25a839",
+      "quote": "SB 280 (Cervantes & Pellerin), the bill calling the special election, appropriating funds, and making conforming calendar changes"
+    },
+    {
+      "source": "bill:ca-20252026-sb1164",
+      "target": "bill:ca-20252026-sb1360",
+      "relationshipType": "operative_only_if_not",
+      "scope": {
+        "kind": "statewide",
+        "note": "Only Section 14034 of the Elections Code, added by Section 10 of SB 1164 (it declares that the chapter applies to all cities, including charter cities), is conditional: it takes effect only if SB 1360 does not take effect on or before January 1, 2027. Whether this condition was met is not recorded in this dataset."
+      },
+      "evidenceIn": "bill:ca-20252026-sb1164",
+      "quote": "Section 14034 is added to the Elections Code, to read: […] This section shall take effect only if Senate Bill 1360 of the 2025–26 Regular Session does not take effect on or before January 1, 2027."
+    }
+  ]
+}

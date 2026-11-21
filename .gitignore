@@ -1,0 +1,24 @@
+node_modules/
+dist/
+dist-e2e/
+*.log
+pipeline/.cache/
+pipeline/staging/
+pipeline/**/__pycache__/
+pipeline/.pytest_cache/
+.pytest_cache/
+.ruff_cache/
+.venv/
+test-results/
+playwright-report/
+.vite/
+*.tsbuildinfo
+.DS_Store
+server.pid
+
+# Local settings and keys (Vite also reads .env.local, .env.production, .env.*.local); only the example is shared.
+.env*
+!.env.example
+
+# Swap folders the pipeline uses while it publishes a new release (pipeline/dhq/run.py).
+public/.data.*

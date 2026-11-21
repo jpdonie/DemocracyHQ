@@ -1,0 +1,374 @@
+name: Scheduled data ingestion
+
+# Fetches the official sources, rebuilds the data files, validates them and, only if
+# they are valid, commits them and redeploys the site.
+#
+# Safety rules implemented below:
+#   - a source that fails keeps its last published data and is marked as failed, with
+#     the date of its last successful check, on the Sources page;
+#   - if the rebuilt data fails validation, nothing is committed;
+#   - if publishing itself fails, the published data is left as it was and nothing is committed;
+#   - the data is rebuilt from the tip of the default branch, and nothing is committed if
+#     the branch moved while the pipeline ran, so older data never replaces newer data;
+#   - optional API keys are read from repository secrets and are passed only to the
+#     pipeline step. They are never written to a file or to the site;
+#   - the job that installs and runs packages (npm and pip packages, mapshaper, the pipeline
+#     and the schema check) has a token that can only read the repository. It hands the
+#     validated data to a separate commit job, which runs only GitHub's own actions and git,
+#     takes nothing from it but .json files under public/data and the review queue, and alone
+#     holds a token that can push. A step of the ingest job can still read everything that job
+#     holds, the API keys included, from the runner's memory, and can change the data it hands
+#     over and the Actions cache entries that later runs restore. It cannot push, and it cannot
+#     hand over a page, a script or any other file that is not .json;
+#   - downloaded source files are reused from the Actions cache only during the ISO week named
+#     in the cache entry, and the first run of each week starts from an empty cache (see "Reuse
+#     downloaded source files" below for what is checked and what bounds an altered entry).
+
+on:
+  schedule:
+    - cron: '23 10 * * *'   # every day, 10:23 UTC: dockets and legislation
+    - cron: '41 9 * * 1'    # Mondays, 09:41 UTC: everything, including boundaries and Census counts
+  workflow_dispatch:
+    inputs:
+      stages:
+        description: 'Stages to run, separated by spaces. "all" runs every stage. Blank runs the daily set. Start the run from the default branch; on any other branch it stops with an error.'
+        type: string
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ingest
+  cancel-in-progress: false
+
+env:
+  DAILY_STAGES: scotus california courtlistener openstates
+  # Every stage of `python -m dhq.run`. A requested stage outside this list stops the run before the pipeline starts.
+  # pipeline/tests/test_run.py checks that this list matches the pipeline's own.
+  STAGE_NAMES: geo population scotus california courtlistener openstates relationships events
+
+jobs:
+  # A run started by hand from another branch would otherwise end green without doing anything.
+  wrong-branch:
+    if: github.ref != format('refs/heads/{0}', github.event.repository.default_branch)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - name: Refuse to run outside the default branch
+        env:
+          BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          echo "::error::Ingestion runs only on $BRANCH, whose data is the published data. Nothing was done. Start the run again from $BRANCH (Run workflow > Use workflow from)."
+          exit 1
+
+  ingest:
+    # Only the default branch: its data is the published data, and the deploy job builds that branch.
+    if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    permissions:
+      contents: read  # this job runs third-party packages, so its token cannot push
+    outputs:
+      sha: ${{ steps.base.outputs.sha }}
+      data: ${{ steps.handoff.outputs.artifact-id }}  # empty unless the data passed validation
+      exit_code: ${{ steps.pipeline.outputs.exit_code }}
+    steps:
+      # The tip of the default branch, not the commit the run was created for: a re-run, or a run that waited
+      # behind another one, then starts from the latest data.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+      - name: Note the commit the data is rebuilt from
+        id: base
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          cache: npm
+      # No package needs its install script here (the only ones with scripts are optional native add-ons that
+      # mapshaper and msgpackr do without), so none is run.
+      - run: npm ci --ignore-scripts
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: '3.13'
+          cache: pip
+          cache-dependency-path: pipeline/requirements-lock.txt
+      - run: |
+          pip install --require-hashes --only-binary=:all: -r pipeline/requirements-lock.txt
+      - name: Install pdftotext (reads court filings for the evidence check)
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends poppler-utils
+
+      # One cache entry per ISO week and version of the pipeline code, restored only within its own week. The first
+      # run of a week (normally the full Monday run at 09:41 UTC, which comes before that day's daily run) finds no
+      # entry for the week, starts from an empty cache, downloads every source file again and saves the first entry
+      # of the week. Later runs that week reuse it and save nothing, so the cache does not gain a full copy on every
+      # run; a run with changed pipeline code starts from the week's entry and saves one for the new code.
+      # Superseded California tables are deleted by the pipeline.
+      #
+      # What is checked when a cached file is reused: a California table or bill text must have the size and CRC-32
+      # that the current archive's directory gives for it, and a boundary archive is downloaded again unless the
+      # Census server reports the same Last-Modified date and Content-Length as when it was saved. Neither is a check
+      # against tampering: a run whose steps were compromised could save altered files that pass both. What bounds
+      # such an entry is the week in its name, as it is restored only during that ISO week. Such a run could also
+      # save entries under the names of later weeks, but GitHub deletes an entry that no run has read for 7 days,
+      # which limits that to about the following week. After that, the first run of each week downloads every file
+      # from its source again.
+      - name: Name this week's cache entry
+        id: week
+        run: echo "week=$(date -u +%G-W%V)" >> "$GITHUB_OUTPUT"
+      - name: Reuse downloaded source files
+        id: source_cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: pipeline/.cache
+          key: pipeline-cache-${{ steps.week.outputs.week }}-${{ hashFiles('pipeline/dhq/**/*.py') }}
+          restore-keys: |
+            pipeline-cache-${{ steps.week.outputs.week }}-
+
+      # The review queue carries the items of stages that did not run, or that failed, in this run (the Census
+      # stages run weekly), so the file from the last run whose data was committed is restored here. The commit job
+      # saves it once this run's data is committed.
+      - name: Restore the review queue of the last committed run
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: pipeline/staging/review.json
+          key: review-queue-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: review-queue-
+      - name: Check that an earlier review queue was restored
+        run: |
+          if [ ! -s pipeline/staging/review.json ]; then
+            echo "::warning::No earlier review queue was found in the Actions cache (this is the first run, or the cache entry was removed, for example after 7 days without a run). The review queue starts empty: the items of stages that do not run in this run, such as the weekly Census stages, are missing from it until those stages run again."
+          fi
+
+      - name: Choose stages
+        id: stages
+        env:
+          REQUESTED: ${{ inputs.stages }}
+          SCHEDULE: ${{ github.event.schedule }}
+        run: |
+          set -f  # the requested list is split into words below; no word may expand to file names
+          # shellcheck disable=SC2206  # split on purpose
+          requested=($REQUESTED)
+          if [ "$SCHEDULE" = "41 9 * * 1" ] || [ "${requested[*]}" = "all" ]; then
+            stages=""
+          elif [ "${#requested[@]}" -eq 0 ]; then
+            stages="$DAILY_STAGES"
+          else
+            for stage in "${requested[@]}"; do
+              case " $STAGE_NAMES " in
+                *" $stage "*) ;;
+                *) echo "::error::Unknown stage \"$stage\". Stages: $STAGE_NAMES. \"all\" runs every stage; blank runs the daily set."
+                   exit 1 ;;
+              esac
+            done
+            stages="${requested[*]}"
+          fi
+          echo "list=$stages" >> "$GITHUB_OUTPUT"
+          echo "Stages: ${stages:-all}"
+
+      - name: Run the pipeline
+        id: pipeline
+        working-directory: pipeline
+        env:
+          COURTLISTENER_API_TOKEN: ${{ secrets.COURTLISTENER_API_TOKEN }}
+          OPENSTATES_API_KEY: ${{ secrets.OPENSTATES_API_KEY }}
+          # Repository variables (Settings > Secrets and variables > Actions > Variables), not secrets. Blank or
+          # missing means the pipeline's default: a generic client name, and the Open States list tx,fl,nc,oh.
+          DHQ_USER_AGENT: ${{ vars.DHQ_USER_AGENT }}
+          OPENSTATES_JURISDICTIONS: ${{ vars.OPENSTATES_JURISDICTIONS }}
+          STAGES: ${{ steps.stages.outputs.list }}
+        run: |
+          set +e
+          set -f  # the stage names were checked against STAGE_NAMES; split them into words without expanding them
+          # shellcheck disable=SC2086  # the stage list is split into words on purpose
+          python -m dhq.run $STAGES -v 2>&1 | tee ../pipeline-run.log
+          code=${PIPESTATUS[0]}
+          echo "exit_code=$code" >> "$GITHUB_OUTPUT"
+          case "$code" in
+            0) ;;
+            # Python itself also exits 1 when it stops before the pipeline's own error handling (for example when
+            # the dhq package is not found), so 1 counts as a partial failure only after the pipeline's closing log
+            # line, which it writes once it has published (pipeline/tests/test_run.py checks this line).
+            1) if ! grep -Fq ' dhq.run INFO published to ' ../pipeline-run.log; then
+                 echo "::error::The pipeline exited with code 1 without reporting that it published anything: Python stopped before the pipeline could run, for example because the dhq package was not found. Nothing new was published; see the run log."
+                 exit 1
+               fi
+               echo "::warning::At least one stage or source failed, or a record has not been refreshed for longer than its source allows. Failed sources keep their last published data and are marked as failed; stale records are listed in the review queue." ;;
+            2) echo "::error::The rebuilt data failed the pipeline's own validation, or DHQ_NOW is unusable. Nothing was published."
+               exit 1 ;;
+            3) echo "::error::Publishing failed. The published data was left as it was; there is nothing to commit."
+               exit 1 ;;
+            4) echo "::error::The pipeline did not run its stages: its arguments were not accepted, it could not be loaded, or an unexpected error stopped it outside its stages. Nothing new was published; see the run log."
+               exit 1 ;;
+            *) echo "::error::The pipeline stopped with exit code $code. Nothing is committed."
+               exit 1 ;;
+          esac
+          exit 0
+
+      # Saved whenever the pipeline ran, even if it failed, but only when this week's entry does not exist yet. A
+      # failed run's files are as good as any other's: a reused file must still match its source's size and CRC-32
+      # (California) or Last-Modified date and Content-Length (Census boundaries), as described above.
+      - name: Save the downloaded source files
+        if: ${{ !cancelled() && steps.pipeline.outputs.exit_code != '' && steps.source_cache.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: pipeline/.cache
+          key: ${{ steps.source_cache.outputs.cache-primary-key }}
+
+      - name: Validate the data against the site's schemas
+        run: npm run data:validate
+
+      # The commit job replaces public/data with this copy, so files the pipeline removed are removed there too.
+      # tar keeps the folder exactly as it was validated, hidden files included.
+      - name: Pack the validated data for the commit job
+        run: tar -cf "$RUNNER_TEMP/validated-data.tar" public/data pipeline/staging/review.json
+      - name: Hand the validated data to the commit job
+        id: handoff
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: validated-data-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/validated-data.tar
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Keep the run log and the review queue
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ingestion-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            pipeline-run.log
+            pipeline/staging/review.json
+          if-no-files-found: ignore
+          retention-days: 30
+
+      # Fails this job after the hand-over, so the commit job still commits what was published, and "Re-run failed
+      # jobs" starts the whole ingestion again from the branch tip.
+      - name: Report a partial failure
+        if: steps.pipeline.outputs.exit_code == '1'
+        run: |
+          echo "::error::At least one stage or source failed in this run, or a record has not been refreshed for longer than its source allows. The rest was rebuilt and validated, and the commit job commits it. See the run log and review queue artifact, and the Sources page."
+          exit 1
+
+  commit:
+    # The only job whose token can push. It runs no package from npm or PyPI: only GitHub's checkout, artifact and
+    # cache actions, tar, coreutils, grep and git.
+    needs: ingest
+    # Also after a partial failure, which ends the ingest job red, as long as the data passed validation.
+    if: ${{ !cancelled() && needs.ingest.outputs.data != '' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    outputs:
+      changed: ${{ steps.commit.outputs.changed }}
+    steps:
+      # The commit the data was rebuilt from, so that the check below sees whether the branch has moved since.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.ingest.outputs.sha }}
+          persist-credentials: false
+      - name: Fetch the validated data
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          artifact-ids: ${{ needs.ingest.outputs.data }}
+          path: ${{ runner.temp }}/validated-data
+      - name: Put the validated data in place
+        env:
+          ARCHIVE: ${{ runner.temp }}/validated-data/validated-data.tar
+          UNPACKED: ${{ runner.temp }}/validated-data/unpacked
+        run: |
+          # Only these are taken from the ingest job: folders under public/data whose names use a-z, 0-9, "_" and
+          # "-"; regular .json files in them whose names use letters, digits, ".", "_" and "-"; and the review
+          # queue. Anything else (another kind of file such as .html or .svg, a link, a "." or ".." in a path,
+          # a path outside those two) stops the job before anything is unpacked. The site serves public/data as
+          # it is, so a page or script handed over here would run on the site's own address.
+          if ! listing=$(tar -tvf "$ARCHIVE") || ! names=$(tar -tf "$ARCHIVE"); then
+            echo "::error::The validated data could not be read. Nothing was committed."
+            exit 1
+          fi
+          if [ "$(wc -l <<< "$listing")" -ne "$(wc -l <<< "$names")" ]; then
+            echo "::error::The validated data could not be listed entry by entry. Nothing was committed."
+            exit 1
+          fi
+          # One line per entry: its type ("d" for a folder, "-" for a regular file), a space, its path.
+          entries=$(paste -d ' ' <(cut -c1 <<< "$listing") - <<< "$names")
+          refused=$(grep -Ev '^(d public/data/([a-z0-9_-]+/)*|- public/data/([a-z0-9_-]+/)*[A-Za-z0-9_.-]+\.json|- pipeline/staging/review\.json)$' <<< "$entries" || true)
+          if [ -n "$refused" ]; then
+            echo "::error::The validated data holds $(wc -l <<< "$refused") entry(ies) that may not be published, for example \"$(head -n1 <<< "$refused" | cut -c3-)\". Only folders and .json files under public/data, and pipeline/staging/review.json, are taken. Nothing was committed."
+            exit 1
+          fi
+          mkdir -p "$UNPACKED"
+          tar -xf "$ARCHIVE" -C "$UNPACKED"
+          rm -rf public/data
+          mv "$UNPACKED/public/data" public/data
+          mkdir -p pipeline/staging
+          mv "$UNPACKED/pipeline/staging/review.json" pipeline/staging/review.json
+
+      - name: Commit the validated data
+        id: commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public/data
+          if git diff --cached --quiet; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "No data changes."
+            exit 0
+          fi
+          # The checkout did not keep the token. It is given to git here, for the fetch and the push only.
+          basic=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
+          echo "::add-mask::$basic"
+          authgit() {
+            GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0="http.${GITHUB_SERVER_URL}/.extraheader" \
+              GIT_CONFIG_VALUE_0="AUTHORIZATION: basic $basic" git "$@"
+          }
+          # The data was rebuilt from the commit checked out here. If the branch has moved since, this run stops
+          # instead of rebasing: the newer commits may hold newer data (or a correction), and replaying this run's
+          # changes onto them could put older data over it or mix two releases in one file.
+          base=$(git rev-parse HEAD)
+          if ! authgit fetch --quiet --no-tags --depth=1 origin "refs/heads/$BRANCH"; then
+            echo "::error::Could not read the current tip of $BRANCH. Nothing was committed."
+            exit 1
+          fi
+          tip=$(git rev-parse FETCH_HEAD)
+          if [ "$tip" != "$base" ]; then
+            echo "::error::$BRANCH moved from ${base:0:12} to ${tip:0:12} while the pipeline ran. Nothing was committed, so data rebuilt from the older commit cannot replace newer data. The next scheduled run starts from the new tip. To refresh now, use \"Re-run all jobs\" or start the workflow again: re-running only this job repeats the check against the same older commit."
+            exit 1
+          fi
+          git commit --quiet -m "data: scheduled ingestion $(date -u +%Y-%m-%d)"
+          if ! authgit push origin "HEAD:refs/heads/$BRANCH"; then
+            echo "::error::The push to $BRANCH was refused: the branch moved after the check above, or a branch rule does not let the workflow token push. Nothing was committed."
+            exit 1
+          fi
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+
+      # Saved once the data the queue describes is committed (or when it was already the committed data).
+      - name: Save the review queue
+        if: always() && steps.commit.outcome == 'success'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: pipeline/staging/review.json
+          key: review-queue-${{ github.run_id }}-${{ github.run_attempt }}
+
+  deploy:
+    # Commits made with the workflow token do not start other workflows, so the site
+    # is redeployed from here. It runs even when a source failed, as long as valid
+    # data was committed, so the failure and its date become visible on the site.
+    # It does not run when the run was cancelled.
+    needs: commit
+    if: ${{ !cancelled() && needs.commit.outputs.changed == 'true' }}
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    uses: ./.github/workflows/deploy.yml
+    with:
+      ref: ${{ github.event.repository.default_branch }}

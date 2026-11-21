@@ -1,0 +1,66 @@
+DemocracyHQ
+Copyright 2026 The DemocracyHQ contributors
+
+The code, the documentation and the design files written for this project are
+licensed under the Apache License, Version 2.0. See the LICENSE file.
+
+WHAT THE LICENCE DOES NOT COVER
+
+The licence does not apply to, and grants no rights in, the upstream data that
+the pipeline retrieves and that is published under public/data/. That data
+remains subject to the terms of each source:
+
+  - U.S. Census Bureau boundary files and 2020 Census counts are works of the
+    United States Government (17 U.S.C. 105).
+  - Supreme Court of the United States docket information is a public record
+    of the Court. Documents filed by parties and linked from the dockets belong
+    to their authors; this project links to them and does not mirror them. The
+    Questions Presented text it shows in full usually reproduces the words of
+    the party that sought review, and the short passages it quotes from filings
+    as evidence for its links are the filers' own words.
+  - California legislative information is published by the Legislative Counsel
+    of California under California Government Code section 10248. The bulk
+    data files carry a Legislative Counsel Bureau copyright notice; this
+    project republishes extracted bill text with attribution and does not
+    redistribute the source files.
+  - Records imported from optional secondary sources (CourtListener / Free Law
+    Project, Open States / Plural Policy), when a maintainer enables them,
+    remain subject to those projects' terms.
+
+The per-source terms, attributions and known limits are listed in
+docs/DATA_SOURCES.md and in the published file public/data/sources.json.
+
+BUNDLED THIRD-PARTY WORKS
+
+The built site bundles these works, each under its own licence:
+
+  - Archivo typeface, Copyright 2020 The Archivo Project Authors, and
+    Newsreader typeface, Copyright 2020 The Newsreader Project Authors (SIL
+    Open Font License 1.1), packaged by Fontsource.
+  - Noto Sans Medium map label glyphs in public/fonts/ (SIL Open Font License
+    1.1), Copyright 2022 The Noto Project Authors. They are signed-distance-field
+    glyph ranges built from Noto Sans by the protomaps basemaps-assets project
+    and copied unmodified. The licence text is in public/fonts/OFL.txt.
+  - MapLibre GL JS (BSD 3-Clause), Copyright (c) 2023, MapLibre contributors.
+    Its licence file declares code it contains from:
+      - mapbox-gl-js v1.13 and earlier (BSD 3-Clause), Copyright (c) 2020, Mapbox;
+      - glfx.js (MIT), Copyright (C) 2011 by Evan Wallace;
+      - a portion of d3-color (BSD 3-Clause), Copyright 2010-2016 Mike Bostock.
+    The full terms are in node_modules/maplibre-gl/LICENSE.txt once the
+    dependencies are installed.
+  - React, react-dom and scheduler (MIT), Copyright (c) Meta Platforms, Inc.
+    and affiliates.
+  - zod (MIT), Copyright (c) 2025 Colin McDonnell.
+  - jsdiff (BSD 3-Clause), Copyright (c) 2009-2015, Kevin Decker.
+  - topojson-client (ISC), Copyright 2012-2019 Michael Bostock.
+
+DESIGN STUDY
+
+The generative study design/identity/isoline-assembly.html is a modified
+version of the viewer template (templates/viewer.html) of the "algorithmic-art"
+skill, which is licensed under the Apache License, Version 2.0 (the same
+licence as this project; see LICENSE). The algorithm, its parameters and their
+controls were replaced, and the colour variables were renamed; the layout,
+seed controls, fonts and colour values are the template's. When opened, the
+study loads p5.js (LGPL 2.1) from a CDN and two typefaces from Google Fonts.
+The application itself does not include or load p5.js or those typefaces.
