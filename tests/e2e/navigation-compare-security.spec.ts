@@ -186,9 +186,17 @@ test.describe('Version comparison (DB3, DB9)', () => {
 
 test.describe('Global search (DB10)', () => {
   test('pasting a long text does not hold up the page', async ({ page }) => {
-    await open(page, '#/');
+    await open(page, '#/', { withMap: true });
     await expect(heading(page)).toBeVisible();
     await page.waitForLoadState('networkidle');
+    // The map draws its first frames after the network is quiet. On a slow runner that work alone can hold the page
+    // for half a second, so the measurement starts once the map has drawn and gone idle: it times the paste only.
+    await mapReady(page, 'state');
+    await page.evaluate(() => new Promise<void>((resolve) => {
+      const map = (window as unknown as { __dhqMap: { once(event: 'idle', listener: () => void): unknown; triggerRepaint(): void } }).__dhqMap;
+      map.once('idle', () => resolve());
+      map.triggerRepaint();
+    }));
     const words = 'the qualified elector shall present identification documents before receiving provisional ballots'.split(' ');
     const text = Array.from({ length: 1500 }, (_, i) => `${words[i % words.length]}${i % 7 === 0 ? 'x' : ''}`).join(' ');
     const box = page.getByRole('combobox', { name: 'Search places, courts, cases and bills' });
