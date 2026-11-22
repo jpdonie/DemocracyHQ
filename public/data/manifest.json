@@ -1,30 +1,32 @@
 {
- "contentHash": "5cce25077c803f213493cccad5822900d0ba3e36cb42e3ffb6e9de5f07ee426d",
+ "contentHash": "b0b56bc3d416a560d9c1232a7bcb47379e1affeb4902afd8982769572e8451ac",
  "counts": {
   "appealsCourtCases": 128,
   "bills": 405,
-  "cases": 248,
-  "districtAndStateCourtCases": 95,
+  "cases": 334,
+  "districtAndStateCourtCases": 181,
   "events": 1476,
   "federalBills": 273,
   "geographicUnits": 4186,
   "relationships": 38,
   "stateBills": 132,
-  "stateLegislationBills": 7957,
+  "stateLegislationBills": 8204,
   "supremeCourtCases": 25
  },
- "generatedAt": "2026-11-21T23:08:16Z",
+ "generatedAt": "2026-11-22T17:54:55Z",
  "reviewQueue": {
   "byKind": {
+   "new_selection": 86,
+   "opening_unavailable": 2,
    "text_version_note": 1
   },
-  "items": 1
+  "items": 89
  },
  "schemaVersion": 1,
  "sources": {
   "ca-leginfo-bulk": {
-   "lastAttempt": "2026-11-21T17:18:40Z",
-   "lastSuccessfulCheck": "2026-11-21T17:18:40Z",
+   "lastAttempt": "2026-11-22T17:54:55Z",
+   "lastSuccessfulCheck": "2026-11-22T17:54:55Z",
    "processingStatus": "ok"
   },
   "census-cb-2025": {
@@ -53,18 +55,18 @@
    "processingStatus": "ok"
   },
   "courtlistener-api": {
-   "lastAttempt": "2026-11-21T22:32:14Z",
-   "lastSuccessfulCheck": "2026-11-21T22:32:14Z",
+   "lastAttempt": "2026-11-22T17:54:55Z",
+   "lastSuccessfulCheck": "2026-11-22T17:54:55Z",
    "processingStatus": "ok"
   },
   "govinfo-bills": {
-   "lastAttempt": "2026-11-21T17:18:40Z",
-   "lastSuccessfulCheck": "2026-11-21T17:18:40Z",
+   "lastAttempt": "2026-11-22T17:54:55Z",
+   "lastSuccessfulCheck": "2026-11-22T17:54:55Z",
    "processingStatus": "ok"
   },
   "govinfo-billstatus": {
-   "lastAttempt": "2026-11-21T17:18:40Z",
-   "lastSuccessfulCheck": "2026-11-21T17:18:40Z",
+   "lastAttempt": "2026-11-22T17:54:55Z",
+   "lastSuccessfulCheck": "2026-11-22T17:54:55Z",
    "processingStatus": "ok"
   },
   "govinfo-uscode": {
@@ -73,38 +75,38 @@
    "processingStatus": "ok"
   },
   "govinfo-uscourts": {
-   "lastAttempt": "2026-11-21T17:18:40Z",
-   "lastSuccessfulCheck": "2026-11-21T17:18:40Z",
+   "lastAttempt": "2026-11-22T17:54:55Z",
+   "lastSuccessfulCheck": "2026-11-22T17:54:55Z",
    "processingStatus": "ok"
   },
   "house-clerk-members": {
-   "lastAttempt": "2026-11-21T17:39:31Z",
-   "lastSuccessfulCheck": "2026-11-21T17:39:31Z",
+   "lastAttempt": "2026-11-22T17:54:55Z",
+   "lastSuccessfulCheck": "2026-11-22T17:54:55Z",
    "processingStatus": "ok"
   },
   "nga-governors": {
-   "lastAttempt": "2026-11-21T17:39:31Z",
-   "lastSuccessfulCheck": "2026-11-21T17:39:31Z",
+   "lastAttempt": "2026-11-22T17:54:55Z",
+   "lastSuccessfulCheck": "2026-11-22T17:54:55Z",
    "processingStatus": "ok"
   },
   "openstates-api": {
-   "lastAttempt": "2026-11-21T23:08:16Z",
-   "lastSuccessfulCheck": "2026-11-21T23:08:16Z",
+   "lastAttempt": "2026-11-22T17:54:55Z",
+   "lastSuccessfulCheck": "2026-11-22T17:54:55Z",
    "processingStatus": "ok"
   },
   "openstates-people": {
-   "lastAttempt": "2026-11-21T17:39:31Z",
-   "lastSuccessfulCheck": "2026-11-21T17:39:31Z",
+   "lastAttempt": "2026-11-22T17:54:55Z",
+   "lastSuccessfulCheck": "2026-11-22T17:54:55Z",
    "processingStatus": "ok"
   },
   "scotus-docket": {
-   "lastAttempt": "2026-11-21T17:18:40Z",
-   "lastSuccessfulCheck": "2026-11-21T17:18:40Z",
+   "lastAttempt": "2026-11-22T17:54:55Z",
+   "lastSuccessfulCheck": "2026-11-22T17:54:55Z",
    "processingStatus": "ok"
   },
   "senate-members": {
-   "lastAttempt": "2026-11-21T17:39:31Z",
-   "lastSuccessfulCheck": "2026-11-21T17:39:31Z",
+   "lastAttempt": "2026-11-22T17:54:55Z",
+   "lastSuccessfulCheck": "2026-11-22T17:54:55Z",
    "processingStatus": "ok"
   }
  }
