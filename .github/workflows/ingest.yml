@@ -26,7 +26,7 @@ name: Scheduled data ingestion
 
 on:
   schedule:
-    - cron: '23 10 * * *'   # every day, 10:23 UTC: dockets, court of appeals decisions and legislation
+    - cron: '23 10 * * *'   # every day, 10:23 UTC: dockets, court of appeals decisions, legislation, and who holds office
     - cron: '41 9 * * 1'    # Mondays, 09:41 UTC: everything, including boundaries and Census counts
   workflow_dispatch:
     inputs:
@@ -44,10 +44,10 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  DAILY_STAGES: scotus california congress circuits courtlistener openstates
+  DAILY_STAGES: scotus california congress circuits courtlistener openstates government
   # Every stage of `python -m dhq.run`. A requested stage outside this list stops the run before the pipeline starts.
   # pipeline/tests/test_run.py checks that this list matches the pipeline's own.
-  STAGE_NAMES: geo population scotus california congress circuits courtlistener openstates relationships events
+  STAGE_NAMES: geo population scotus california congress circuits courtlistener openstates government relationships events
 
 jobs:
   # A run started by hand from another branch would otherwise end green without doing anything.
@@ -176,10 +176,9 @@ jobs:
         env:
           COURTLISTENER_API_TOKEN: ${{ secrets.COURTLISTENER_API_TOKEN }}
           OPENSTATES_API_KEY: ${{ secrets.OPENSTATES_API_KEY }}
-          # Repository variables (Settings > Secrets and variables > Actions > Variables), not secrets. Blank or
-          # missing means the pipeline's default: a generic client name, and the Open States list tx,fl,nc,oh.
+          # A repository variable (Settings > Secrets and variables > Actions > Variables), not a secret. Blank or
+          # missing means the pipeline's default, a generic client name.
           DHQ_USER_AGENT: ${{ vars.DHQ_USER_AGENT }}
-          OPENSTATES_JURISDICTIONS: ${{ vars.OPENSTATES_JURISDICTIONS }}
           STAGES: ${{ steps.stages.outputs.list }}
         run: |
           set +e

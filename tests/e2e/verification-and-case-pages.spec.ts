@@ -48,11 +48,13 @@ test.describe('Verification wording', () => {
     await expect(section).toContainText('Reporting a correction does not change a record’s badge.');
     const meaning = (label: string) => section.locator('.definitions > div').filter({ has: page.locator('dt', { hasText: label }) }).locator('dd');
     await expect(meaning('Checked against the official source')).toContainText('parsed without error');
-    await expect(meaning('Checked against the official source')).toContainText('Every record in this release carries this state.');
+    // The decisions read from CourtListener are imported from a secondary source, so both states are carried.
+    await expect(meaning('Checked against the official source')).not.toContainText('Every record in this release carries this state.');
+    await expect(meaning('Checked against the official source')).not.toContainText('No record in this release carries this state.');
     for (const label of ['Awaiting review', 'Disputed', 'Outdated']) {
       await expect(meaning(label)).toContainText('Defined but not yet used: nothing in DemocracyHQ assigns this state, and no record carries it.');
     }
-    await expect(meaning('Imported from secondary source')).toContainText('No record in this release carries this state.');
+    await expect(meaning('Imported from secondary source')).not.toContainText('No record in this release carries this state.');
   });
 
   test('the methodology page does not promise dates taken from the bill text or routine hand-run checks', async ({ page }) => {
@@ -90,7 +92,7 @@ test.describe('Verification wording', () => {
 test.describe('Home, About and place pages', () => {
   test('the home page lists the states with curated links alphabetically and says what it lists', async ({ page }) => {
     await open(page, '#/');
-    const sentence = page.locator('.view-home p').filter({ hasText: 'States with at least one curated link to a court case or bill in this dataset, in alphabetical order:' });
+    const sentence = page.locator('.view-home p').filter({ hasText: 'Curated links to a case or bill' });
     await expect(sentence).toBeVisible();
     await expect(page.getByText('States with the most linked records')).toHaveCount(0);
     const names = await sentence.getByRole('link').allTextContents();
@@ -107,10 +109,14 @@ test.describe('Home, About and place pages', () => {
     await expect(page.getByRole('region', { name: 'What this is not' })).not.toContainText('stated on every page');
   });
 
-  test('a place outside California says its legislation is not tracked, without claims about it', async ({ page }) => {
+  test('a state lists its own legislature’s measures, and a place without any says why, without claims about it', async ({ page }) => {
     await open(page, '#/place/state:36?tab=legislation');
     await expect(heading(page)).toHaveText('New York');
-    await expect(page.getByText('The election legislation of New York is not tracked here.')).toBeVisible();
+    const measures = page.getByRole('region', { name: 'Election measures in New York' });
+    await expect(measures.locator('a.row-title').first()).toHaveAttribute('href', /^#\/laws\/os-ny-/);
+    await expect(measures.getByRole('link', { name: /^See all [\d,]+ tracked measures$/ })).toHaveAttribute('href', '#/laws?jur=ny');
+    await open(page, '#/place/state:72?tab=legislation');
+    await expect(page.getByText('Not covered: Puerto Rico titles its measures in Spanish, which the rule does not read. A measure that is missing here may well exist.')).toBeVisible();
     await expect(page.getByText('has election legislation that is not shown here')).toHaveCount(0);
   });
 
@@ -126,7 +132,7 @@ test.describe('Home, About and place pages', () => {
     await expect(population).not.toContainText('island areas');
   });
 
-  test('the legend calls the boundary file’s date the server’s date, and the coverage hatch makes no claim about other states', async ({ page }) => {
+  test('the legend calls the boundary file’s date the server’s date, and the legislation hatch makes no claim about other states', async ({ page }) => {
     await open(page, '#/', { withMap: true });
     await mapReady(page, 'state');
     await expect(page.locator('.legend-vintage')).toContainText('Source file dated');
@@ -134,7 +140,7 @@ test.describe('Home, About and place pages', () => {
     await expect(page.locator('.legend-vintage')).not.toContainText('published');
     await open(page, '#/laws', { withMap: true });
     await mapReady(page, 'state');
-    await expect(page.locator('.legend .legend-hatch')).toHaveText('Not covered: this legislature’s election bills are not tracked by DemocracyHQ.');
+    await expect(page.locator('.legend .legend-hatch')).toHaveText('None in this dataset. Not evidence that none exists.');
   });
 });
 

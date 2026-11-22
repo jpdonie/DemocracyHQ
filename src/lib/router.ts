@@ -50,6 +50,19 @@ export function buildHash(path: string | readonly string[], query: QueryInput = 
   return `#/${segments.map(encodeSegment).join('/')}${search ? `?${search}` : ''}`;
 }
 
+/**
+ * The query values that describe the map and not one view: what the states are coloured by. They are carried along
+ * when the reader moves from place to place on the map, so a map shaded by party stays that way from state to state.
+ */
+const MAP_KEYS = ['shade'] as const;
+
+export function mapQuery(query: Readonly<Record<string, string>>): Record<string, string> {
+  const kept: Record<string, string> = {};
+  // Only the party shading belongs to every view of the states; the Census shadings belong to one layer.
+  for (const key of MAP_KEYS) if (query[key] === 'party') kept[key] = query[key];
+  return kept;
+}
+
 function subscribe(callback: () => void): () => void {
   window.addEventListener('hashchange', callback);
   return () => window.removeEventListener('hashchange', callback);

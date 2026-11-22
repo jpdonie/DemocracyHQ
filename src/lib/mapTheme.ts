@@ -5,11 +5,12 @@
  * Absence of data is always a hatch, never the lightest colour, so it cannot be
  * mistaken for a low value or a verified zero.
  */
-import type { Layer, PopulationFile, RedistrictingFile } from '../types/schemas';
+import type { Government, GovernmentControl, Layer, PopulationFile, RedistrictingFile } from '../types/schemas';
 import { courtGeoKey } from './courts';
 import type { GeoIndex } from './geo';
 import { ISLAND_AREAS, isDistrictLayer, parseGeoKey } from './geo';
-import { formatNumber } from './format';
+import { formatNumber, plural } from './format';
+import { controlSummary, whyUndetermined } from './government';
 
 export interface ThemeClass { token: string; label: string }
 
@@ -28,6 +29,16 @@ export interface MapTheme {
   /** Shown under the legend: what the encoding does and does not mean. */
   note: string | null;
   sourceId: string | null;
+  /**
+   * What the tooltip says for single units, where a unit has more to say than the label of its class: which parts of
+   * a state's government a party holds, or why none is shown. GEOID -> text.
+   */
+  detailOf?: ReadonlyMap<string, string>;
+  /**
+   * Themes of one family are the same colouring over another set of units, as when a filter of a list changes. The
+   * map then redraws without the fade it gives a new colouring, so that it does not flicker while a reader types.
+   */
+  family?: string;
 }
 
 export function linkedRecordsTheme(counts: ReadonlyMap<string, number>, what: 'cases' | 'records'): MapTheme {
@@ -37,9 +48,9 @@ export function linkedRecordsTheme(counts: ReadonlyMap<string, number>, what: 'c
     id: `linked:${what}:${[...classOf.keys()].sort().join(',')}`,
     layer: 'state',
     title: what === 'cases' ? 'Court cases linked to a state' : 'Records linked to a state',
-    classes: [{ token: what === 'cases' ? '--case-tint' : '--data-tint', label: what === 'cases' ? 'At least one linked case in this dataset' : 'At least one linked record in this dataset' }],
+    classes: [{ token: what === 'cases' ? '--case-tint' : '--data-tint', label: what === 'cases' ? 'At least one linked case' : 'At least one linked record' }],
     classOf,
-    hatch: { geoids: 'rest', label: 'No linked record in this dataset. Not evidence that none exists.' },
+    hatch: { geoids: 'rest', label: 'None in this dataset. Not evidence that none exists.' },
     plain: null,
     note: 'Shading shows where this dataset has records, not how much litigation or legislation exists.',
     sourceId: null,
@@ -48,22 +59,31 @@ export function linkedRecordsTheme(counts: ReadonlyMap<string, number>, what: 'c
 
 /**
  * The litigation list's map: the states its cases are listed under. A Supreme Court docket is listed under the states
- * its record links it to, an appeal under the state of the district court it came from, so the map and the list's
- * state filter always agree.
+ * its record links it to, an appeal under the state of the district court it came from, and a case of a district court
+ * or a state court under the state that court sits in, so the map and the list's state filter always agree. With
+ * `filtered`, the counts are those of the cases the list's other filters keep, and the legend says so. The shading
+ * marks that a case is listed; how many are is in the tooltip of the state, never in the depth of a colour.
  */
-export function caseStatesTheme(counts: ReadonlyMap<string, number>): MapTheme {
+export function caseStatesTheme(counts: ReadonlyMap<string, number>, filtered = false): MapTheme {
   const classOf = new Map<string, number>();
-  for (const [stateFips, count] of counts) if (count > 0) classOf.set(stateFips, 0);
+  const detailOf = new Map<string, string>();
+  for (const [stateFips, count] of counts) {
+    if (count <= 0) continue;
+    classOf.set(stateFips, 0);
+    detailOf.set(stateFips, filtered ? `${plural(count, 'case')} ${count === 1 ? 'matches' : 'match'} the filters` : `${plural(count, 'case')} in this dataset`);
+  }
   return {
-    id: `case-states:${[...classOf.keys()].sort().join(',')}`,
+    id: `case-states:${filtered ? 'filtered' : 'all'}:${[...classOf.keys()].sort().join(',')}`,
     layer: 'state',
-    title: 'Court cases by state',
-    classes: [{ token: '--case-tint', label: 'At least one case in this dataset' }],
+    title: filtered ? 'Court cases that match the filters, by state' : 'Court cases by state',
+    classes: [{ token: '--case-tint', label: filtered ? 'At least one case matches the filters' : 'At least one case' }],
     classOf,
-    hatch: { geoids: 'rest', label: 'No case in this dataset. Not evidence that none exists.' },
+    hatch: { geoids: 'rest', label: filtered ? 'None matches the filters. Not evidence that none exists.' : 'None in this dataset. Not evidence that none exists.' },
     plain: null,
-    note: 'A state is shaded when the record links a Supreme Court docket to it, or when an appeal in this dataset came from a federal district court there. Where an appeal came from says where it began, not what it concerns.',
+    note: 'A state is shaded when the record links a Supreme Court docket to it, when an appeal in this dataset came from a federal district court there, or when a case of a federal district court or of a state court that sits there is in this dataset. Where a case began or is heard does not say what it concerns. The shading shows that a case is listed, not how many are.',
     sourceId: null,
+    detailOf,
+    family: filtered ? 'case-states:filtered' : undefined,
   };
 }
 
@@ -81,9 +101,9 @@ export function circuitTheme(casesOfCourt: ReadonlyMap<string, number>): MapThem
     id: `circuits:${[...classOf.keys()].sort().join(',')}`,
     layer: 'circuit',
     title: 'Election cases in the courts of appeals',
-    classes: [{ token: '--case-tint', label: 'At least one case of this circuit’s court in this dataset' }],
+    classes: [{ token: '--case-tint', label: 'At least one case of the circuit’s court' }],
     classOf,
-    hatch: { geoids: 'rest', label: 'No case in this dataset. Not evidence that none exists.' },
+    hatch: { geoids: 'rest', label: 'None in this dataset. Not evidence that none exists.' },
     plain: null,
     note: 'A circuit is the group of states and territories whose federal district courts one court of appeals hears appeals from (28 U.S.C. § 41). The outlines are the Census Bureau’s state boundaries, merged by DemocracyHQ. They are not an official map of the courts.',
     sourceId: 'govinfo-uscourts',
@@ -91,22 +111,70 @@ export function circuitTheme(casesOfCourt: ReadonlyMap<string, number>): MapThem
 }
 
 /**
- * The legislation list's map: the states whose own election bills are tracked. The measures of Congress apply to
- * the whole country and are not drawn as shading.
+ * The legislation list's map: the states whose own legislature has a measure in this dataset. With `filtered`, the
+ * counts are those of the measures the list's other filters keep, and the legend says so. As on the litigation map, the
+ * shading marks that a measure is listed; how many are is in the tooltip of the state, never in the depth of a colour:
+ * how many a rule picks depends on how many bills a legislature files, how often it meets and how it titles and files
+ * them. `unlisted` gives, by state, why a legislature has none listed (see `whyNoneListed`). The measures of Congress
+ * apply to the whole country and are not drawn as shading.
  */
-export function coverageTheme(coveredStates: ReadonlySet<string>, withFederal = false): MapTheme {
+export function legislationTheme(counts: ReadonlyMap<string, number>, filtered = false, unlisted: ReadonlyMap<string, string> = new Map()): MapTheme {
   const classOf = new Map<string, number>();
-  for (const stateFips of coveredStates) classOf.set(stateFips, 0);
+  const detailOf = new Map<string, string>();
+  for (const [stateFips, count] of counts) {
+    if (count <= 0) continue;
+    classOf.set(stateFips, 0);
+    detailOf.set(stateFips, filtered ? `${plural(count, 'measure')} of the state’s legislature ${count === 1 ? 'matches' : 'match'} the filters` : `${plural(count, 'election measure')} of the state’s legislature in this dataset`);
+  }
+  for (const [stateFips, why] of unlisted) if (!classOf.has(stateFips)) detailOf.set(stateFips, why);
   return {
-    id: `coverage:${[...coveredStates].sort().join(',')}:${withFederal ? 'federal' : 'states'}`,
+    id: `legislation:${filtered ? 'filtered' : 'all'}:${[...classOf.keys()].sort().join(',')}`,
     layer: 'state',
-    title: 'State legislation coverage',
-    classes: [{ token: '--law-tint', label: 'State election bills tracked from the official legislative data' }],
+    title: filtered ? 'State legislation that matches the filters' : 'State legislation by state',
+    classes: [{ token: '--law-tint', label: filtered ? 'At least one measure matches the filters' : 'At least one election measure' }],
     classOf,
-    hatch: { geoids: 'rest', label: 'Not covered: this legislature’s election bills are not tracked by DemocracyHQ.' },
+    hatch: { geoids: 'rest', label: filtered ? 'None matches the filters. Not evidence that none exists.' : 'None in this dataset. Not evidence that none exists.' },
     plain: null,
-    note: withFederal ? 'The measures of Congress in this dataset apply to the whole country and are not drawn as shading.' : null,
-    sourceId: 'ca-leginfo-bulk',
+    note: 'The shading shows that a measure is listed, not how many are: how many a rule picks depends on how many bills a legislature files, how often it meets and how it titles them. The measures of Congress apply to the whole country and are not drawn as shading.',
+    sourceId: null,
+    detailOf,
+    family: filtered ? 'legislation:filtered' : undefined,
+  };
+}
+
+/** The classes of the party map, in the order of its legend. Red and blue are used for this view and nowhere else. */
+export const PARTY_CLASSES: ReadonlyArray<{ control: GovernmentControl; token: string; label: string }> = [
+  { control: 'R', token: '--party-r', label: 'Republican governor and legislature' },
+  { control: 'D', token: '--party-d', label: 'Democratic governor and legislature' },
+  { control: 'divided', token: '--party-split', label: 'Divided between the parties' },
+];
+
+/**
+ * The states by the party that holds their government (rule party-trifecta-1). A state is red or blue only when its
+ * governor and every chamber of its legislature are that party's. A state that is not determined, and every unit no
+ * record is published for, is hatched: no colour there is not a finding.
+ */
+export function partyControlTheme(states: readonly Government[]): MapTheme {
+  const classOf = new Map<string, number>();
+  const detailOf = new Map<string, string>();
+  for (const record of states) {
+    if (!record.id.startsWith('state:')) continue;
+    const fips = record.id.slice(6);
+    const index = PARTY_CLASSES.findIndex((item) => item.control === record.control);
+    if (index >= 0) classOf.set(fips, index);
+    detailOf.set(fips, record.control === 'undetermined' ? `Not determined. ${whyUndetermined(record)}` : controlSummary(record));
+  }
+  return {
+    id: `party:${states.map((record) => `${record.id.slice(6)}${record.control[0]}`).join('')}`,
+    layer: 'state',
+    title: 'Party control of the state governments',
+    classes: PARTY_CLASSES.map(({ token, label }) => ({ token, label })),
+    classOf,
+    hatch: { geoids: 'rest', label: 'Not determined, or not covered (the District of Columbia and the territories)' },
+    plain: null,
+    note: 'A state is red or blue when its governor is of that party and the members counted with that party hold more than half of the seats of every chamber, vacant seats included (rules party-seats-1 and party-trifecta-1). Seats show who was elected under which label, not who runs a chamber. The figures are the members each source lists on the day given on the state’s page. They are not an election result.',
+    sourceId: 'openstates-people',
+    detailOf,
   };
 }
 

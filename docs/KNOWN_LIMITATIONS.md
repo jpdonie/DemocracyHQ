@@ -11,9 +11,10 @@ Status as of the data release of 2026-11-21. The limits of the federal level
 
 - **Courts.** The U.S. Supreme Court (25 dockets chosen by hand) and the thirteen
   federal courts of appeals (128 cases selected by a word-counting rule from what
-  the courts send GovInfo, since 2025 only, as opinions without dockets). No
-  federal district court, no state court. Most election litigation starts in the
-  courts that are missing. The Eighth Circuit's cases are more likely to be
+  the courts send GovInfo, since 2025 only, as opinions without dockets), and the
+  federal district courts and the courts of the states as far as CourtListener
+  holds their decisions (95 cases at this release; see below). Most election
+  litigation starts in those courts, and most of it is still missing here. The Eighth Circuit's cases are more likely to be
   missing than those of other courts, because GovInfo holds its cover letters in
   place of its opinions.
 - **Two legislatures.** Congress (273 of the 20,191 measures of the 119th
@@ -30,6 +31,31 @@ Status as of the data release of 2026-11-21. The limits of the federal level
   its published exclusion pattern are removed. Election-related bills with other
   subject lines are missed, and the rule can admit a bill that is only loosely
   about elections.
+- **Who governs: the President is not shown.** No source read here names the
+  President or the President's party, so the United States is shown as "not
+  determined" even though both chambers of Congress have a majority. The page of
+  the country says so.
+- **Who governs: seats, not power.** A chamber is shown in a party's colour when
+  the members listed under that party's label hold more than half of all its
+  seats. That does not say who runs the chamber: where members of both parties
+  form the governing coalition, the colour still follows the seats.
+  A veto-proof majority, a tie broken by a lieutenant governor and a
+  power-sharing agreement are not shown. An evenly split chamber, or one where
+  vacant seats leave no party with more than half, is shown without a majority.
+- **Who governs: two secondary sources.** The governors come from the pages of
+  the National Governors Association and the legislators from Open States, which
+  volunteers and scrapers keep. A resignation, a death, a party switch or a
+  special election can take days or longer to appear, and nothing here checks
+  either source against a state's own record. The figures are never an election
+  result: nobody elected is counted before taking office.
+- **Who governs: fifty states only.** The District of Columbia and the
+  territories have no record, and the map hatches them. Nebraska's legislature is
+  elected without party labels, so the state is "not determined". Courts, other
+  statewide offices (secretaries of state, attorneys general) and local
+  governments are not covered.
+- **Who governs is not in the exports.** The legal source pack of a place does not
+  include the block. The party colouring of the map is kept by the map and by
+  the link back to the overview, and is dropped by the other links in the panel.
 - **No ballot or election results.** The site does not track the outcome of any
   vote of the people. Where a measure or a condition in it turns on such a vote,
   the page says so and points to the Secretary of State's Statement of Vote.
@@ -248,10 +274,47 @@ great deal of litigation.
   the CI and deploy workflows have run on GitHub, but the scheduled ingestion
   workflow has not run there yet. Treat its first runs as a test and watch their
   exit codes and review queue.
-- **Optional sources never run live.** The CourtListener and Open States adapters
-  were exercised only with synthetic test responses. Their output would be
-  published as separate data files (`litigation_secondary.json` and
-  `legislation_secondary.json`), which the site does not display.
+- **District courts and state courts come from a secondary source.** CourtListener
+  is run by the Free Law Project, not by any court, and does not hold every
+  decision of every court. The cases are selected from the decisions its search
+  lists since 2025 that use one of the search terms; a case whose decision is not
+  there, or uses none of the terms, is missed. Only decisions are read: there are
+  no docket entries, no filings and no timeline entries for these cases, and a
+  case is shown with the latest decision CourtListener holds, not with what
+  happened after it.
+- **The list of decisions fills in over several days.** CourtListener allows this
+  project's token five requests a minute, fifty an hour and 125 a day. The list is
+  kept month by month, and one run asks for at most 40 pages of twenty decisions.
+  At this release 4 of the 23 months since January 2025 are listed (August to
+  November 2026); the daily update lists the others in about four more days and
+  then reads every month again in turn. A month that returns far fewer decisions
+  than before keeps its earlier list and is flagged for review.
+- **The opening paragraph is quoted only from a PDF.** A decision CourtListener
+  holds as a web page (many New York, Maryland and Oklahoma decisions) is listed
+  without one, and so is a PDF whose layout the rule cannot read with confidence.
+  Of the 95 cases, 74 quote one.
+- **One case may be listed twice.** Decisions one court files under two dockets
+  with the same number are shown as one case (rule `cl-same-docket`); an order
+  filed under a docket number that differs by a letter (California's "H053842M"
+  for an order modifying the opinion of "H053842") is a second case.
+- **The measures of the other state legislatures come from a secondary source.**
+  Open States collects them from the legislatures' sites; its records can lag
+  behind them. They are selected by title and by the subjects the legislature
+  files them under (rule `state-select-1`), never by their text, so a measure
+  whose title does not name an election matter is missed, and a title that uses an
+  election word in another sense can be listed. The stage a measure reached is
+  worked out from how Open States classifies its actions (rule `state-status-1`);
+  it is not the legislature's own status.
+- **Maryland and Vermont are not listed yet.** Open States gives their pages over
+  http only, and the site links only to secure pages (rule `secure-link-1`). The
+  daily update asks each such site once a week whether it serves the same page
+  over https; their measures are listed once it does. California is read from its
+  own data, and Puerto Rico, whose titles are in Spanish, is left out.
+- **The search box does not find the measures of the other state legislatures.**
+  Their index is close to a megabyte compressed, so it is loaded only by the list
+  of legislation, the page of a state and the page of methodology. Search for them
+  in the list of legislation, where they can be chosen by state, issue and stage.
+  Their texts are linked, not mirrored, so they cannot be compared on the site.
 - **One machine, one browser engine.** Browser tests ran in headless Chromium
   only, at a desktop size and with a phone profile. Firefox, Safari, real phones
   and real assistive technology were not tested.
@@ -262,10 +325,14 @@ great deal of litigation.
 ## Accessibility
 
 The site aims at WCAG 2.2 AA and does not claim to conform. Automated axe checks
-with the WCAG 2.0 to 2.2 A and AA rule sets report no violations on sixteen
+with the WCAG 2.0 to 2.2 A and AA rule sets report no violations on nineteen
 desktop views (and with the search results open, with spelling suggestions shown
 and on a pressed watchlist button) and on six phone views (and with the
 related-geography lists opened on two of them). Keyboard paths are tested.
+The names of places drawn on the map are part of the canvas, so those checks do
+not read them. A rule in the code draws a name in dark ink wherever the light ink
+would have a contrast below 3 to 1 against the fill; the result was looked at in
+screenshots and is not measured by a tool.
 Automated tests also check that no control that takes focus is fully hidden
 behind the bars at 342 x 164, 342 x 192 and 320 x 256 CSS pixels, sizes like a
 laptop screen at 400% zoom; on such screens the page scrolls as one document.

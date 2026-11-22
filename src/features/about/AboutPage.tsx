@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { APP_NAME, POSITIONING, REPO_URL, correctionUrl } from '../../config';
+import { embedCode } from '../../lib/embed';
 import { buildHash, type Route } from '../../lib/router';
 import { A, Ext, Section, TypeMark } from '../../components/ui';
 
@@ -33,7 +34,7 @@ export function AboutPage({ route }: { route: Route }) {
       </Section>
 
       <Section title="Neutrality">
-        <p>The same rules apply to every record, whichever party or interest benefits. Records are described in the words of the source: docket entries and court records are quoted, and a bill carries its official titles, subject line and summary. Where {APP_NAME} adds something of its own, such as an issue tag or a link between a case and a place, the rule or the supporting passage is shown next to it. Map colours avoid red and blue.</p>
+        <p>The same rules apply to every record, whichever party or interest benefits. Records are described in the words of the source: docket entries and court records are quoted, and a bill carries its official titles, subject line and summary. Where {APP_NAME} adds something of its own, such as an issue tag or a link between a case and a place, the rule or the supporting passage is shown next to it. Map colours avoid red and blue, with one exception: where the site shows which party holds a governor&rsquo;s office or a chamber, red and blue stand for the two parties and for nothing else, and every part also names its party in words. Those figures are the members a source lists today. They are not an election result and not a forecast.</p>
       </Section>
 
       <Section title="Corrections" id="corrections">
@@ -41,6 +42,12 @@ export function AboutPage({ route }: { route: Route }) {
         {issue
           ? <p><Ext href={issue}>Open a correction on GitHub</Ext></p>
           : <p>This copy of the site was built without a repository address, so it cannot link straight to the issue tracker. If you are running it yourself, set <span className="hash">VITE_REPO_URL</span> at build time; the published site links to its own repository automatically.</p>}
+      </Section>
+
+      <Section title="Embedding" id="embed">
+        <p>Any view of {APP_NAME} can be shown inside another page. Put <span className="hash">?embed=1</span> before the <span className="hash">#</span> of its address. The embedded form keeps the map, the records and their sources, and adds a link that opens the same view here in a new tab. This is the overview:</p>
+        <pre className="snippet"><code>{embedCode(buildHash([]), APP_NAME)}</code></pre>
+        <p className="quiet">For a state, a case or a measure, open it here and copy the part of its address after the <span className="hash">#</span> into the snippet. An embedded view is the same site with the same data. It sets no cookies and loads nothing from third parties.</p>
       </Section>
 
       <Section title="Privacy">
@@ -59,7 +66,7 @@ export function AboutPage({ route }: { route: Route }) {
       <Section title="Source code and licence" id="source">
         <p>The code is open source under the Apache License 2.0. That licence covers the code, the documentation and the design files written for this project. It does not cover the upstream data the pipeline retrieves and publishes: those records belong to, or are published by, their sources and are reused under the terms listed for each source in <A to={buildHash(['sources'])}>Data and methodology</A>.</p>
         {REPO_URL ? <p><Ext href={REPO_URL}>Repository on GitHub</Ext></p> : <p className="quiet">The repository address is added when the site is published.</p>}
-        <p>Built with public data from the U.S. Census Bureau, the Supreme Court of the United States, the U.S. Government Publishing Office (GovInfo) and the California Legislative Counsel, and with the open-source projects MapLibre GL JS, React, Mapshaper, and the Archivo, Newsreader and Noto Sans typefaces. Their licence notices ship with the site: <a href="third-party-licenses.md">third-party licences</a> (code bundled into the site) and <a href="fonts/README.md">font licences</a>.</p>
+        <p>Built with public data from the U.S. Census Bureau, the Supreme Court of the United States, the U.S. Government Publishing Office (GovInfo), the California Legislative Counsel, Open States (Plural Policy) and CourtListener (Free Law Project), and with the open-source projects MapLibre GL JS, React, Mapshaper, and the Archivo, Newsreader and Noto Sans typefaces. Their licence notices ship with the site: <a href="third-party-licenses.md">third-party licences</a> (code bundled into the site) and <a href="fonts/README.md">font licences</a>.</p>
       </Section>
     </article>
   );

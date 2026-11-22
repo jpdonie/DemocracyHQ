@@ -6,7 +6,7 @@
  * thirteenth, the Federal Circuit, takes cases by subject from every district, so it has no area of its own.
  */
 import type { CircuitsFile, Court, LegalCaseSummary } from '../types/schemas';
-import { CIRCUIT_CASE_ID_PATTERN } from '../types/schemas';
+import { CIRCUIT_CASE_ID_PATTERN, type OTHER_COURT_TYPES } from '../types/schemas';
 import { CONTIGUOUS_BOUNDS, unionBbox, type Bbox, type GeoIndex } from './geo';
 import { buildHash } from './router';
 
@@ -49,7 +49,94 @@ export function courtIdOfCase(caseId: string): string | null {
 
 /** Whether a case's court passes the court filter: one court by its id, or "appeals" for any court of appeals. */
 export function matchesCourt(courtId: string, filter: string): boolean {
-  return filter === ALL_APPEALS ? courtId !== SCOTUS_ID : courtId === filter;
+  return filter === ALL_APPEALS ? isAppealsCourtId(courtId) : courtId === filter;
+}
+
+/* ---------- kinds of court ---------- */
+
+/** What kind of court a case is in: one of the two federal kinds the site lists itself, or the kind its record names. */
+export type CourtKind = 'federal_supreme' | 'federal_appellate' | (typeof OTHER_COURT_TYPES)[number];
+export type CourtSystem = 'federal' | 'state';
+export type CourtLevel = 'supreme' | 'appellate' | 'trial';
+type CourtOf = Pick<LegalCaseSummary, 'courtId' | 'court'>;
+
+/** The kind of court a case is in. Null for a record that names neither a known court nor a kind (none is published). */
+export function courtKind(record: CourtOf): CourtKind | null {
+  if (record.courtId === SCOTUS_ID) return 'federal_supreme';
+  if (isAppealsCourtId(record.courtId)) return 'federal_appellate';
+  return record.court?.courtType ?? null;
+}
+
+export function systemOfKind(kind: CourtKind): CourtSystem {
+  return kind.startsWith('federal_') ? 'federal' : 'state';
+}
+
+/** The level of a kind of court within its system. A federal district court is the trial court of the federal system. */
+export function levelOfKind(kind: CourtKind): CourtLevel {
+  return kind.endsWith('_supreme') ? 'supreme' : kind.endsWith('_appellate') ? 'appellate' : 'trial';
+}
+
+export function courtSystem(record: CourtOf): CourtSystem | null {
+  const kind = courtKind(record);
+  return kind ? systemOfKind(kind) : null;
+}
+
+export function courtLevel(record: CourtOf): CourtLevel | null {
+  const kind = courtKind(record);
+  return kind ? levelOfKind(kind) : null;
+}
+
+export function isCourtSystem(value: string | undefined): value is CourtSystem {
+  return value === 'federal' || value === 'state';
+}
+
+export function isCourtLevel(value: string | undefined): value is CourtLevel {
+  return value === 'supreme' || value === 'appellate' || value === 'trial';
+}
+
+/** The courts of one system and level, as a menu or a sentence names them. Without a system the name fits both. */
+export function levelName(level: CourtLevel, system?: CourtSystem | null): string {
+  if (system === 'federal') return level === 'supreme' ? 'Supreme Court' : level === 'appellate' ? 'Courts of appeals' : 'District courts';
+  if (system === 'state') return level === 'supreme' ? 'State supreme courts' : level === 'appellate' ? 'State appellate courts' : 'State trial courts';
+  return level === 'supreme' ? 'Supreme courts' : level === 'appellate' ? 'Appellate courts' : 'Trial courts';
+}
+
+/**
+ * How a case is known. The Supreme Court's dockets are the Court's own; a court of appeals case is known from the
+ * documents GovInfo holds for it; a case of a district court or a state court from the decisions CourtListener holds.
+ * The three are worded differently wherever a record is shown.
+ */
+export type RecordBasis = 'docket' | 'govinfo' | 'courtlistener';
+
+export function recordBasis(record: Pick<LegalCaseSummary, 'courtId'>): RecordBasis {
+  if (record.courtId === SCOTUS_ID) return 'docket';
+  return isAppealsCourtId(record.courtId) ? 'govinfo' : 'courtlistener';
+}
+
+/** Where the name of a case's court leads: the court's page for the fourteen federal courts, else the list of its cases. */
+export function caseCourtHash(record: CourtOf): string {
+  return isCourtId(record.courtId) ? courtHash(record.courtId) : buildHash(['litigation'], { court: record.courtId });
+}
+
+/** A case's court by its full name: "United States Court of Appeals for the Fifth Circuit", "Supreme Court of Oklahoma". */
+export function caseCourtFullName(record: CourtOf, court?: Court): string {
+  return record.court?.name ?? courtFullName(court, record.courtId);
+}
+
+/**
+ * A case's court as a list names it: "Supreme Court of the United States", "Fifth Circuit", and for the other courts
+ * the name the record gives, with a federal district court shortened to "U.S. District Court, N.D. Texas" style only
+ * where the record gives a citation form; otherwise its name in full.
+ */
+export function caseCourtListName(record: CourtOf, court?: Court): string {
+  if (record.courtId === SCOTUS_ID) return fixedFullName(SCOTUS_ID)!;
+  if (record.court) return record.court.name.replace(/^United States District Court for the /, 'U.S. District Court, ');
+  return courtShortName(court, record.courtId);
+}
+
+/** A case's court in a citation's parentheses: "5th Cir.", "N.D. Tex.", or the court's name where no short form is given. */
+export function caseCourtCitation(record: CourtOf): string {
+  return record.court ? (record.court.citation || record.court.name) : courtCitation(record.courtId);
 }
 
 export function courtHash(courtId: string): string {
@@ -176,6 +263,26 @@ export function casesByCourt(cases: readonly LegalCaseSummary[]): Map<string, nu
   const counts = new Map<string, number>();
   for (const record of cases) counts.set(record.courtId, (counts.get(record.courtId) ?? 0) + 1);
   return counts;
+}
+
+/** How many published cases each kind of court has, and how many different courts of that kind have one. */
+export function casesByKind(cases: readonly CourtOf[]): Map<CourtKind, { cases: number; courts: number }> {
+  const courtsOf = new Map<CourtKind, Set<string>>();
+  const counts = new Map<CourtKind, { cases: number; courts: number }>();
+  for (const record of cases) {
+    const kind = courtKind(record);
+    if (!kind) continue;
+    const seen = courtsOf.get(kind) ?? new Set<string>();
+    courtsOf.set(kind, seen.add(record.courtId));
+    counts.set(kind, { cases: (counts.get(kind)?.cases ?? 0) + 1, courts: seen.size });
+  }
+  return counts;
+}
+
+/** The cases of the courts of the states, of every level together. */
+export function stateCourtCases(counts: ReadonlyMap<CourtKind, { cases: number; courts: number }>): { cases: number; courts: number } {
+  const kinds: CourtKind[] = ['state_supreme', 'state_appellate', 'state_trial'];
+  return kinds.reduce((total, kind) => ({ cases: total.cases + (counts.get(kind)?.cases ?? 0), courts: total.courts + (counts.get(kind)?.courts ?? 0) }), { cases: 0, courts: 0 });
 }
 
 /**

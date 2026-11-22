@@ -12,7 +12,8 @@ instead carries a short quotation from a text an official body published about i
   that has none, the passage of one of its documents that a maintainer cited to show which place the case concerns,
   and which the pipeline finds in that document on every run; and failing that the first entry of the docket
   (``about-question-1``, ``about-cited-1``, ``about-docket-1``);
-- a court of appeals case: the opening passage of the opinion (``about-opinion-1``, see :mod:`dhq.opening`).
+- a case decided by a court of appeals, a district court or a court of a state: the opening passage of the opinion
+  (``about-opinion-1``, see :mod:`dhq.opening`).
 
 The quotation starts at the beginning of a sentence and runs whole sentences, until it is long enough for a row. Only a
 first sentence that is longer than a row can hold is cut, at a word, and the record says so (``cut``).
@@ -29,6 +30,7 @@ QUESTION_RULE_ID = "about-question-1"
 CITED_RULE_ID = "about-cited-1"
 DOCKET_RULE_ID = "about-docket-1"
 OPINION_RULE_ID = "about-opinion-1"
+ABSTRACT_RULE_ID = "about-abstract-1"
 
 #: A quotation is not extended by another sentence once it has this many characters ...
 ENOUGH_CHARS = 220
@@ -45,7 +47,7 @@ def _flat(text: str) -> str:
 _ABBREVIATIONS = {
     "v", "vs", "no", "nos", "u.s", "u.s.c", "inc", "co", "corp", "ltd", "mr", "ms", "mrs", "dr", "jr", "sr", "st", "fed", "civ", "crim",
     "app", "cir", "stat", "ann", "const", "art", "amend", "cl", "sec", "rev", "gov", "sen", "rep", "hon", "al", "i.e", "e.g", "cf",
-    "id", "ex", "dkt", "doc", "supp", "ch", "tit", "para", "pp", "op", "cal", "tex", "miss", "ala", "ariz", "ark", "colo", "conn", "del",
+    "id", "ex", "dkt", "doc", "ecf", "compl", "supp", "ch", "tit", "para", "pp", "op", "cal", "tex", "miss", "ala", "ariz", "ark", "colo", "conn", "del",
     "fla", "ga", "ill", "ind", "kan", "ky", "la", "mass", "md", "mich", "minn", "mo", "mont", "neb", "nev", "okla", "or", "pa", "tenn",
     "va", "vt", "wash", "wis", "wyo", "n.c", "s.c", "n.d", "s.d", "n.y", "n.j", "n.m", "n.h", "w.va", "d.c", "dep't", "dept", "ass'n",
     "assn", "comm'n", "dist", "div", "ct", "atty", "gen", "sup", "pub", "reg", "res", "sess", "ed", "eds", "etc", "jan", "feb", "mar", "apr",
@@ -420,6 +422,26 @@ def of_bill(record: dict) -> Optional[dict]:
     return _worth(counsel_digest(record.get("digest"), url=url))
 
 
+#: An abstract that is the measure's title again ("An Act to amend ... relating to ..."), which is shown already.
+_TITLE_NOTE_RE = re.compile(r"^\s*title\s*$", re.I)
+
+
+def state_abstract(abstracts: List[dict]) -> Optional[dict]:
+    """``about`` for a measure of a state legislature read from Open States: its latest abstract that is not its title
+    again, in whole sentences. Open States records the abstract from the legislature's site; it gives no address for
+    the text itself, so none is given here."""
+    for entry in reversed(abstracts):
+        if _TITLE_NOTE_RE.match(entry.get("note") or ""):
+            continue
+        flat = _flat(entry.get("text") or "")
+        if flat:
+            text, cut = quotation(flat)
+            found = _worth(_about(text, "abstract", ABSTRACT_RULE_ID, cut=cut))
+            if found:
+                return found
+    return None
+
+
 def of_docket(record: dict, links: Optional[List[dict]] = None) -> Optional[dict]:
     """``about`` for a Supreme Court docket. ``links`` are its published links to places, in the order of the seed."""
     questions = record.get("questionsPresented") or {}
@@ -443,6 +465,12 @@ RULES = [
      "description": "Quoted from the Legislative Counsel's Digest, starting at its first sentence that says what the bill would do "
                     "(the pattern " + _WOULD_RE.pattern + " at the start of a sentence). A digest first describes existing law; that "
                     "part is passed over. A digest without such a sentence is quoted from its beginning."},
+    {"ruleId": ABSTRACT_RULE_ID, "appliesTo": "What a measure of a state legislature (other than California) is about",
+     "description": "Quoted from the abstract Open States records for the measure, which it takes from the legislature's site (a "
+                    "summary, a description or a digest): the latest one, unless it only repeats the title, in whole sentences. "
+                    "Open States gives no address for the abstract itself, so the quotation links to none; the measure's record "
+                    "links to the legislature's page. A measure without an abstract has no further line: its title is what the "
+                    "legislature says it is about."},
     {"ruleId": QUESTION_RULE_ID, "appliesTo": "What a Supreme Court case is about",
      "description": "Quoted from the Questions Presented document the Court publishes for the case. The question is looked for in "
                     "this order: what follows the words 'the question presented is:' (the latest such passage, since an order of the "
@@ -462,14 +490,26 @@ RULES = [
     {"ruleId": DOCKET_RULE_ID, "appliesTo": "What a Supreme Court docket with neither a Questions Presented document nor a cited passage is about",
      "description": "The entry that opens the docket is quoted, for example an application for a stay. It names the kind of "
                     "request, not its subject; the issue tags and the court below say more."},
-    {"ruleId": OPINION_RULE_ID, "appliesTo": "What a court of appeals case is about",
-     "description": "Quoted from the opening of the opinion the selection rule rests on. The layout of the opinion's first pages is "
+    {"ruleId": OPINION_RULE_ID, "appliesTo": "What a case decided by a court of appeals, a district court or a court of a state is about",
+     "description": "Quoted from the opening of the decision the selection rule rests on; where that is the opinion of a single "
+                    "judge (a dissent, a concurrence), from the court's own decision with the most election words instead. The "
+                    "layout of the opinion's first pages is "
                     "read (poppler's pdftohtml), so that running heads, page numbers, footnotes and footnote marks can be told from "
                     "the text by their place and type size and left out. The opinion begins after the line that names its author "
-                    "('SMITH, Circuit Judge.', 'PER CURIAM:') or, where there is none, after the line that names the panel. Its "
-                    "first paragraph is quoted. The words every order begins with ('This appeal was considered on the record "
-                    "...') are passed over, and so is a passage the court sets in from the margin, such as a statute it "
-                    "quotes: it carries no quotation marks and would read as the court's words. A word the page broke across "
+                    "('SMITH, Circuit Judge.', 'PER CURIAM:', 'ROWAN, PRESIDING JUSTICE, FOR THE COURT:', 'ROWAN, J.—', "
+                    "'McCORMICK, C.') or, where there is none, after the line that names the panel ('Before ...', '(By: ...)'), "
+                    "or else after the heading of the opinion near the head of the file ('MEMORANDUM OPINION', 'O P I N I O N', "
+                    "'PER CURIAM ORDER', 'OPINION OF ROWAN, J.'). A short first line set in from the margin whose sentence goes "
+                    "on at the margin below is the start of a paragraph, not a heading. "
+                    "A judge's name that signs an order (under 'FOR THE COURT', or among other judges' names), that names the "
+                    "judge of the court appealed from, or that stands beside other words is not taken for the author, and a "
+                    "panel named below the opinion is not taken for its beginning. Its first paragraph is quoted. The numbers "
+                    "some courts set before each paragraph ('¶1', '{¶ 1}') are left out. The list of counsel, the caption set "
+                    "again above the text, the line that names who joined the opinion, the disposition alone ('Affirmed.') and "
+                    "the words every order begins with ('This appeal was considered on the record ...') are passed over, and "
+                    "so is a passage the court sets in from the margin, such as a statute it quotes: it carries no quotation "
+                    "marks and would read as the court's words. A file whose opinion begins 'I respectfully dissent' or 'I "
+                    "concur' is a separate opinion and has no quotation. A word the page broke across "
                     "two lines is joined again, with or without its hyphen as the rest of the opinion writes it. The passage is "
                     "then checked against the plain text of the same file, read by another program (pdftotext): its letters "
                     "must stand there one after the other, with none left out; other matter may stand between them only where "

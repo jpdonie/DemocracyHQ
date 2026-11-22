@@ -1,6 +1,6 @@
 # DemocracyHQ
 
-**Election litigation, voting laws and district boundaries, linked to their sources.**
+**Election law, state by state, from the record.**
 
 DemocracyHQ is a free, open-source research tool that puts three kinds of public
 record on one map: court dockets in election cases, election bills with their text
@@ -13,7 +13,8 @@ pipeline retrieves the records from official sources and writes plain JSON; the
 site reads that JSON.
 
 > **Status: an early, working prototype.** It covers Congress and one state
-> legislature, the Supreme Court and the federal courts of appeals. It is published at <https://democracy-hq.org/> by the deploy
+> legislature, the Supreme Court, the federal courts of appeals and, from CourtListener, decisions of federal
+> district courts and of the courts of the states. It is published at <https://democracy-hq.org/> by the deploy
 > workflow (GitHub Pages); the scheduled data update has not yet run on GitHub. Read
 > [Known limitations](docs/KNOWN_LIMITATIONS.md) before relying on anything here.
 
@@ -27,16 +28,22 @@ site reads that JSON.
 | Election litigation | 25 hand-picked U.S. Supreme Court dockets in election cases, with every docket entry, links to filed documents, the latest ruling entry and, where the docket links them, the questions presented | supremecourt.gov docket pages |
 | Election litigation, courts of appeals | 128 election cases of the federal courts of appeals, selected by a published rule from the 27,813 cases GovInfo lists with a document issued since 2025, each with its opinion, where the appeal began and why it was selected | GovInfo, United States Courts Opinions |
 | Election measures of Congress | 273 of the 20,191 measures of the 119th Congress, selected by a published rule, with their actions, the stage reached, every text version and a version comparison | GovInfo bulk data (Bill Status and Bills) |
+| Election litigation, district courts and state courts | 95 election cases of federal district courts and of the courts of the states, selected by the same published rule from the decisions CourtListener's search lists since 2025, each with its court, the decision it rests on, its opening paragraph where the decision is a PDF the rule can read, and why it was selected. Labelled as a secondary source; decisions only, no dockets | CourtListener (Free Law Project), with an API token |
 | Courts | The Supreme Court and the thirteen courts of appeals, with the states and territories of each circuit as 28 U.S.C. § 41 lists them, drawn on the map | United States Code on GovInfo |
+| Election legislation of the other states | 7,957 election measures of 47 state legislatures and the District of Columbia, from every session since 2025 (277,377 measures read), selected by a published rule from their titles and the subjects the legislature files them under, each with the stage it reached, its actions, sponsors, text versions, the legislature's summary where Open States records one, and why it was selected. Labelled as a secondary source. Maryland and Vermont give their pages over http only and are not listed yet | Open States (Plural Policy) bulk data, with an API key for the list of sessions |
 | California election legislation | 132 of the 5,041 measures of the 2025-2026 Regular Session, selected by a published rule, with official history, every text version and a version comparison | California Legislative Information bulk data |
 | Redistricting | Boundaries for 56 states and state equivalents, 3,235 counties and county equivalents, and the congressional districts of the 119th Congress (441) and of the 120th Congress, elected in 2026 (441), with 2020 Census counts shown only on the lines they were tabulated for, or on a 2026 district that the Census Bureau reports as unchanged | U.S. Census Bureau |
+| Who governs | For each of the fifty states the governor and every chamber of the legislature, and for the United States the Senate and the House of Representatives, with the seats each party holds and, by published rules, which party holds the government: 23 states Republican, 15 Democratic, 11 divided, 1 not determined. The President is not shown yet | Senate.gov, the Clerk of the House, the National Governors Association, Open States |
 
 Across the modules: a workspace for any place, a dated "What changed here?"
 timeline of the docket entries and legislative actions that the published rules
-mark as key, changed bill texts and boundary-file dates (1,475 events), 38 links
+mark as key, changed bill texts and boundary-file dates (1,476 events), 38 links
 between cases, bills and places that each quote the passage supporting them, a
 search box, a watchlist kept in your own browser, and a "legal source pack" export
 as JSON, CSV or a printable page.
+
+Any view can be shown inside another page: put `?embed=1` before the `#` of its
+address and use it as the address of a frame. The About page gives the markup.
 
 Figures are those of the data release generated on 2026-11-21. [The federal level](docs/FEDERAL_LEVEL.md)
 describes the measures of Congress, the courts of appeals and the circuits. The site's
@@ -85,8 +92,8 @@ npm run test:e2e       # builds the browser-test build in dist-e2e/, then runs t
                        # browser tests against it, served under a sub-path
 ```
 
-The suites hold 337 unit tests in 24 files, 247 browser tests in 17 files (a
-desktop project at 1366 x 768 and a phone project) and 708 pipeline tests.
+The suites hold 366 unit tests in 27 files, 261 browser tests in 19 files (a
+desktop project at 1366 x 768 and a phone project) and 772 pipeline tests.
 [CONTRIBUTING.md](CONTRIBUTING.md#tests) says what each covers.
 
 ### Data pipeline
@@ -116,11 +123,12 @@ The pipeline keeps its downloads in `pipeline/.cache/` (about 820 MB after the
 run of 2026-11-21, most of it the text of the court of appeals documents) and reads the large archives, including California's 1.3 GB
 one, with HTTP range requests instead of downloading them whole. The pipeline
 spaces its requests to supremecourt.gov at least 1.1 seconds apart, because the
-Court's `robots.txt` sets a crawl delay of one second. No API key is needed. Two
-optional sources can be switched on with keys; their records go to separate files
-under `public/data/` (`litigation_secondary.json` and `legislation_secondary.json`)
-for a maintainer to review, and the site does not display them. See
-[`.env.example`](.env.example).
+Court's `robots.txt` sets a crawl delay of one second. Two sources need keys:
+CourtListener (`COURTLISTENER_API_TOKEN`), whose decisions the site shows as cases of
+district courts and state courts, and Open States (`OPENSTATES_API_KEY`), whose
+measures of the state legislatures the site lists beside those of Congress and
+California. Without a key the stage records `credential_missing` and publishes
+nothing new from that source. See [`.env.example`](.env.example).
 
 The pipeline writes to a staging folder, checks the staged cases, bills and links
 against its data model, and only then replaces the files in `public/data/`. If

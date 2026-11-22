@@ -34,6 +34,7 @@ def test_a_full_stop_after_an_abbreviation_does_not_end_a_sentence():
     "168 Cong. Rec. S1234 records the debate on the amendment",
     "Mt. Healthy City Sch. Dist. Bd. of Educ. v. Doyle governs the claim",
     "Am. Civ. Liberties Union v. Synthetic County decided the same point",
+    "the complaint (Compl. ¶ 4, ECF. No. 1) says the board met in secret",
 ])
 def test_the_abbreviations_of_a_citation_do_not_end_a_sentence(citation):
     # A quotation cut at such a full stop would stop inside a sentence without saying so.
@@ -251,5 +252,5 @@ def test_a_passage_too_short_to_say_anything_is_not_published():
 
 def test_every_rule_is_published_with_its_description():
     ids = [rule["ruleId"] for rule in about.RULES]
-    assert ids == ["about-crs-1", "about-title-1", "about-digest-1", "about-question-1", "about-cited-1", "about-docket-1", "about-opinion-1"]
+    assert ids == ["about-crs-1", "about-title-1", "about-digest-1", "about-abstract-1", "about-question-1", "about-cited-1", "about-docket-1", "about-opinion-1"]
     assert all(rule["appliesTo"] and len(rule["description"]) > 80 for rule in about.RULES)

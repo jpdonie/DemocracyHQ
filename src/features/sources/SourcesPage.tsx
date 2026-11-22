@@ -1,14 +1,15 @@
 /** Data sources and methodology: where every record comes from, how it is processed, and what it cannot tell you. */
 import { useEffect } from 'react';
-import { VERIFICATION_STATUSES, type VerificationStatus } from '../../types/schemas';
+import { VERIFICATION_STATUSES, type StateLegislationIndex, type VerificationStatus } from '../../types/schemas';
 import { isFederalBill, shortSession } from '../../lib/bills';
-import { useCore, type AppealsCoverage, type BillCatalog } from '../../lib/core';
-import { SCOTUS_ID, courtHash, courtShortName, type CourtDirectory } from '../../lib/courts';
+import { useCore, useStateLegislation, type AppealsCoverage, type BillCatalog, type DecisionsCoverage } from '../../lib/core';
+import { SCOTUS_ID, courtHash, courtShortName, isAppealsCourtId, levelName, levelOfKind, systemOfKind, type CourtDirectory, type CourtKind } from '../../lib/courts';
 import { loadClassification } from '../../lib/data';
 import { formatDate, formatDateTime, formatNumber, plural } from '../../lib/format';
 import { sourceFreshness } from '../../lib/freshness';
 import { eventLabel } from '../../lib/labels';
 import { buildHash, type Route } from '../../lib/router';
+import { legislatureCoverage, listNames, unlistedSummary } from '../../lib/stateLegislation';
 import { dataOf, useLoad } from '../../lib/useLoad';
 import { UNASSIGNED_STATUSES, VERIFICATION_MEANINGS } from '../../lib/verification';
 import { correctionUrl, REPO_URL } from '../../config';
@@ -60,7 +61,7 @@ function FederalSelection({ catalog }: { catalog: BillCatalog }) {
         The rule is applied to {selection.appliedTo}. A measure is included when it meets one of three tests, tried in this order:
       </p>
       <TableScroll label="Tests of the selection rule for the measures of Congress">
-        <table className="table">
+        <table className="table table-dense">
           <thead><tr><th scope="col">Test</th><th scope="col">A measure meets it when</th><th scope="col" className="num">Measures</th><th scope="col">Pattern (case-insensitive regular expression)</th></tr></thead>
           <tbody>
             {Object.entries(selection.tests).map(([name, words]) => (
@@ -83,6 +84,146 @@ function FederalSelection({ catalog }: { catalog: BillCatalog }) {
         Each measure is read from its bill status record, which the Government Publishing Office publishes from the records of the Library of Congress, and its text versions from the official bill texts. The record gives no status of its own: the stage shown for a measure is the furthest step among its recorded actions (rule us-status-1), not an official status.
         Each measure links to its page on congress.gov; that page is not machine-checked.
       </p>
+    </>
+  );
+}
+
+/** How the measures of the other state legislatures are read from Open States and selected, from the index itself. */
+function StateSelection({ index }: { index: StateLegislationIndex }) {
+  const selection = index.selection;
+  const coverage = legislatureCoverage(index);
+  const legislatures = [...coverage.values()].filter((l) => l.sessions.length > 0).length;
+  const unlisted = unlistedSummary(coverage);
+  const patterns: Readonly<Record<string, string>> = { named: selection.namedPattern, general: selection.generalPattern, subject: selection.subjectPattern };
+  return (
+    <>
+      <p>
+        <strong>The other state legislatures.</strong> Read from the bulk data of Open States, scanned {formatDate(index.scannedAt.slice(0, 10))}: every measure of the {formatNumber(index.sessions.length)} sessions of {formatNumber(legislatures)} legislatures that began or ended on or after {formatDate(selection.since)}, {formatNumber(selection.totalMeasuresRead)} in this release.
+        {' '}A measure is selected by rule {selection.ruleId}, applied to {selection.appliedTo}, when it meets one of three tests:
+      </p>
+      <TableScroll label="Tests of the selection rule for the measures of the other state legislatures">
+        <table className="table table-dense">
+          <thead><tr><th scope="col">Test</th><th scope="col">A measure meets it when</th><th scope="col" className="num">Measures</th><th scope="col">Pattern (case-insensitive regular expression)</th></tr></thead>
+          <tbody>
+            {Object.entries(selection.tests).map(([name, words]) => (
+              <tr key={name}>
+                <th scope="row">{name}</th>
+                <td>{words}</td>
+                <td className="num">{formatNumber(selection.selectedByTest[name] ?? 0)}</td>
+                <td className="rule-pattern">{patterns[name] ?? ''}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </TableScroll>
+      <p>
+        Before a title is read, these phrases are removed from it: <Pattern>{selection.exclusionPattern}</Pattern> A subject that names the voting of another body does not count: <Pattern>{selection.subjectExclusions}</Pattern>
+        {' '}Measures Open States classifies as {listNames(selection.notLegislation.map((kind) => `${kind}s`))} are not legislation and are left out ({formatNumber(selection.notLegislationLeftOut)} in this release), and so is a measure whose title only honours, commemorates or proclaims: <Pattern>{selection.ceremonialPattern}</Pattern>
+      </p>
+      <p>
+        The rule selected {formatNumber(selection.selected)} measures and {formatNumber(selection.listed)} are listed. A measure is listed only with a secure (https) address of the legislature&rsquo;s own page for it (rule {selection.linkRuleId}): an address Open States gives as http is used as https only where Open States&rsquo; own data for that state shows the site serving https, or where the daily update has confirmed that it answers securely. {formatNumber(selection.withoutSecureLink)} selected measures have no such address yet. {unlisted}
+      </p>
+      <p>
+        The stage shown for a measure is the furthest step among the actions Open States records for it, by the kinds Open States gives them (rule {selection.statusRuleId}): {selection.stages.join(', ')}. It is not an official status. Open States is a collection, not a legislature: each record is marked as imported from a secondary source and links to the legislature&rsquo;s own page, which is the record that counts. The texts are not mirrored, so they cannot be compared on this site.
+      </p>
+    </>
+  );
+}
+
+/** Why a decision the search returned was not read, as the coverage section says it. */
+const SKIPPED_REASONS: Readonly<Record<string, string>> = {
+  otherCourt: 'of a court of another kind, such as a federal court of appeals (read from GovInfo), a bankruptcy court or an agency',
+  noCaseName: 'without a case name',
+  noDocketNumber: 'without a docket number',
+  noState: 'of a court whose name names no state',
+  noDocument: 'without a document',
+};
+
+const DECISION_KINDS: readonly CourtKind[] = ['federal_district', 'state_supreme', 'state_appellate', 'state_trial'];
+
+/**
+ * How the cases of the federal district courts and of the state courts were selected, and what was read for each
+ * kind of court. The courts are several hundred, so the table counts them by kind; the list of court cases has a
+ * filter for every single court.
+ */
+function DecisionsSelection({ decisions, published }: { decisions: DecisionsCoverage; published: number | null }) {
+  const selection = decisions.selection;
+  const rows = DECISION_KINDS.map((kind) => {
+    const courts = Object.values(decisions.coverage).filter((court) => court.courtType === kind);
+    const sum = (field: 'cases' | 'documents' | 'unreadableDocuments' | 'selected') => courts.reduce((total, court) => total + court[field], 0);
+    return { kind, courts: courts.length, cases: sum('cases'), documents: sum('documents'), unreadable: sum('unreadableDocuments'), selected: sum('selected') };
+  });
+  const total = rows.reduce((all, row) => ({ courts: all.courts + row.courts, cases: all.cases + row.cases, documents: all.documents + row.documents, unreadable: all.unreadable + row.unreadable, selected: all.selected + row.selected }), { courts: 0, cases: 0, documents: 0, unreadable: 0, selected: 0 });
+  // The reasons a decision was not read, with the kinds of other court counted together.
+  const skipped = new Map<string, number>();
+  for (const [key, count] of Object.entries(selection.skipped)) {
+    const reason = key.split(':')[0]!;
+    skipped.set(reason, (skipped.get(reason) ?? 0) + count);
+  }
+  const notRead = [...skipped.values()].reduce((sum, count) => sum + count, 0);
+  return (
+    <>
+      <p>
+        {published !== null ? `${formatNumber(published)} cases` : 'Cases'} of federal district courts and of the supreme, appellate and trial courts of the states, read from CourtListener, the collection of court decisions of the Free Law Project. CourtListener is not a court and not an official source; every record read from it carries the state &ldquo;Imported from secondary source&rdquo;.
+        The rule (rule {selection.ruleId}) is applied to {selection.appliedTo}.
+      </p>
+      <p>
+        The search is asked for these words and phrases, and a decision with any one of them is a candidate: <Pattern>{selection.searchTerms.join(' OR ')}</Pattern>
+        In this release the search returned {formatNumber(selection.candidates)} decisions.
+        {notRead > 0 ? <> {formatNumber(notRead)} of them were not read: {[...skipped].map(([reason, count]) => `${formatNumber(count)} ${SKIPPED_REASONS[reason] ?? reason}`).join('; ')}.</> : null}
+        {' '}The decisions of one docket are one case: {formatNumber(selection.totalCasesRead)} cases with {formatNumber(selection.totalDocumentsRead)} documents were read, each from the copy of the file that CourtListener holds.
+        A case is included when one of its decisions meets one of the text tests of the rule for the courts of appeals (rule {selection.textRuleId}, above): &ldquo;long&rdquo;, &ldquo;dense&rdquo;, or &ldquo;party&rdquo; where the case title names an election authority.
+        A court is listed under the state its name names (rule {selection.courtStateRuleId}), which says where the court sits and not what a case concerns.
+      </p>
+      <p>
+        CourtListener allows few requests an hour, so the list of candidates is kept month by month, by the day a decision was filed, and the months are read again in turn; the newest two are read on every run.
+        {' '}{selection.monthsListed < selection.months
+          ? `So far ${selection.monthsListed} of the ${selection.months} months since ${formatDate(selection.since)} have been read; the cases of the other months are missing until their month is read.`
+          : `All ${selection.months} months since ${formatDate(selection.since)} have been read`}
+        {selection.monthsListed >= selection.months && selection.oldestListingAt ? `; the list read longest ago was read on ${formatDateTime(selection.oldestListingAt)}.` : ''}
+        {' '}The cases were last read on {formatDateTime(decisions.scannedAt)}.
+      </p>
+      <TableScroll label="What was read for the district courts and the state courts">
+        <table className="table table-num table-dense">
+          <caption>What was read, by kind of court. The kind is the one CourtListener gives a court.</caption>
+          <thead>
+            <tr>
+              <th scope="col">Kind of court</th>
+              <th scope="col">Courts</th>
+              <th scope="col">Cases read</th>
+              <th scope="col">Documents</th>
+              <th scope="col">Without readable text</th>
+              <th scope="col">Selected</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => (
+              <tr key={row.kind}>
+                <th scope="row"><a href={buildHash(['litigation'], { system: systemOfKind(row.kind), level: levelOfKind(row.kind) })}>{levelName(levelOfKind(row.kind), systemOfKind(row.kind))}</a></th>
+                <td>{formatNumber(row.courts)}</td>
+                <td>{formatNumber(row.cases)}</td>
+                <td>{formatNumber(row.documents)}</td>
+                <td>{formatNumber(row.unreadable)}</td>
+                <td>{formatNumber(row.selected)}</td>
+              </tr>
+            ))}
+          </tbody>
+          <tfoot>
+            <tr>
+              <th scope="row">All</th>
+              <td>{formatNumber(total.courts)}</td>
+              <td>{formatNumber(total.cases)}</td>
+              <td>{formatNumber(total.documents)}</td>
+              <td>{formatNumber(total.unreadable)}</td>
+              <td>{formatNumber(total.selected)}</td>
+            </tr>
+          </tfoot>
+        </table>
+      </TableScroll>
+      <GapNotice>
+        CourtListener does not hold every decision of a court, and for many trial courts it holds few or none: a court with no case here may still have decided one. Only decisions are read, so a pending case without a written decision does not appear.
+        The rule counts words: it can miss an election case, and it can include a case that only discusses elections or that concerns an election that is not a public one.
+      </GapNotice>
     </>
   );
 }
@@ -216,6 +357,8 @@ const TYPE_LABEL: Readonly<Record<string, string>> = {
   official_api: 'Official API',
   official_web: 'Official web page',
   secondary_api: 'Secondary aggregator API',
+  secondary_bulk: 'Secondary aggregator, bulk files',
+  secondary_web: 'Secondary source, web pages',
   curated: 'Curated by maintainers',
 };
 
@@ -224,6 +367,7 @@ export function SourcesPage({ route }: { route: Route }) {
   const classification = useLoad('classification', loadClassification);
   const manifest = dataOf(core.manifest);
   const bills = dataOf(core.bills);
+  const stateLegislation = useStateLegislation();
   const cases = dataOf(core.cases);
   const courts = dataOf(core.courts);
   const supremeCount = cases ? cases.filter((record) => record.courtId === SCOTUS_ID).length : null;
@@ -247,7 +391,7 @@ export function SourcesPage({ route }: { route: Route }) {
         <TypeMark type="data" label="Data and methodology" />
         <h1 tabIndex={-1}>Data sources and methodology</h1>
         <p className="lede">Where each record comes from, how it is processed, how fresh it is, and what it cannot tell you.</p>
-        <GapNotice>DemocracyHQ covers the Supreme Court, the thirteen federal courts of appeals, Congress and one state legislature today. Anything not listed below is simply not in the dataset.</GapNotice>
+        <GapNotice>DemocracyHQ covers the Supreme Court and the thirteen federal courts of appeals from official records, federal district courts and state courts as far as CourtListener holds their decisions, Congress and California from official records, and the other state legislatures as far as Open States holds their measures. Anything not listed below is simply not in the dataset.</GapNotice>
         <nav aria-label="On this page" className="toc">
           <a href={buildHash(['sources'], { section: 'sources' })}>Sources and freshness</a>
           <a href={buildHash(['sources'], { section: 'coverage' })}>Coverage and selection</a>
@@ -306,11 +450,15 @@ export function SourcesPage({ route }: { route: Route }) {
         </p>
         <h3>Federal courts of appeals</h3>
         <Async of={core.appeals} what="the record of what was read for the courts of appeals">
-          {(appeals) => <AppealsSelection appeals={appeals} courts={courts} published={cases && supremeCount !== null ? cases.length - supremeCount : null} />}
+          {(appeals) => <AppealsSelection appeals={appeals} courts={courts} published={cases ? cases.filter((record) => isAppealsCourtId(record.courtId)).length : null} />}
         </Async>
-        <h3>Courts that are not covered</h3>
+        <h3>Federal district courts and state courts</h3>
+        <Async of={core.decisions} what="the record of what was read for the district courts and the state courts">
+          {(decisions) => <DecisionsSelection decisions={decisions} published={cases ? cases.filter((record) => Boolean(record.court)).length : null} />}
+        </Async>
+        <h3>What is not covered in the courts</h3>
         <p>
-          Federal district courts and state courts are not covered. A CourtListener adapter exists for lower-court dockets and stays inactive until an API token is provided.
+          No court&rsquo;s docket is read but the Supreme Court&rsquo;s. For every other court the dataset holds decisions only, so filings, hearings and orders that are not published as a decision are missing, and so is every case that has no written decision yet.
         </p>
         <h3>Legislation</h3>
         <Async of={core.bills} what="the legislation indexes">
@@ -325,13 +473,15 @@ export function SourcesPage({ route }: { route: Route }) {
             </>
           )}
         </Async>
-        <p>The legislatures of the other states are not covered.</p>
+        <Async of={stateLegislation} what="the index of the other state legislatures’ measures">
+          {(index) => <StateSelection index={index} />}
+        </Async>
         <h3>Links between records</h3>
         <p>
           A case or bill is linked to a place, or to another record, only by an entry in the repository&rsquo;s seed files. Each entry quotes a passage of a named official document: the questions presented, an opinion, a filing on the docket, or the bill text. On every run that fetches the cited document, the pipeline checks that the passage is in it, ignoring only white space, hyphens and dashes, letter case and the style of quotation marks, and reading compatibility characters such as ligatures as their plain letters; parts separated by &ldquo;[&hellip;]&rdquo; must appear in order. If the document cannot be fetched in a run, a link already published stays with the date of its last successful check, and a new link is not published. A passage that ties a case or bill to a place must also name the place. A link that fails either check is not published and goes to the review queue. The check shows that the document says those words. It does not check the maintainer&rsquo;s description of the link, which is shown as theirs. A court&rsquo;s location or a party&rsquo;s name is never used to place a case.
         </p>
         <p>
-          Two kinds of record are tied to a place without a seed entry, by what they are. A measure of Congress applies nationwide, so it is listed for the United States and for no state. A court of appeals case is listed for its court&rsquo;s circuit, and for the state of the district court it came from where the opinion names that court (rule origin-court-1). That says where a case began, not what it concerns, and each list that uses it says so.
+          Two kinds of record are tied to a place without a seed entry, by what they are. A measure of Congress applies nationwide, so it is listed for the United States and for no state. A court of appeals case is listed for its court&rsquo;s circuit, and for the state of the district court it came from where the opinion names that court (rule origin-court-1). A case of a federal district court or of a state court is listed for the state its court sits in (rule court-state-1). That says where a case began or is heard, not what it concerns, and each list that uses it says so.
         </p>
         {manifest ? <p>Review queue in this release: {manifest.reviewQueue.items} item(s){manifest.reviewQueue.items > 0 ? ` (${Object.entries(manifest.reviewQueue.byKind).map(([k, n]) => `${k.replace(/_/g, ' ')}: ${n}`).join(', ')})` : ''}.</p> : null}
       </Section>

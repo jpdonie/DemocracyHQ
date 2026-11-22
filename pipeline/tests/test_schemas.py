@@ -81,5 +81,8 @@ def test_every_registered_source_is_complete():
         assert record.staleAfterDays > 0
     assert SOURCES["courtlistener-api"]["credentialEnv"] == "COURTLISTENER_API_TOKEN"
     assert SOURCES["openstates-api"]["credentialEnv"] == "OPENSTATES_API_KEY"
-    for optional in ("courtlistener-api", "openstates-api"):
-        assert any("never been run against the live API" in note for note in SOURCES[optional]["knownLimitations"])
+    assert any("have not been checked against the official bill pages" in note for note in SOURCES["openstates-api"]["knownLimitations"])
+    # CourtListener is read: its entry says that it is a collection and not a court, and that a token is needed.
+    limits = SOURCES["courtlistener-api"]["knownLimitations"]
+    assert any("is a collection, not a court" in note for note in limits) and any("Requires an API token" in note for note in limits)
+    assert SOURCES["courtlistener-api"]["sourceType"] == "secondary_api"

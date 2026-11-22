@@ -1,17 +1,19 @@
 {
- "contentHash": "0f0077e788947b3a634a81527bbbb0817874f552bd9205a4013fd766f87a85fd",
+ "contentHash": "5cce25077c803f213493cccad5822900d0ba3e36cb42e3ffb6e9de5f07ee426d",
  "counts": {
   "appealsCourtCases": 128,
   "bills": 405,
-  "cases": 153,
+  "cases": 248,
+  "districtAndStateCourtCases": 95,
   "events": 1476,
   "federalBills": 273,
   "geographicUnits": 4186,
   "relationships": 38,
   "stateBills": 132,
+  "stateLegislationBills": 7957,
   "supremeCourtCases": 25
  },
- "generatedAt": "2026-11-21T17:18:40Z",
+ "generatedAt": "2026-11-21T23:08:16Z",
  "reviewQueue": {
   "byKind": {
    "text_version_note": 1
@@ -51,9 +53,9 @@
    "processingStatus": "ok"
   },
   "courtlistener-api": {
-   "lastAttempt": "2026-11-20T22:05:28Z",
-   "lastSuccessfulCheck": null,
-   "processingStatus": "credential_missing"
+   "lastAttempt": "2026-11-21T22:32:14Z",
+   "lastSuccessfulCheck": "2026-11-21T22:32:14Z",
+   "processingStatus": "ok"
   },
   "govinfo-bills": {
    "lastAttempt": "2026-11-21T17:18:40Z",
@@ -75,14 +77,34 @@
    "lastSuccessfulCheck": "2026-11-21T17:18:40Z",
    "processingStatus": "ok"
   },
+  "house-clerk-members": {
+   "lastAttempt": "2026-11-21T17:39:31Z",
+   "lastSuccessfulCheck": "2026-11-21T17:39:31Z",
+   "processingStatus": "ok"
+  },
+  "nga-governors": {
+   "lastAttempt": "2026-11-21T17:39:31Z",
+   "lastSuccessfulCheck": "2026-11-21T17:39:31Z",
+   "processingStatus": "ok"
+  },
   "openstates-api": {
-   "lastAttempt": "2026-11-20T22:05:28Z",
-   "lastSuccessfulCheck": null,
-   "processingStatus": "credential_missing"
+   "lastAttempt": "2026-11-21T23:08:16Z",
+   "lastSuccessfulCheck": "2026-11-21T23:08:16Z",
+   "processingStatus": "ok"
+  },
+  "openstates-people": {
+   "lastAttempt": "2026-11-21T17:39:31Z",
+   "lastSuccessfulCheck": "2026-11-21T17:39:31Z",
+   "processingStatus": "ok"
   },
   "scotus-docket": {
    "lastAttempt": "2026-11-21T17:18:40Z",
    "lastSuccessfulCheck": "2026-11-21T17:18:40Z",
+   "processingStatus": "ok"
+  },
+  "senate-members": {
+   "lastAttempt": "2026-11-21T17:39:31Z",
+   "lastSuccessfulCheck": "2026-11-21T17:39:31Z",
    "processingStatus": "ok"
   }
  }

@@ -35,15 +35,17 @@ async function hiddenFocusStops(page: Page, presses: number): Promise<string[]> 
 
 test.describe('Litigation map and list (DB1)', () => {
   test('selecting a state with no linked case empties the list and names the state in the menu', async ({ page }) => {
-    await open(page, '#/litigation', { withMap: true });
+    // The Supreme Court's dockets of this dataset name no case of Wyoming; the courts of Wyoming may have some.
+    await open(page, '#/litigation?court=scotus', { withMap: true });
     await mapReady(page, 'state');
     await clickMap(page, [-107.5, 43]);
     await expect(page).toHaveURL(/state=56/);
+    await expect(page).toHaveURL(/court=scotus/);
     await expect(page.getByText('No case in this dataset matches these filters.')).toBeVisible();
     await expect(page.getByText('A data gap is not evidence of absence.').first()).toBeVisible();
     await expect(page.getByRole('status').filter({ hasText: /^0 cases of \d+ match these filters/ })).toBeVisible();
     await expect(page.getByLabel('State', { exact: true })).toHaveValue('56');
-    await expect(page.getByLabel('State', { exact: true }).locator('option:checked')).toHaveText('Wyoming (0)');
+    await expect(page.getByLabel('State', { exact: true }).locator('option:checked')).toHaveText(/^Wyoming \(\d+\)$/);
   });
 
   test('a link with a code that is not a state still shows the whole list', async ({ page }) => {
@@ -184,9 +186,17 @@ test.describe('Version comparison (DB3, DB9)', () => {
 
 test.describe('Global search (DB10)', () => {
   test('pasting a long text does not hold up the page', async ({ page }) => {
-    await open(page, '#/');
+    await open(page, '#/', { withMap: true });
     await expect(heading(page)).toBeVisible();
     await page.waitForLoadState('networkidle');
+    // The map draws its first frames after the network is quiet. On a slow runner that work alone can hold the page
+    // for half a second, so the measurement starts once the map has drawn and gone idle: it times the paste only.
+    await mapReady(page, 'state');
+    await page.evaluate(() => new Promise<void>((resolve) => {
+      const map = (window as unknown as { __dhqMap: { once(event: 'idle', listener: () => void): unknown; triggerRepaint(): void } }).__dhqMap;
+      map.once('idle', () => resolve());
+      map.triggerRepaint();
+    }));
     const words = 'the qualified elector shall present identification documents before receiving provisional ballots'.split(' ');
     const text = Array.from({ length: 1500 }, (_, i) => `${words[i % words.length]}${i % 7 === 0 ? 'x' : ''}`).join(' ');
     const box = page.getByRole('combobox', { name: 'Search places, courts, cases and bills' });
@@ -225,7 +235,7 @@ test.describe('Titles and the case list (DB12, DL7)', () => {
   });
 
   test('a long ruling in the case list shows its operative words', async ({ page }) => {
-    await open(page, '#/litigation');
+    await open(page, '#/litigation?court=scotus');
     const row = page.locator('main .rows li').filter({ has: page.locator('.row-meta', { hasText: 'No. 25A1197,' }) });
     await expect(row.locator('.row-line q')).toContainText('is granted.');
   });

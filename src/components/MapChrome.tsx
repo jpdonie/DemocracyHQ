@@ -16,10 +16,13 @@ import { Icon } from './ui';
  */
 export type MapChoice = 'federal' | 'state' | 'county' | 'district' | 'supreme' | 'circuit';
 export type DistrictPlan = 'cd119' | 'cd120';
+/** What the fill of the states shows: the records of this dataset, or the party that holds each state's government. */
+export type StateShading = 'records' | 'party';
 
 const LEVELS: ReadonlyArray<readonly [MapChoice, string]> = [['federal', 'Federal'], ['state', 'States'], ['county', 'Counties'], ['district', 'Districts']];
 const COURTS: ReadonlyArray<readonly [MapChoice, string]> = [['supreme', 'Supreme Court'], ['circuit', 'Circuits']];
 const PLANS: ReadonlyArray<readonly [DistrictPlan, string]> = [['cd120', '2026 elections'], ['cd119', '119th Congress']];
+const SHADINGS: ReadonlyArray<readonly [StateShading, string]> = [['records', 'Records'], ['party', 'Party control']];
 
 export interface LayerControlProps {
   choice: MapChoice;
@@ -35,6 +38,9 @@ export interface LayerControlProps {
   onPlan: (plan: DistrictPlan) => void;
   /** A court id, or "" for all circuits. */
   onCircuit: (courtId: string) => void;
+  /** What the states are shaded by, or null where the states are not the units shown (counties, districts, circuits). */
+  shading: StateShading | null;
+  onShading: (shading: StateShading) => void;
   /** Told where the control ends, in CSS pixels from the top of the map, whenever its size changes, so the map can keep the area under it clear. */
   onExtent?: (bottom: number) => void;
 }
@@ -54,8 +60,9 @@ function circuitOptions(courts: readonly Court[], open: string) {
   );
 }
 
-export function LayerControl({ choice, plan, circuit, courts, compact, onChoice, onPlan, onCircuit, onExtent }: LayerControlProps) {
+export function LayerControl({ choice, plan, circuit, courts, compact, onChoice, onPlan, onCircuit, shading, onShading, onExtent }: LayerControlProps) {
   const choiceId = useId();
+  const shadingId = useId();
   const planId = useId();
   const circuitId = useId();
   const box = useRef<HTMLDivElement | null>(null);
@@ -92,6 +99,14 @@ export function LayerControl({ choice, plan, circuit, courts, compact, onChoice,
             <select id={circuitId} value={circuit} onChange={(event) => onCircuit(event.target.value)}>{circuitOptions(courts, circuit)}</select>
           </>
         ) : null}
+        {shading ? (
+          <>
+            <label className="sr-only" htmlFor={shadingId}>States coloured by</label>
+            <select id={shadingId} value={shading} onChange={(event) => onShading(event.target.value as StateShading)}>
+              {SHADINGS.map(([value, label]) => <option key={value} value={value}>Colour: {label.toLowerCase()}</option>)}
+            </select>
+          </>
+        ) : null}
       </div>
     );
   }
@@ -115,6 +130,19 @@ export function LayerControl({ choice, plan, circuit, courts, compact, onChoice,
           <legend>Courts</legend>
           <div className="seg">{radios(COURTS)}</div>
         </fieldset>
+        {shading ? (
+          <fieldset>
+            <legend>States coloured by</legend>
+            <div className="seg">
+              {SHADINGS.map(([value, label]) => (
+                <label key={value} className={shading === value ? 'is-on' : undefined}>
+                  <input type="radio" name="map-shading" checked={shading === value} onChange={() => onShading(value)} />
+                  <span>{label}</span>
+                </label>
+              ))}
+            </div>
+          </fieldset>
+        ) : null}
       </div>
       {choice === 'district' ? (
         <fieldset>

@@ -86,7 +86,7 @@ class SourceRecord(Model):
     id: str
     name: str
     url: HttpsUrl
-    sourceType: Literal["official_bulk", "official_api", "official_web", "secondary_api", "curated"]
+    sourceType: Literal["official_bulk", "official_api", "official_web", "secondary_api", "secondary_bulk", "secondary_web", "curated"]
     authority: str
     retrievedAt: Optional[IsoDateTime] = None
     lastSuccessfulCheck: Optional[IsoDateTime] = None
@@ -259,7 +259,7 @@ class AboutText(Model):
     #: The official text quoted: the Congressional Research Service's summary, the measure's official title, the
     #: Legislative Counsel's Digest, the Question Presented, a passage cited from a document of the docket, an entry
     #: of the docket, or the opening of the opinion.
-    source: Literal["crs-summary", "official-title", "digest", "question-presented", "cited-passage", "docket-entry", "opinion"]
+    source: Literal["crs-summary", "official-title", "digest", "question-presented", "cited-passage", "docket-entry", "opinion", "abstract"]
     #: Where the quoted text is published.
     url: Optional[HttpsUrl] = None
     #: The date of the quoted text, where it has one of its own (a summary, a docket entry, an opinion).
@@ -306,6 +306,19 @@ class CaseSelection(Model):
     party: Optional[str] = None
 
 
+class CaseCourt(Model):
+    """The court of a case of a federal district court or of a state court. The Supreme Court and the courts of
+    appeals are fixed in number and listed by the site itself; these courts are named on each of their cases."""
+
+    name: NonEmpty
+    courtType: Literal["federal_district", "state_supreme", "state_appellate", "state_trial"]
+    #: The state, district or territory the court belongs to, read from its name (rule ``court-state-1``).
+    stateFips: Optional[str] = None
+    #: The court as a citation names it ("N.D. Tex."), as the source gives it.
+    citation: Optional[str] = None
+    ruleId: str
+
+
 class LegalCaseSummary(Model):
     id: str
     externalIds: Dict[str, str]
@@ -314,6 +327,8 @@ class LegalCaseSummary(Model):
     respondentTitle: str
     docketNumber: NonEmpty
     courtId: str
+    #: Cases of federal district courts and of state courts only: the court, which the site does not list itself.
+    court: Optional[CaseCourt] = None
     jurisdiction: str
     docketType: Optional[str] = None
     dateDocketed: Optional[IsoDate] = None
@@ -533,6 +548,56 @@ class RelatedMeasure(Model):
     officialUrl: Optional[HttpsUrl] = None
 
 
+#: A measure of a state legislature read from Open States (``os-la-2025-hb281``): the state, the session and the
+#: measure's number, in lower-case letters and digits. It is unique within the published set. Mirrors
+#: ``os_bulk.MEASURE_ID_PATTERN`` and the zod schema's state measure id.
+STATE_MEASURE_ID_PATTERN = r"os-[a-z]{2}-[a-z0-9]{1,40}-[a-z0-9]{1,40}"
+StateMeasureId = Annotated[str, StringConstraints(pattern=rf"^{STATE_MEASURE_ID_PATTERN}$")]
+
+
+class StateAction(Model):
+    date: IsoDate
+    text: NonEmpty
+    #: Open States' classification of the action ("introduction", "passage", "executive-signature", ...).
+    classification: List[str]
+
+
+class StateVersionLink(Model):
+    url: HttpsUrl
+    mediaType: Optional[str] = None
+
+
+class StateVersion(Model):
+    note: str
+    date: Optional[IsoDate] = None
+    links: List[StateVersionLink] = Field(min_length=1)
+
+
+class StateSponsor(Model):
+    name: NonEmpty
+    primary: bool
+    classification: Optional[str] = None
+
+
+class StateMeasureSummary(LegislativeInstrumentSummary):
+    id: StateMeasureId
+    selection: BillSelection
+
+
+class StateMeasure(StateMeasureSummary):
+    """A measure of a state legislature as Open States records it, with its actions, sponsors and text versions."""
+
+    #: The subjects the legislature files the measure under, as Open States records them.
+    subjects: List[str]
+    actions: List[StateAction]
+    versions: List[StateVersion]
+    sponsors: List[StateSponsor]
+    #: Every address of the legislature's pages Open States names for the measure that can be shown (rule secure-link-1).
+    sources: List[HttpsUrl] = Field(min_length=1)
+    #: Open States' own id of the measure.
+    openStatesId: NonEmpty
+
+
 class LegislativeInstrument(LegislativeInstrumentSummary):
     #: Only California bills and measures of Congress are full instruments. The summary model also carries the
     #: secondary (Open States) records, whose ids have another form, so the pattern is set here.
@@ -634,3 +699,85 @@ class CaseLink(Model):
     number: str
     #: The Supreme Court's docket page.
     sourceUrl: HttpsUrl
+
+
+# --- who holds office (rules party-*) ---------------------------------------------
+
+#: The group a party label is counted with: Republican, Democratic, Independent, Nonpartisan, or another party.
+PartyGroup = Literal["R", "D", "I", "N", "O"]
+#: The party a chamber or a government is shown in the colour of. Only these two have a colour.
+ColouredParty = Literal["R", "D"]
+
+
+class LabelSeats(Model):
+    #: The party label exactly as the source writes it.
+    label: NonEmpty
+    seats: int = Field(ge=1)
+
+
+class PartySeats(Model):
+    """The members counted with one party (rule ``party-group-1``), and the labels they were listed under."""
+
+    group: PartyGroup
+    #: "Republican", "Democratic", "Independent", "Nonpartisan", or the source's own label for another party.
+    name: NonEmpty
+    seats: int = Field(ge=1)
+    labels: List[LabelSeats] = Field(min_length=1)
+
+
+class ChamberSeats(Model):
+    """One chamber: the members a source lists, by party, and whether one party holds more than half of the seats."""
+
+    chamber: Literal["upper", "lower", "legislature"]
+    name: NonEmpty
+    #: The members the source lists who hold a seat with a vote.
+    members: int = Field(ge=0)
+    #: The number of seats, vacant ones included. ``None`` when the source lists more members than the chamber has seats.
+    seats: Optional[int] = Field(default=None, ge=1)
+    vacant: Optional[int] = Field(default=None, ge=0)
+    parties: List[PartySeats]
+    #: The party the chamber is shown in the colour of (rule ``party-seats-1``), or ``None``.
+    lead: Optional[ColouredParty] = None
+    #: "seats": counted from the members listed. "stated": the source itself states the majority (the House).
+    leadBasis: Literal["seats", "stated"]
+    note: Optional[str] = None
+    sourceId: NonEmpty
+    sourceUrl: HttpsUrl
+    #: The day the source gives for its list, where it gives one.
+    asOf: Optional[IsoDate] = None
+    #: When DemocracyHQ last read the list.
+    checkedAt: IsoDateTime
+    ruleId: NonEmpty
+
+
+class OfficeHolder(Model):
+    """The President or a governor, as a source names them."""
+
+    office: Literal["President", "Governor"]
+    name: NonEmpty
+    #: The party as the source writes it, and the group it is counted with.
+    party: NonEmpty
+    group: PartyGroup
+    #: The first day of the term the source marks as current.
+    termStarted: Optional[IsoDate] = None
+    sourceId: NonEmpty
+    sourceUrl: HttpsUrl
+    checkedAt: IsoDateTime
+
+
+class Government(Model):
+    """The executive and the chambers of the United States or of one state, and what rule ``party-trifecta-1`` makes of them."""
+
+    #: The key of the map unit: ``nation:US`` or ``state:<FIPS>``.
+    id: Annotated[str, StringConstraints(pattern=r"^(?:nation:US|state:[0-9]{2})$")]
+    name: NonEmpty
+    #: "R" or "D": the executive and every chamber are that party's. "divided": they are not. "undetermined": a part
+    #: carries no party label or was not read from a source.
+    control: Literal["R", "D", "divided", "undetermined"]
+    executive: Optional[OfficeHolder] = None
+    #: Why no executive is given, when none is.
+    executiveNote: Optional[str] = None
+    chambers: List[ChamberSeats]
+    #: The chambers of the legislature that no source was read for, in this run or before.
+    missingChambers: List[Literal["upper", "lower", "legislature"]] = Field(default_factory=list)
+    ruleId: NonEmpty

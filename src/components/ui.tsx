@@ -117,6 +117,24 @@ export function GapNotice({ children }: { children?: ReactNode }) {
   );
 }
 
+/**
+ * How a list or a figure is made, folded behind one line, so a page leads with what it holds. The text is all there,
+ * one press away; a reader who wants the rule reads it whole.
+ */
+export function Method({ summary = 'How this list is made', open, children }: { summary?: string; open?: boolean; children: ReactNode }) {
+  return (
+    <details className="method" open={open}>
+      <summary>{summary}</summary>
+      {children}
+    </details>
+  );
+}
+
+/** A count as the head of a list: the figure set large, then its noun. Reads as plain text ("437 state measures"). */
+export function Counted({ count, singular, pluralForm = `${singular}s` }: { count: number; singular: string; pluralForm?: string }) {
+  return <><span className="count-figure">{count.toLocaleString('en-US')}</span> {count === 1 ? singular : pluralForm}</>;
+}
+
 /* ---------- provenance ---------- */
 
 export function VerificationBadge({ status }: { status: VerificationStatus }) {
@@ -197,13 +215,18 @@ export function TagList({ tags, labels, hrefFor }: { tags: readonly IssueTag[]; 
 
 /* ---------- layout ---------- */
 
-export function Section({ title, children, id, note }: { title: string; children: ReactNode; id?: string; note?: ReactNode }) {
+/**
+ * A part of a page under its head. `note` is a line under the head, kept short; `method` is how the part is made or
+ * read, folded under the note (see Method).
+ */
+export function Section({ title, children, id, note, method, methodLabel }: { title: string; children: ReactNode; id?: string; note?: ReactNode; method?: ReactNode; methodLabel?: string }) {
   const generated = useId();
   const headingId = id ? `${id}-h` : generated;
   return (
     <section className="section" id={id} aria-labelledby={headingId}>
       <h2 id={headingId}>{title}</h2>
       {note ? <p className="section-note">{note}</p> : null}
+      {method ? <Method summary={methodLabel ?? 'How this is read'}><p>{method}</p></Method> : null}
       {children}
     </section>
   );
@@ -292,16 +315,25 @@ export function TextField({ label, value, onChange, type = 'search', placeholder
  * The result count (`status`) comes before the folded filters there, so opening them never pushes it off the screen;
  * on a larger screen it follows the filters, just above the list.
  */
-export function MoreFilters({ count, status, children }: { count: number; status: ReactNode; children: ReactNode }) {
+export function MoreFilters({ count, status, children, primary, primaryCount = 0 }: {
+  count: number; status: ReactNode; children: ReactNode;
+  /** The filters a reader reaches for first. On a wide screen they stand above the disclosure; on a phone they are in it with the rest. */
+  primary?: ReactNode; primaryCount?: number;
+}) {
   const compact = useMediaQuery(COMPACT_QUERY);
-  if (!compact) return <>{children}{status}</>;
+  // Open from the start when one of the filters inside is set, so that a filter in force is never out of sight.
+  const [open, setOpen] = useState(count > 0);
+  if (!compact && !primary) return <>{children}{status}</>;
+  const inside = compact ? count + primaryCount : count;
   return (
     <>
-      {status}
-      <details className="filters-more">
-        <summary>{count > 0 ? `More filters (${count} set)` : 'More filters'}</summary>
+      {compact ? status : primary}
+      <details className="filters-more" open={compact ? undefined : open || count > 0} onToggle={compact ? undefined : (event) => setOpen(event.currentTarget.open)}>
+        <summary>{inside > 0 ? `More filters (${inside} set)` : 'More filters'}</summary>
+        {compact ? primary : null}
         {children}
       </details>
+      {compact ? null : status}
     </>
   );
 }

@@ -305,10 +305,11 @@ describe('a pack never leaves records out silently when a file could not be load
       population: { status: 'ready', data: { status: 'unavailable', reason: 'Not part of this test.' } },
       populationFile: null,
       cases: { status: 'error', error: new DataError('network', failedPath, `${failedPath} returned HTTP 503.`) },
-      legislation: { status: 'ready', data: { bills: [makeBill()], covered: true } },
+      legislation: { status: 'ready', data: { bills: [makeBill()], covered: true, why: null } },
       events: { status: 'ready', data: [] },
       overlaps: null,
       appealsFrom: { status: 'ready', data: [] },
+      courtCases: { status: 'ready', data: [] },
       appealsCourt: { status: 'ready', data: null },
     });
     const links = buildPlacePack(data('relationships.json'), base)!;

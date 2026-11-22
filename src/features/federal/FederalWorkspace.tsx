@@ -5,16 +5,18 @@
 import { useMemo } from 'react';
 import type { EventCategory, LegislativeInstrumentSummary } from '../../types/schemas';
 import { PASSED_IN_EACH_LIST_NOTE, PASSED_IN_EACH_STAGES, shortSession, stageRank } from '../../lib/bills';
-import { useCore, type BillCatalog } from '../../lib/core';
-import { SCOTUS_ID, casesByCourt } from '../../lib/courts';
+import { useCore, useGovernment, type BillCatalog } from '../../lib/core';
+import { SCOTUS_ID, casesByCourt, casesByKind } from '../../lib/courts';
 import { countBy } from '../../lib/filters';
 import { plural } from '../../lib/format';
 import { NATION_KEY } from '../../lib/geo';
+import { GOVERNMENT_SOURCE_IDS } from '../../lib/government';
 import { useTagLabels } from '../../lib/labels';
 import { NO_COUNTS_FOR_UNIT } from '../../lib/population';
-import { buildHash, patchQuery, type Route } from '../../lib/router';
+import { buildHash, mapQuery, patchQuery, type Route } from '../../lib/router';
 import { allOf, dataOf } from '../../lib/useLoad';
 import { A, Async, BackLink, CopyLinkButton, Empty, ErrorHeading, ErrorNote, GapNotice, Loading, Section, TableScroll, TabPanel, Tabs, TypeMark, WatchButton } from '../../components/ui';
+import { WhoGoverns } from '../../components/WhoGoverns';
 import { AppealsCourtRows, SupremeCourtRow } from '../courts/CourtsOverview';
 import { SourcesTab, TimelineTab, useWorkspaceTabs } from '../geography/PlaceWorkspace';
 import { usePlaceData, type PlaceData, type PlaceEvent } from '../geography/placeData';
@@ -56,8 +58,16 @@ function Overview({ data, route }: { data: PlaceData; route: Route }) {
   const core = useCore();
   const labels = useTagLabels();
   const tabHash = (tab: string) => buildHash(route.path, { ...route.query, tab });
+  const government = useGovernment();
   return (
     <>
+      <Section title="Who governs">
+        <Async of={government} what="who holds office">
+          {(index) => (index.nation
+            ? <WhoGoverns record={index.nation} sources={dataOf(core.sources) ?? []} />
+            : <GapNotice>This data release does not say who holds the Presidency and the chambers of Congress.</GapNotice>)}
+        </Async>
+      </Section>
       <Section title="Congress">
         <Async of={allOf(data.legislation, core.bills)} what="the measures of Congress">
           {([legislation, catalog]) => <Congress bills={legislation.bills} catalog={catalog} labels={labels} tabHash={tabHash} />}
@@ -66,13 +76,15 @@ function Overview({ data, route }: { data: PlaceData; route: Route }) {
       <Section title="Federal courts">
         <Async of={core.cases} what="the court cases">
           {(cases) => {
-            const counts = casesByCourt(cases);
-            const supreme = counts.get(SCOTUS_ID) ?? 0;
-            const courts = [...counts.keys()].filter((id) => id !== SCOTUS_ID).length;
+            const counts = casesByKind(cases);
+            const supreme = counts.get('federal_supreme')?.cases ?? 0;
+            const appeals = counts.get('federal_appellate') ?? { cases: 0, courts: 0 };
+            const district = counts.get('federal_district') ?? { cases: 0, courts: 0 };
             return (
               <ul className="plain-list">
                 <li><a href={buildHash(['court', SCOTUS_ID])}>Supreme Court</a>: {plural(supreme, 'docket')} in election-law matters, chosen by maintainers</li>
-                <li><a href={tabHash('courts')}>Courts of appeals</a>: {plural(cases.length - supreme, 'election case')} from {plural(courts, 'court')}, selected by a published rule</li>
+                <li><a href={tabHash('courts')}>Courts of appeals</a>: {plural(appeals.cases, 'election case')} from {plural(appeals.courts, 'court')}, selected by a published rule</li>
+                <li><a href={buildHash(['litigation'], { system: 'federal', level: 'trial' })}>District courts</a>: {plural(district.cases, 'election case')} from {plural(district.courts, 'court')}, selected by a published rule from the decisions CourtListener holds</li>
               </ul>
             );
           }}
@@ -158,7 +170,8 @@ function CourtsTab() {
               <AppealsCourtRows courts={courts} geo={geo} counts={counts} appeals={dataOf(core.appeals)} />
               <p><A to={buildHash(['courts'])}>The circuits on the map, and how they are drawn</A></p>
             </Section>
-            <GapNotice>Federal district courts and state courts are not covered.</GapNotice>
+            <p><A to={buildHash(['litigation'], { system: 'federal', level: 'trial' })}>Cases of the federal district courts</A>, read from the decisions CourtListener holds</p>
+            <GapNotice>Only the Supreme Court&rsquo;s dockets are read. For every other court the dataset holds decisions, not dockets, so a case without a written decision is not listed.</GapNotice>
           </>
         );
       }}
@@ -193,7 +206,7 @@ export function FederalWorkspace({ route }: { route: Route }) {
   ];
   return (
     <article className="view">
-      <BackLink to={buildHash([])}>Overview</BackLink>
+      <BackLink to={buildHash([], mapQuery(route.query))}>Overview</BackLink>
       <header className="view-head">
         <TypeMark type="place" label="Federal level" />
         <h1 tabIndex={-1}>{unit.name}</h1>
@@ -214,7 +227,7 @@ export function FederalWorkspace({ route }: { route: Route }) {
             {(events: PlaceEvent[]) => <TimelineTab data={data} events={events} route={route} kinds={KINDS} note={TIMELINE_NOTE} title="What changed at the federal level?" />}
           </Async>
         ) : null}
-        {tab === 'sources' ? <SourcesTab data={data} also={['scotus-docket', 'govinfo-bills']} /> : null}
+        {tab === 'sources' ? <SourcesTab data={data} also={['scotus-docket', 'govinfo-bills', ...GOVERNMENT_SOURCE_IDS.federal]} /> : null}
       </TabPanel>
     </article>
   );

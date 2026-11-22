@@ -59,8 +59,10 @@ describe('measures of Congress', () => {
     expect([isFederalBill(federal), isFederalBill(state)]).toEqual([true, false]);
     expect([billLabel(federal), billLabel(state)]).toEqual(['H.R. 9001', 'CA AB 604']);
     expect([billHeading(federal), billHeading(state)]).toEqual(['H.R. 9001', 'California AB 604']);
-    // A bill of another state is named by that state's abbreviation, never as California's.
-    expect([stateLabel(state), stateLabel({ ...state, stateAbbr: 'NY' }), billHeading({ ...state, stateAbbr: 'NY' })]).toEqual(['California', 'NY', 'NY AB 604']);
+    // A bill of another state is named by that state, never as California's; by its abbreviation where its name is not known.
+    const louisiana = { ...state, state: '22', stateAbbr: 'LA', identifier: 'HB 12' };
+    expect([stateLabel(state), stateLabel(louisiana), billHeading(louisiana), billLabel(louisiana)]).toEqual(['California', 'Louisiana', 'Louisiana HB 12', 'LA HB 12']);
+    expect(stateLabel({ ...state, state: '99', stateAbbr: 'ZZ' })).toBe('ZZ');
     expect([billJurisdiction(federal), billJurisdiction(state)]).toEqual(['us', 'ca']);
     expect(billLabelWithSession(federal)).toBe('H.R. 9001, 119th Congress');
     expect(shortSession('2025-2026 Regular Session')).toBe('2025-2026 Regular Session');

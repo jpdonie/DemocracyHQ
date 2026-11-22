@@ -1,6 +1,7 @@
 import type { LegalCaseSummary, LegislativeInstrumentSummary } from '../types/schemas';
 import { billJurisdiction, identifierVariants, isFederalBill } from './bills';
-import { ALL_APPEALS, isCourtId, matchesCourt } from './courts';
+import { STATE_ABBR } from './geo';
+import { ALL_APPEALS, courtLevel, courtSystem, isCourtId, isCourtLevel, isCourtSystem, matchesCourt, type CourtLevel, type CourtSystem } from './courts';
 
 export function normalizeText(value: string): string {
   return value.normalize('NFKD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
@@ -21,7 +22,11 @@ export interface CaseFilters {
    * federal district court there (see `caseStates`).
    */
   state?: string;
-  /** "scotus", "appeals" (any of the thirteen courts of appeals) or the id of one court of appeals. */
+  /** The federal courts or the courts of the states. */
+  system?: CourtSystem;
+  /** The level of the court within its system: the highest court, the appellate courts or the trial courts. */
+  level?: CourtLevel;
+  /** "scotus", "appeals" (any of the thirteen courts of appeals) or the id of one court. */
   court?: string;
   /** Event type of the latest dispositive docket entry, or "none". */
   ruling?: string;
@@ -32,16 +37,18 @@ export interface CaseFilters {
 }
 
 /**
- * The states a case is listed under: those its record links it to, and for an appeal the state of the district court it
- * came from. The second says where the case began, not what it concerns; the views that use it say so.
+ * The states a case is listed under: those its record links it to, for an appeal the state of the district court it
+ * came from, and for a case of a district court or a state court the state of that court. The last two say where the
+ * case began or is heard, not what it concerns; the views that use them say so.
  */
-export function caseStates(c: Pick<LegalCaseSummary, 'stateFips' | 'origin'>): string[] {
-  const origin = c.origin?.stateFips;
-  return origin && !c.stateFips.includes(origin) ? [...c.stateFips, origin] : c.stateFips;
+export function caseStates(c: Pick<LegalCaseSummary, 'stateFips' | 'origin' | 'court'>): string[] {
+  const states = [...c.stateFips];
+  for (const fips of [c.origin?.stateFips, c.court?.stateFips]) if (fips && !states.includes(fips)) states.push(fips);
+  return states.length === c.stateFips.length ? c.stateFips : states;
 }
 
 /** How many cases are listed under each state (see `caseStates`), for the litigation list's map. */
-export function caseStateCounts(cases: readonly Pick<LegalCaseSummary, 'stateFips' | 'origin'>[]): Map<string, number> {
+export function caseStateCounts(cases: readonly Pick<LegalCaseSummary, 'stateFips' | 'origin' | 'court'>[]): Map<string, number> {
   const counts = new Map<string, number>();
   for (const record of cases) for (const stateFips of caseStates(record)) counts.set(stateFips, (counts.get(stateFips) ?? 0) + 1);
   return counts;
@@ -55,9 +62,11 @@ export function caseStartDate(c: Pick<LegalCaseSummary, 'dateDocketed' | 'dateFi
 export function filterCases(cases: readonly LegalCaseSummary[], filters: CaseFilters): LegalCaseSummary[] {
   const result = cases.filter((c) => {
     // The search reads what a row shows: the names and numbers, and the passage quoted on what the case is about.
-    if (!matchesQuery([c.caseName, c.docketNumber, c.petitionerTitle, c.respondentTitle, c.lowerCourt.name, c.origin?.court, ...c.lowerCourt.caseNumbers, c.about?.text, c.about?.later?.text], filters.q ?? '')) return false;
+    if (!matchesQuery([c.caseName, c.docketNumber, c.petitionerTitle, c.respondentTitle, c.lowerCourt.name, c.origin?.court, c.court?.name, ...c.lowerCourt.caseNumbers, c.about?.text, c.about?.later?.text], filters.q ?? '')) return false;
     if (filters.tag && !c.issueTags.some((t) => t.tag === filters.tag)) return false;
     if (filters.state && !caseStates(c).includes(filters.state)) return false;
+    if (filters.system && courtSystem(c) !== filters.system) return false;
+    if (filters.level && courtLevel(c) !== filters.level) return false;
     if (filters.court && !matchesCourt(c.courtId, filters.court)) return false;
     if (filters.ruling) {
       const type = c.latestDispositiveEntry?.eventType ?? 'none';
@@ -79,7 +88,10 @@ export function filterCases(cases: readonly LegalCaseSummary[], filters: CaseFil
 export interface BillFilters {
   q?: string;
   tag?: string;
-  /** The legislature: "us" for Congress, a state's postal abbreviation in lower case for its legislature ("ca"). */
+  /**
+   * The legislature: "us" for Congress, a state's postal abbreviation in lower case for its legislature ("ca"), or
+   * "states" for every state legislature.
+   */
   jur?: string;
   /**
    * The status line of the measure: for a state bill the status as its legislature reports it ("Chaptered"), for a
@@ -99,12 +111,24 @@ export function identifierParts(identifier: string): [string, number] {
 
 const statusOf = (b: LegislativeInstrumentSummary) => b.legislativeStatus.currentStatus ?? 'Not recorded';
 
+/** The value of `jur` that stands for every state legislature. */
+export const ALL_STATES = 'states';
+
+/** Whether a measure belongs to the legislature `jur` names (see `BillFilters.jur`). */
+export function inJurisdiction(b: Pick<LegislativeInstrumentSummary, 'state' | 'stateAbbr'>, jur: string | undefined): boolean {
+  if (!jur) return true;
+  return jur === ALL_STATES ? !isFederalBill(b) : billJurisdiction(b) === jur;
+}
+
+/** The lower-case abbreviations of the states and territories the map knows, which `jur` may name though no measure is listed. */
+const KNOWN_STATES: ReadonlySet<string> = new Set(Object.values(STATE_ABBR).map((abbr) => abbr.toLowerCase()));
+
 export function filterBills(bills: readonly LegislativeInstrumentSummary[], filters: BillFilters): LegislativeInstrumentSummary[] {
   const result = bills.filter((b) => {
     // The search reads what a row shows: number and titles (also the title the selection rule matched), and the passage quoted on what the measure would do.
-    if (!matchesQuery([...identifierVariants(b.identifier), b.subject, b.title, b.selection?.matchedTitle, b.leadAuthors, b.chapter?.citation, b.about?.text], filters.q ?? '')) return false;
+    if (!matchesQuery([...identifierVariants(b.identifier), b.subject, b.title, b.selection?.matchedTitle, b.selection?.matchedText, b.leadAuthors, b.chapter?.citation, b.about?.text], filters.q ?? '')) return false;
     if (filters.tag && !b.issueTags.some((t) => t.tag === filters.tag)) return false;
-    if (filters.jur && billJurisdiction(b) !== filters.jur) return false;
+    if (!inJurisdiction(b, filters.jur)) return false;
     if (filters.status && statusOf(b) !== filters.status) return false;
     if (filters.type && b.measureType !== filters.type) return false;
     return true;
@@ -120,6 +144,13 @@ export function filterBills(bills: readonly LegislativeInstrumentSummary[], filt
     const key = sort === 'introduced' ? 'introducedDate' : 'lastActionDate';
     return (b[key] ?? '').localeCompare(a[key] ?? '') || a.id.localeCompare(b.id);
   });
+}
+
+/** How many measures of each state's own legislature a list holds, by state FIPS code, for the map of legislation. */
+export function billStateCounts(bills: readonly Pick<LegislativeInstrumentSummary, 'state'>[]): Map<string, number> {
+  const counts = new Map<string, number>();
+  for (const b of bills) if (!isFederalBill(b)) counts.set(b.state, (counts.get(b.state) ?? 0) + 1);
+  return counts;
 }
 
 /** Distinct values with counts, for building filter menus from the data itself. */
@@ -167,14 +198,20 @@ export function knownValue(value: string | undefined, options: Iterable<string>)
  * a state selected on the map that no case is listed under then gives an empty list, not the whole list. A code that is
  * neither (a mistyped link) is dropped. A court is kept when it is one of the fourteen the site knows, whether or not
  * any of its cases is published: the Federal Circuit then gives an empty list with the reason, not the whole list.
+ * Any other court is kept when one of its cases is published. A system or a level is kept when it is one of the words
+ * the menus use. "appeals" as a court, which older links use for the thirteen courts of appeals together, is read as
+ * the federal system at the appellate level, which is what the menus now call it.
  */
 export function knownCaseFilters(filters: CaseFilters, cases: readonly LegalCaseSummary[], isState?: (fips: string) => boolean): CaseFilters {
   const state = filters.state;
+  const allAppeals = filters.court === ALL_APPEALS;
   return {
     ...filters,
     tag: knownValue(filters.tag, cases.flatMap((c) => c.issueTags.map((t) => t.tag))),
     state: knownValue(state, cases.flatMap(caseStates)) ?? (state && /^\d{2}$/.test(state) && isState?.(state) ? state : undefined),
-    court: filters.court === ALL_APPEALS || isCourtId(filters.court) ? filters.court : undefined,
+    system: allAppeals ? 'federal' : isCourtSystem(filters.system) ? filters.system : undefined,
+    level: allAppeals ? 'appellate' : isCourtLevel(filters.level) ? filters.level : undefined,
+    court: allAppeals ? undefined : isCourtId(filters.court) ? filters.court : knownValue(filters.court, cases.map((c) => c.courtId)),
     ruling: knownValue(filters.ruling, cases.map((c) => c.latestDispositiveEntry?.eventType ?? 'none')),
     from: isoDateParam(filters.from),
     to: isoDateParam(filters.to),
@@ -188,18 +225,23 @@ export function knownCaseFilters(filters: CaseFilters, cases: readonly LegalCase
  */
 export function knownBillFilters(filters: BillFilters, bills: readonly LegislativeInstrumentSummary[]): BillFilters {
   const legislatures = [...new Set(bills.map(billJurisdiction))];
-  let jur = knownValue(filters.jur, legislatures);
+  // Every state legislature together; or a state the map knows though none of its measures is listed, which then gives
+  // an empty list with the reason rather than the whole list.
+  let jur = filters.jur === ALL_STATES && bills.some((b) => !isFederalBill(b)) ? ALL_STATES
+    : knownValue(filters.jur, legislatures) ?? (filters.jur && KNOWN_STATES.has(filters.jur) ? filters.jur : undefined);
   if (!jur && (filters.status || filters.type)) {
     const using = legislatures.filter((legislature) => bills.some((b) => billJurisdiction(b) === legislature
       && (!filters.status || statusOf(b) === filters.status) && (!filters.type || b.measureType === filters.type)));
     if (using.length === 1) jur = using[0];
   }
-  const pool = jur ? bills.filter((b) => billJurisdiction(b) === jur) : bills;
+  const pool = jur ? bills.filter((b) => inJurisdiction(b, jur)) : bills;
+  // A status or a kind is one legislature's word: not applied to all of them, nor to every state at once.
+  const single = Boolean(jur && jur !== ALL_STATES);
   return {
     ...filters,
     jur,
     tag: knownValue(filters.tag, pool.flatMap((b) => b.issueTags.map((t) => t.tag))),
-    status: jur ? knownValue(filters.status, pool.map(statusOf)) : undefined,
-    type: jur ? knownValue(filters.type, pool.map((b) => b.measureType)) : undefined,
+    status: single ? knownValue(filters.status, pool.map(statusOf)) : undefined,
+    type: single ? knownValue(filters.type, pool.map((b) => b.measureType)) : undefined,
   };
 }

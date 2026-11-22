@@ -15,7 +15,7 @@ import type { Feature, FeatureCollection, Geometry, Point, Position } from 'geoj
 import { LAYERS, type Layer } from '../types/schemas';
 import { loadBoundaries, type UnitCollection, type UnitProperties } from '../lib/data';
 import { CONTIGUOUS_BOUNDS, geoKey, shortLabel, type Bbox, type GeoIndex } from '../lib/geo';
-import { linesFadeInto, type MapTheme } from '../lib/mapTheme';
+import { contrastRatio, linesFadeInto, type MapTheme } from '../lib/mapTheme';
 import { TINY_COMPACT_QUERY, useMediaQuery } from '../lib/media';
 import { testHooksEnabled } from '../lib/testHooks';
 import { Graticule } from './Graticule';
@@ -45,8 +45,10 @@ const EMPTY: FeatureCollection = { type: 'FeatureCollection', features: [] };
 const NONE: FilterSpecification = ['==', ['get', 'GEOID'], '__none__'];
 const FONT = ['Noto Sans Medium'];
 
+/** A colour token as the map stage defines it: the stage is the night side of the site and has its own values (tokens.css). */
 function token(name: string): string {
-  return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || '#000000';
+  const scope = document.querySelector('.mapstage') ?? document.documentElement;
+  return getComputedStyle(scope).getPropertyValue(name).trim() || '#000000';
 }
 
 function prefersReducedMotion(): boolean {
@@ -117,7 +119,22 @@ function circuitLabelPoints(geometry: Geometry, geo: GeoIndex): Position[] {
   return points;
 }
 
-function labelCollection(collection: UnitCollection, layer: Layer, geo: GeoIndex): FeatureCollection<Point> {
+/** Fills on which the light label would not be read: the name is written in the dark ink there. */
+const LABEL_CONTRAST = 3;
+
+/**
+ * The units of a theme whose fill is too light for the stage's light label. A unit without a fill lies on the dark
+ * land and keeps the light label.
+ */
+function lightFilled(theme: MapTheme | null, layer: Layer, label: string): ReadonlySet<string> {
+  const units = new Set<string>();
+  if (!theme || theme.layer !== layer) return units;
+  const light = theme.classes.map((item) => contrastRatio(label, token(item.token)) < LABEL_CONTRAST);
+  for (const [geoid, index] of theme.classOf) if (light[index]) units.add(geoid);
+  return units;
+}
+
+function labelCollection(collection: UnitCollection, layer: Layer, geo: GeoIndex, onLight: ReadonlySet<string> = new Set()): FeatureCollection<Point> {
   const features: Feature<Point>[] = [];
   // The country as a whole carries no label: it is never the layer the reader picks units from.
   if (layer === 'nation') return { type: 'FeatureCollection', features };
@@ -127,7 +144,7 @@ function labelCollection(collection: UnitCollection, layer: Layer, geo: GeoIndex
     const point = labelPoint(feature.geometry);
     const points = layer === 'circuit' ? circuitLabelPoints(feature.geometry, geo) : point ? [point] : [];
     for (const coordinates of points) {
-      features.push({ type: 'Feature', geometry: { type: 'Point', coordinates }, properties: { label: shortLabel(unit), GEOID: unit.geoid } });
+      features.push({ type: 'Feature', geometry: { type: 'Point', coordinates }, properties: { label: shortLabel(unit), GEOID: unit.geoid, tone: onLight.has(unit.geoid) ? 'dark' : 'light' } });
     }
   }
   return { type: 'FeatureCollection', features };
@@ -178,6 +195,12 @@ function hatchFilter(theme: MapTheme | null, layer: Layer): FilterSpecification 
 const LABEL_MIN_ZOOM: Record<Layer, number> = { nation: 24, circuit: 1.2, state: 2.6, county: 6.6, cd119: 4.8, cd120: 4.8 };
 
 /** Boundary lines that can sit on a theme's fill, with the ink each is drawn in when there is no fill. */
+/** The unit under the pointer: an outline and a wash of light over its fill. */
+function setHover(map: MapLibreMap, layer: Layer, filter: FilterSpecification): void {
+  map.setFilter(`${layer}-hover`, filter);
+  if (map.getLayer(`${layer}-hover-fill`)) map.setFilter(`${layer}-hover-fill`, filter);
+}
+
 const UNIT_LINES: ReadonlyArray<{ id: string; casing: string; layer: Layer | 'any'; ink: string }> = [
   { id: 'county-line', casing: 'county-casing', layer: 'county', ink: '--ink-3' },
   { id: 'cd119-line', casing: 'cd119-casing', layer: 'cd119', ink: '--geo' },
@@ -201,6 +224,8 @@ export function MapView(props: MapViewProps) {
   const lastFit = useRef<Bbox>(CONTIGUOUS_BOUNDS);
   const lastFitKey = useRef<string | null>(null);
   const userMoved = useRef(false);
+  /** The colouring last drawn, so that a new one is faded in and the same one, drawn again, is not. */
+  const lastShading = useRef<string | null>(null);
   const [ready, setReady] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
   const [loadedLayers, setLoadedLayers] = useState<readonly Layer[]>([]);
@@ -219,7 +244,8 @@ export function MapView(props: MapViewProps) {
           version: 8,
           glyphs: `${new URL(`${import.meta.env.BASE_URL}fonts/`, window.location.href).href}{fontstack}/{range}.pbf`,
           sources: {},
-          layers: [{ id: 'water', type: 'background', paint: { 'background-color': token('--water') } }],
+          // The water is the ground of the stage itself, painted in CSS; the map lays nothing over it.
+          layers: [{ id: 'water', type: 'background', paint: { 'background-color': 'rgba(0,0,0,0)' } }],
         },
         bounds: CONTIGUOUS_BOUNDS,
         fitBoundsOptions: { padding: 24 },
@@ -254,6 +280,7 @@ export function MapView(props: MapViewProps) {
       for (const layer of LAYERS) {
         map.addLayer({ id: `${layer}-fill`, type: 'fill', source: `src-${layer}`, layout: { visibility: 'none' }, paint: { 'fill-color': 'rgba(0,0,0,0)', 'fill-outline-color': 'rgba(0,0,0,0)' } });
         map.addLayer({ id: `${layer}-hatch`, type: 'fill', source: `src-${layer}`, filter: NONE, layout: { visibility: 'none' }, paint: { 'fill-pattern': 'hatch' } });
+        map.addLayer({ id: `${layer}-hover-fill`, type: 'fill', source: `src-${layer}`, filter: NONE, paint: { 'fill-color': ink, 'fill-opacity': 0.16 } });
       }
       map.addLayer({ id: 'county-context', type: 'line', source: 'src-county', minzoom: 5.6, layout: { visibility: 'none' }, paint: { 'line-color': token('--rule-strong'), 'line-width': 0.5 } });
       // Each boundary line has a land-coloured casing under it, shown only where the line would fade into a fill.
@@ -275,7 +302,12 @@ export function MapView(props: MapViewProps) {
       map.addLayer({
         id: 'labels', type: 'symbol', source: 'src-labels',
         layout: { 'text-field': ['get', 'label'], 'text-font': FONT, 'text-size': ['interpolate', ['linear'], ['zoom'], 3, 10.5, 8, 13], 'text-padding': 3, 'text-max-width': 7 },
-        paint: { 'text-color': ink, 'text-halo-color': land, 'text-halo-width': 1.6 },
+        // A name is light with a dark edge on the dark land and on a saturated fill, and dark with a light edge on a pale fill.
+        paint: {
+          'text-color': ['case', ['==', ['get', 'tone'], 'dark'], token('--water'), ink],
+          'text-halo-color': ['case', ['==', ['get', 'tone'], 'dark'], 'rgba(255,255,255,0.6)', land],
+          'text-halo-width': ['case', ['==', ['get', 'tone'], 'dark'], 1, 1.4],
+        },
       });
 
       for (const layer of LAYERS) {
@@ -285,14 +317,16 @@ export function MapView(props: MapViewProps) {
           const geoid = (feature?.properties as UnitProperties | undefined)?.GEOID;
           const tooltip = tooltipRef.current;
           if (!geoid || !tooltip) return;
-          map.setFilter(`${layer}-hover`, ['==', ['get', 'GEOID'], geoid]);
+          setHover(map, layer, ['==', ['get', 'GEOID'], geoid]);
           map.getCanvas().style.cursor = 'pointer';
           const unit = latest.current.geo.get(geoKey(layer, geoid));
           const current = latest.current.theme;
           let detail = '';
           if (current && current.layer === layer) {
             const index = current.classOf.get(geoid);
-            if (index !== undefined) detail = current.classes[index]?.label ?? '';
+            const own = current.detailOf?.get(geoid);
+            if (own) detail = own;
+            else if (index !== undefined) detail = current.classes[index]?.label ?? '';
             else if (current.hatch && (current.hatch.geoids === 'rest' || current.hatch.geoids.has(geoid))) detail = current.hatch.label;
             else if (current.plain) detail = current.plain;
           }
@@ -310,7 +344,7 @@ export function MapView(props: MapViewProps) {
           tooltip.style.transform = `translate(${Math.round(event.point.x + (flip ? -14 : 14))}px, ${Math.round(event.point.y + 14)}px)${flip ? ' translateX(-100%)' : ''}`;
         });
         map.on('mouseleave', `${layer}-fill`, () => {
-          map.setFilter(`${layer}-hover`, NONE);
+          setHover(map, layer, NONE);
           map.getCanvas().style.cursor = '';
           if (tooltipRef.current) tooltipRef.current.hidden = true;
         });
@@ -328,7 +362,7 @@ export function MapView(props: MapViewProps) {
       if ((event as { originalEvent?: unknown }).originalEvent) userMoved.current = true;
       // Whatever moves the map (keys, a drag, a fit), the unit under the pointer changes: drop the stale tooltip and hover line.
       if (tooltipRef.current) tooltipRef.current.hidden = true;
-      for (const layer of LAYERS) if (map.getLayer(`${layer}-hover`)) map.setFilter(`${layer}-hover`, NONE);
+      for (const layer of LAYERS) if (map.getLayer(`${layer}-hover`)) setHover(map, layer, NONE);
     });
     // When the stage changes size (window resize, or the phone layout's sheet moving),
     // keep the fitted area in view unless the reader has taken over the camera.
@@ -403,7 +437,7 @@ export function MapView(props: MapViewProps) {
       const filter = hatchFilter(active ? theme : null, layer);
       map.setFilter(`${layer}-hatch`, filter);
       map.setLayoutProperty(`${layer}-hatch`, 'visibility', active && filter !== NONE ? 'visible' : 'none');
-      if (!active) map.setFilter(`${layer}-hover`, NONE);
+      if (!active) setHover(map, layer, NONE);
     }
     map.setLayoutProperty('county-line', 'visibility', activeLayer === 'county' ? 'visible' : 'none');
     map.setLayoutProperty('county-context', 'visibility', activeLayer === 'state' ? 'visible' : 'none');
@@ -421,8 +455,24 @@ export function MapView(props: MapViewProps) {
       map.setPaintProperty(line.id, 'line-color', token(cased ? '--ink' : line.ink));
       map.setLayoutProperty(line.casing, 'visibility', cased ? 'visible' : 'none');
     }
+    // A new colouring comes up out of the dark; the same colouring drawn again (more data arrived) does not flicker.
+    const shading = `${activeLayer}|${theme && theme.layer === activeLayer ? theme.family ?? theme.id : ''}`;
+    if (shading !== lastShading.current) {
+      const first = lastShading.current === null;
+      lastShading.current = shading;
+      if (!first && !prefersReducedMotion()) {
+        const fill = `${activeLayer}-fill`;
+        map.setPaintProperty(fill, 'fill-opacity-transition', { duration: 0, delay: 0 });
+        map.setPaintProperty(fill, 'fill-opacity', 0);
+        window.setTimeout(() => {
+          if (mapRef.current !== map || !map.getLayer(fill)) return;
+          map.setPaintProperty(fill, 'fill-opacity-transition', { duration: 420, delay: 0 });
+          map.setPaintProperty(fill, 'fill-opacity', 1);
+        }, 40);
+      }
+    }
     const collection = collections.current.get(activeLayer);
-    (map.getSource('src-labels') as GeoJSONSource | undefined)?.setData(collection ? labelCollection(collection, activeLayer, geo) : EMPTY);
+    (map.getSource('src-labels') as GeoJSONSource | undefined)?.setData(collection ? labelCollection(collection, activeLayer, geo, lightFilled(theme, activeLayer, token('--ink'))) : EMPTY);
     map.setLayerZoomRange('labels', LABEL_MIN_ZOOM[activeLayer], 24);
     if (tooltipRef.current) tooltipRef.current.hidden = true;
   }, [activeLayer, theme, ready, loadedLayers, geo]);

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { GeoIndex, geoKey, isDistrictLayer, parseGeoKey, shortLabel, unionBbox } from '../../src/lib/geo';
 import { datasetFor, districtDeviation, groupBreakdown, groupsSumToTotal, populationFor } from '../../src/lib/population';
-import { classIndex, populationTheme, quantileBreaks, redrawnTheme, roundBreak, linkedRecordsTheme, coverageTheme } from '../../src/lib/mapTheme';
+import { classIndex, populationTheme, quantileBreaks, redrawnTheme, roundBreak, linkedRecordsTheme, legislationTheme } from '../../src/lib/mapTheme';
 import { makeGeoIndexFile, makePopulationFile, makeRedistricting, populationRow } from './fixtures';
 
 const geo = new GeoIndex(makeGeoIndexFile());
@@ -166,10 +166,17 @@ describe('map themes never grade places by how many records the dataset holds', 
     expect(theme.hatch).toEqual({ geoids: 'rest', label: expect.stringMatching(/Not evidence that none exists/) });
   });
 
-  it('coverage hatches every state that is not tracked', () => {
-    const theme = coverageTheme(new Set(['06']));
-    expect([...theme.classOf.keys()]).toEqual(['06']);
-    expect(theme.hatch?.geoids).toBe('rest');
+  it('legislation is a yes/no class, with the count and the reason for an empty state in the tooltip', () => {
+    const theme = legislationTheme(new Map([['06', 300], ['22', 4], ['36', 0]]), false, new Map([['24', 'Not listed yet: no secure address.'], ['22', 'never shown']]));
+    expect(theme.classes).toHaveLength(1);
+    expect(theme.classOf.get('06')).toBe(theme.classOf.get('22'));
+    expect(theme.classOf.has('36')).toBe(false);
+    expect(theme.hatch).toEqual({ geoids: 'rest', label: expect.stringMatching(/Not evidence that none exists/) });
+    expect(theme.detailOf?.get('22')).toBe('4 election measures of the state’s legislature in this dataset');
+    expect(theme.detailOf?.get('24')).toBe('Not listed yet: no secure address.');
+    const filtered = legislationTheme(new Map([['22', 1]]), true);
+    expect(filtered.detailOf?.get('22')).toBe('1 measure of the state’s legislature matches the filters');
+    expect(filtered.title).toBe('State legislation that matches the filters');
   });
 
   it('marks the districts of states with new boundaries', () => {

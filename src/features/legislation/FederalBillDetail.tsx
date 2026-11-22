@@ -49,7 +49,8 @@ function RelatedMeasures({ related }: { related: readonly RelatedMeasure[] }) {
   return (
     <Section
       title={`Related measures (${related.length})`}
-      note="As the official record names them, with who identified the relation. A measure links to its page here when it is in this dataset; the others were not selected by the rule, or belong to another Congress."
+      note="As the official record names them, with who identified the relation."
+      method="A measure links to its page here when it is in this dataset; the others were not selected by the rule, or belong to another Congress."
     >
       <ul className="rows">
         {related.map((measure, index) => (
@@ -148,7 +149,7 @@ export function FederalBillBody({ bill, route, links }: { bill: LegislativeInstr
       {bill.digest ? (
         <Section
           title="Summary by the Congressional Research Service"
-          note={`Written by the Congressional Research Service${bill.digestVersion ? ` for the “${bill.digestVersion}” version` : ''}${bill.digestDate ? ` (${formatDate(bill.digestDate)})` : ''}. It is not part of the measure, it is not voted on, and it is not DemocracyHQ analysis. It describes that version only.`}
+          note={`Of the${bill.digestVersion ? ` “${bill.digestVersion}”` : ''} version${bill.digestDate ? ` of ${formatDate(bill.digestDate)}` : ''} only. Not part of the measure, and not DemocracyHQ analysis.`}
         >
           <details className="reading-details">
             <summary>Read the summary</summary>
@@ -166,7 +167,8 @@ export function FederalBillBody({ bill, route, links }: { bill: LegislativeInstr
       <Section
         title="Actions"
         id="history"
-        note={`Every action the official record lists, in the order of their dates. The Library of Congress writes one standard line for each step a measure takes; only those lines are read as steps.${votes > 0 ? ' A recorded vote links to the chamber’s own page for it.' : ''}`}
+        note={`Every action the official record lists, oldest first.${votes > 0 ? ' A recorded vote links to the chamber’s page for it.' : ''}`}
+        method="The Library of Congress writes one standard line for each step a measure takes; only those lines are read as steps."
       >
         <div className="toolbar">
           <Segmented

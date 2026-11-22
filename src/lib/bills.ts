@@ -2,7 +2,8 @@
  * How a measure is named, by the legislature it belongs to. A measure of Congress is cited by its own number
  * ("H.R. 22"). A state bill carries its state ("CA AB 604"), because bill numbers repeat from state to state.
  */
-import { FEDERAL_STATE, type LegislativeInstrumentSummary } from '../types/schemas';
+import { FEDERAL_STATE, STATE_MEASURE_ID_PATTERN, type LegislativeInstrumentSummary } from '../types/schemas';
+import { STATE_NAME } from './geo';
 
 type Named = Pick<LegislativeInstrumentSummary, 'state' | 'stateAbbr' | 'identifier'>;
 
@@ -15,13 +16,30 @@ export function billLabel(bill: Named): string {
   return isFederalBill(bill) ? bill.identifier : `${bill.stateAbbr} ${bill.identifier}`;
 }
 
-/**
- * The state of a state bill as a text names it: "California" for the one legislature in the dataset. A bill of any
- * other state is named by the state's own abbreviation, never as California's.
- */
+/** The state of a state bill as a text names it ("Louisiana"), or its abbreviation where the name is not known. */
 export function stateLabel(bill: Named): string {
-  return bill.stateAbbr === 'CA' ? 'California' : bill.stateAbbr;
+  return STATE_NAME[bill.state] ?? bill.stateAbbr;
 }
+
+/**
+ * A measure of a state legislature read from Open States (os-<state>-<session>-<number>): every state's but California's,
+ * whose bills are read from the Legislature's own data and published in full.
+ */
+export function isStateMeasureId(id: string): boolean {
+  return STATE_MEASURE_ID_PATTERN.test(id);
+}
+
+export function isStateMeasure(bill: Pick<LegislativeInstrumentSummary, 'id'>): boolean {
+  return isStateMeasureId(bill.id);
+}
+
+/**
+ * The stages a measure of a state legislature read from Open States can have reached, from the first to the furthest,
+ * as rule state-status-1 orders them (os_bulk.STAGES in the pipeline).
+ */
+export const STATE_STAGES: readonly string[] = [
+  'Introduced', 'Passed one chamber', 'Passed the legislature', 'Sent to the governor', 'Vetoed', 'Signed by the governor', 'Became law',
+];
 
 /** The measure as a heading names it: "H.R. 22" for a measure of Congress, "California AB 604" for a state bill. */
 export function billHeading(bill: Named): string {
@@ -47,11 +65,12 @@ export function billJurisdiction(bill: Pick<LegislativeInstrumentSummary, 'state
 }
 
 /**
- * What the status line of a measure is. A state legislature reports a status of its own, which is shown as reported.
- * Congress's record has none: the stage is the furthest step among the recorded actions, worked out by rule us-status-1.
+ * What the status line of a measure is. California's Legislature reports a status of its own, which is shown as
+ * reported. Congress's record has none, and Open States gives none: the stage is the furthest step among the recorded
+ * actions, worked out by rule us-status-1 or state-status-1.
  */
-export function statusNoun(bill: Pick<LegislativeInstrumentSummary, 'state'>): string {
-  return isFederalBill(bill) ? 'Stage reached' : 'Status as reported';
+export function statusNoun(bill: Pick<LegislativeInstrumentSummary, 'state' | 'id'>): string {
+  return isFederalBill(bill) || isStateMeasure(bill) ? 'Stage reached' : 'Status as reported';
 }
 
 /**

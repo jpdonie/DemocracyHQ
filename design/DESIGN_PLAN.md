@@ -36,8 +36,9 @@ sheet's margin, where the legend, the vintage and the source notes go.
 
 | Name | Hex | Role |
 | --- | --- | --- |
-| Sheet | `#f1f4ef` | Page background, a cool grey-green paper |
-| Ink navy | `#17233b` | Text, state lines, the neatline, the navigation bar |
+| Sheet | `#f2f4f8` | Page background of the light side, a cool grey |
+| Ink navy | `#17233b` | Text on the light side |
+| Night | `#0a1222` to `#16223f` | The night side: the top bar, the map stage, the title block of a page |
 | Contour brown | `#85551b` | Geography records and the population ramp |
 | Statute green | `#0c6557` | Legislation records |
 | Revision purple | `#6a2c6e` | Litigation records |
@@ -47,7 +48,36 @@ The three record inks come from the print separations of a topographic sheet:
 brown for the land itself, green for what is planted on it, purple for revisions
 overprinted later. They mark what kind of record something is and are never used
 as decoration. Map fills avoid red and blue so nothing reads as a party colour.
+The one exception is the view of who governs (`shade=party` and the block "Who
+governs"): there red and blue mean the Republican and the Democratic party and
+nothing else, lilac means a government divided between them, and every part also
+names its party in words.
 Hatching means "no data" everywhere it appears, on the map and in the panel.
+
+**The night side**
+
+The site has two sides. The reading panel is the light side: dark ink on white,
+for dockets and bill text that are read at length. The top bar, the map stage
+and the title block of every page are the night side: a dark ground on which the
+map is lit. A state with records, a county with many people, a state held by a
+party stands out as light against the dark; a place without data stays dark under
+its hatching. This is the look of a results map on election night, and it is used
+for the same reason: the map is the first thing a reader sees, and what it shows
+should be seen at once.
+
+The night side uses the same token names with other values, set once at the foot
+of `tokens.css` for the stage, the title block and the bar of the phone's sheet.
+A control placed there takes the right ink without a rule of its own, and the map
+reads its colours from the stage (`token()` in `MapView.tsx`). The rules that
+hold on the light side hold there too: text keeps 4.5:1, control borders 3:1, a
+boundary line that would fade into a fill is drawn over a casing, and a name on
+a pale fill is written in the dark ink. The ramp runs from dim to bright: the
+more there is, the more light. Print keeps the light side, and so does the
+printable source pack.
+
+Motion is used twice and each time once: a new colouring of the map fades in,
+and a seat bar grows to its figure when it first appears, each party's seats
+from its own end. Both are off when the reader asks for reduced motion.
 
 **Type**
 
@@ -113,8 +143,8 @@ the code; the scratch notes behind them were not kept.
 
 | Default look | Where this design stands |
 | --- | --- |
-| Cream paper, serif display, terracotta accent | The sheet is a cool grey-green (`#f1f4ef`), not cream. Display type is the sans. The one warm ink, contour brown, is tied to geography records and the population ramp; it is not an accent. Selection and focus use ink navy and a blue focus ring. |
-| Near-black with one acid accent | Not used. The only dark surface is the navigation bar, in ink navy. |
+| Cream paper, serif display, terracotta accent | The sheet is a cool grey (`#f2f4f8`), not cream. Display type is the sans. The one warm ink, contour brown, is tied to geography records and the population ramp; it is not an accent. Selection and focus use ink navy and a blue focus ring. |
+| Near-black with one acid accent | The night side is a dark navy, not black, and it has no accent of its own: what is bright on it is data (a fill, a figure, a name), in the inks that mean a kind of record or, on the party view, a party. The reading panel stays light. |
 | Broadsheet with hairlines and zero radius | Hairline rules are used, because a record panel is a list of dated entries. Columns are not: every panel is one column with a 66-character measure. Controls have a 2 to 4 px radius; the map frame has none because a neatline is square. |
 | SaaS card kit | No statistic cards, no gradient washes, no uniform card shadow. Counts are stated in sentences inside the coverage notes. Lists are rows separated by rules. Shadows are reserved for things that float above the map. The four-part status block on a bill is a ruled grid because the four answers are parallel questions. |
 | Template chrome | No tracked uppercase eyebrows: labels are sentence case. No dot-separated meta strings: meta lines are sentences ("No. 24-109, Supreme Court of the United States"). No monospace data labels: identifiers use the interface sans. No arrows appended to links. Text ink is navy, chosen to match the state lines, not a tinted black. |
@@ -158,6 +188,29 @@ Screenshots were taken with Playwright from the production build at 1366 x 768,
 | Court of appeals documents were labelled "Court Court document". | The label is "Other document". |
 | The table of what was read for each court had eight columns and scrolled sideways on a phone. | Two tables of five and four columns, with smaller figures on a phone. |
 | With the federal level there were two kinds of thing to choose on the map. | Two labelled groups share one control: Level (Federal, States, Counties, Districts) and Courts (Supreme Court, Circuits, with a menu of the thirteen courts). |
+
+## Editorial pass
+
+A review on the live site found the text weak: many small grey lines that read like
+generated filler, and tinted boxes with a coloured bar at their side. The reference
+is an election-night map page, where a headline, a few large figures and the map
+carry the page.
+
+| Finding | Change |
+|---|---|
+| Body text at 14px and notes at 13px; headlines barely larger than the text. | A scale with fewer, wider steps: running text 16px, an entry's title 19px, a section head 24px, a page headline 32px, the overview's headline 42px. Headlines are Archivo at weight 760 and 86% width. |
+| Every list opened with a paragraph on how it was made. | The method sits behind one line, "How this list is made", under the count. A list with nothing in it still says why at once. |
+| The count of a list was a small grey sentence. | The figure is set as large as a headline, then its noun. |
+| Tinted boxes with a bar at the side: the verdict of who governs, the source line, notices, the quotation at the head of a record, modules, the timeline, cards. | No tinted ground and no side bar. A verdict is a headline in its party's colour beside its dot; a quotation hangs its opening mark in the margin; the source line is a colophon under a full rule; the timeline is a rail with a dot per entry; the figures stand under a short rule in their record's ink. |
+| The overview began with three paragraphs. | A headline, one standfirst and three figures that lead to the lists. What each figure holds is folded under them. |
+| Section notes ran to three sentences. | One short line under the head; the rest folds into "How this is read". |
+| Issue tags were small framed boxes. | Topic labels in small capitals, as a news page tags a story. |
+
+The night side (the map stage and each title block) carries a contour plate drawn by
+[`scripts/contours.mjs`](../scripts/contours.mjs): a seeded terrain of smooth noise
+bent by a second field, traced level by level, every fifth line an index contour.
+It is the last plate of the survey sheet, the same study as the identity below. It
+is not a map of any place and encodes nothing.
 
 ## Identity
 

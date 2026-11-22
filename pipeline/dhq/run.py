@@ -45,8 +45,8 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Callable, Dict, List, NoReturn, Optional
 
-from . import about, circuits, classify, evidence
-from .adapters import ca_leginfo, census_geo, census_pop, congress, courtlistener, openstates, scotus, uscourts
+from . import about, circuits, classify, evidence, government
+from .adapters import ca_leginfo, census_geo, census_pop, cl_opinions, congress, officials, os_bulk, scotus, uscourts
 from .cli import EXIT_UNEXPECTED, LOG_FORMAT
 from .http import CredentialMissing, FetchError, Fetcher
 from .schemas import (
@@ -58,12 +58,15 @@ from .schemas import (
     EntityRef,
     EntityRelationship,
     EvidenceRef,
+    Government,
     IssueTag,
     LegalCase,
     LegislativeInstrument,
     RelationshipScope,
     RemovedTag,
     SourceRecord,
+    StateMeasure,
+    StateMeasureSummary,
     Verification,
     VerificationStatus,
 )
@@ -100,6 +103,8 @@ class Context:
         self.stage: Optional[str] = None
         self.published_dirs: List[str] = []
         self.published_files: List[str] = []
+        #: Files of an earlier release that a stage no longer writes; they are left out of the next release.
+        self.retired_files: List[str] = []
 
     def ok(self, source_id: str, **extra) -> None:
         self.status[source_id] = {"processingStatus": "ok", "lastAttempt": self.now, "lastSuccessfulCheck": self.now,
@@ -1429,46 +1434,407 @@ def stage_circuits(ctx: Context) -> None:
 
 # --- stage: optional secondary sources -------------------------------------------
 
-def stage_courtlistener(ctx: Context) -> None:
+DECISIONS_DIR = "decisions"
+#: A case of a federal district court or of a state court is named by CourtListener's number for its docket.
+DECISION_CASE_ID_PATTERN = r"cl-[0-9]{1,12}"
+#: The file the stage wrote before it read decisions: a list of dockets the site never showed.
+RETIRED_SECONDARY_FILE = "litigation_secondary.json"
+
+
+def _courtlistener_requests() -> int:
+    """``DHQ_CL_REQUESTS``: how many requests a run may send to CourtListener's search (the default when unset or
+    unreadable). A maintainer who reads the whole list for the first time raises it and waits out the hourly limit."""
     try:
-        queries = read_json(SEEDS_DIR / "courtlistener_queries.json")["queries"]
-        cases = courtlistener.run(ctx.fetcher_factory(timeout=60, min_interval=1.0), queries, checked_at=ctx.now)
+        return max(0, int(os.environ.get("DHQ_CL_REQUESTS", "") or cl_opinions.REQUESTS_PER_RUN))
+    except ValueError:
+        return cl_opinions.REQUESTS_PER_RUN
+
+
+def stage_courtlistener(ctx: Context) -> None:
+    """Decisions of the federal district courts and of the state courts that CourtListener holds (``cl_opinions``)."""
+    try:
+        cl_opinions.token()
     except CredentialMissing as exc:
-        ctx.fail("courtlistener-api", "credential_missing", f"{exc}. Add the token as a repository secret to activate this source.")
+        ctx.fail(cl_opinions.SOURCE_ID, "credential_missing", f"{exc}. Add the token as a repository secret to activate this source.")
         return
-    write_json(ctx.staging / "litigation_secondary.json", {"cases": [c.model_dump(mode="json") for c in cases]})
-    for case in cases:
-        ctx.flag("secondary_import", case.id, "imported from CourtListener; geographic scope and issue tags need maintainer review")
-    ctx.ok("courtlistener-api", recordCount=len(cases))
-    ctx.published_files.append("litigation_secondary.json")
+    cache = ctx.cache / "courtlistener"
+    # CourtListener allows this token five requests a minute, fifty an hour and 125 a day, so the search is asked
+    # slowly and a run reads only some months of the list of candidates. The files of the decisions are not counted.
+    search = ctx.fetcher_factory(timeout=90, min_interval=12.5)
+    files = ctx.fetcher_factory(timeout=120, min_interval=0.05)
+    previous_state = read_json(ctx.public / DECISIONS_DIR / "scan.json")
+    previous_index = read_json(ctx.public / DECISIONS_DIR / "index.json") or {}
+    earlier_ids = {case["id"] for case in previous_index.get("cases", [])}
+    listing = cl_opinions.refresh_listing(search, previous_state, now=ctx.now, requests=_courtlistener_requests(),
+                                          progress=lambda month, found: log.info("courtlistener: %s lists %s decisions", month, found))
+    every_month = cl_opinions.months(cl_opinions.SINCE, ctx.now[:10])
+    unread_months = [month for month in every_month if month not in listing.months]
+    if not listing.months:
+        raise RuntimeError(f"no month of CourtListener's list of decisions could be read ({listing.limited or 'the requests of the run were used up'}); "
+                           "nothing is published")
+    for month in listing.doubted:
+        ctx.flag("listing_shrank", f"{cl_opinions.SOURCE_ID}:{month}", "CourtListener's search returned less than half of the decisions it "
+                 "returned before for this month; the earlier list of the month is kept and the month is read again on the next run")
+    result = cl_opinions.scan(files, cache, previous_state, listing, now=ctx.now,
+                              progress=lambda what, done, of: log.info("courtlistener: %s %s of %s", what, done, of))
+    out = ctx.staging / DECISIONS_DIR
+    reader = cl_opinions.Reader(files, cache)
+
+    for docket, error in sorted(result.failed.items()):
+        ctx.flag("fetch_failed", cl_opinions.case_id(docket), f"the case could not be read from CourtListener: {error}"[:300])
+
+    records: List[dict] = []
+    carried: List[dict] = []  # published records kept as they are: not readable in this run, or held for review
+    held = 0
+    for docket in sorted(result.selected):
+        read = result.selected[docket]
+        case_id = cl_opinions.case_id(docket)
+        rel_path = f"{DECISIONS_DIR}/cases/{case_id}.json"
+        previous = read_json(ctx.public / rel_path)
+        opening_passage, problem = cl_opinions.opinion_about(reader, read, (previous or {}).get("about"))
+        if problem:
+            ctx.flag("opening_unavailable", case_id, problem)
+        case = cl_opinions.build_case(read.entries, read.texts, read.evaluation, checked_at=ctx.now,
+                                      first_observed=(previous or {}).get("firstObservedAt"), about=opening_passage)
+        built = case.model_dump(mode="json")
+        obj = keep_previous_if_regressed(ctx, rel_path, built, _docket_size, case_id)
+        if obj is not built:
+            held += 1
+            carried.append(obj)
+            continue
+        records.append(built)
+    never_published = 0
+    for docket in result.kept:
+        previous = read_json(ctx.public / f"{DECISIONS_DIR}/cases/{cl_opinions.case_id(docket)}.json")
+        if previous:
+            carried.append(previous)  # the last record read; its check time is not advanced
+        else:
+            never_published += 1
+    by_id = {record["id"]: record for record in records + carried}
+    records = sorted(by_id.values(), key=lambda record: record["id"])
+    if not records:
+        raise RuntimeError("the selection rule selected no decision of a district court or a state court; refusing to publish an empty set")
+
+    left = sorted(earlier_ids - set(by_id))
+    refused = len(left) > MAX_SHARE_LEAVING * len(earlier_ids)
+    unlisted = {cl_opinions.case_id(docket) for docket in result.unlisted}
+    for case_id in left:
+        why = ("CourtListener's search no longer returns it" if case_id in unlisted
+               else f"rule {cl_opinions.SELECTION_RULE_ID} no longer selects it")
+        ctx.flag("case_left_selection", case_id, f"published before, but {why}; " + (
+            "it stays published because too many cases would leave at once" if refused else "its record is no longer published"))
+    if refused:
+        raise RuntimeError(f"{len(left)} of the {len(earlier_ids)} published cases of district and state courts would leave the published set "
+                           f"at once, more than {MAX_SHARE_LEAVING:.0%}; the previous set is kept until a maintainer has checked the scan")
+    if earlier_ids:
+        for record in records:
+            if record["id"] not in earlier_ids:
+                ctx.flag("new_selection", record["id"], f"newly selected by rule {cl_opinions.SELECTION_RULE_ID} (test met: "
+                                                        f"{', '.join(record['selection']['tests'])}); a maintainer should read the decision once")
+
+    for record in records:
+        write_json(out / "cases" / f"{record['id']}.json", record, root=out / "cases")
+    summaries = [{k: v for k, v in record.items() if k not in CIRCUIT_DETAIL_FIELDS} for record in records]
+    summaries.sort(key=lambda summary: (summary.get("sourceLastActivity") or "", summary["id"]), reverse=True)
+    coverage = cl_opinions.coverage(result.state)
+    write_json(out / "index.json", {
+        "cases": summaries,
+        "selection": {**cl_opinions.selection_document(),
+                      "appliedTo": "every decision filed since " + cl_opinions.SINCE + " that CourtListener's search returns for the "
+                                   "published list of election words and phrases, of a federal district court or of a state's "
+                                   "supreme, appellate or trial court: the text of the copy CourtListener holds",
+                      "candidates": result.state["candidates"], "skipped": result.state["skipped"],
+                      "totalCasesRead": sum(row["cases"] for row in coverage.values()),
+                      "totalDocumentsRead": sum(row["documents"] for row in coverage.values()),
+                      # The list of candidates is kept month by month and read again in turn: how many months there
+                      # are, how many have been read at all, and when the list read longest ago was read.
+                      "months": len(every_month), "monthsListed": len(every_month) - len(unread_months),
+                      "oldestListingAt": min((month["listedAt"] for month in listing.months.values()), default=None)},
+        "coverage": coverage,
+        "scannedAt": ctx.now,
+    })
+    write_json(out / "scan.json", result.state)
+
+    notes = []
+    if unread_months:
+        notes.append(f"{len(unread_months)} of {len(every_month)} months of CourtListener's list have not been read yet "
+                     f"({unread_months[0]} to {unread_months[-1]}); they are read on later runs")
+    if listing.limited and not listing.read:
+        notes.append(f"{listing.limited}; no month of the list was read again in this run")
+    if result.failed:
+        outcome = f"; the published records of {len(carried) - held} of them are kept" if len(carried) > held else ""
+        notes.append(f"{len(result.failed)} of {result.read} cases read in this run could not be retrieved or parsed{outcome}")
+    if never_published:
+        notes.append(f"{never_published} selected case(s) could not be read and had not been published before, so they are not listed")
+    if held:
+        notes.append(f"{held} rebuilt case(s) were smaller than the published record and are held for review")
+    detail = "; ".join(notes) or None
+    ctx.ok(cl_opinions.SOURCE_ID, recordCount=len(summaries), statusDetail=detail)
+    if len(carried) == len(records):
+        ctx.fail(cl_opinions.SOURCE_ID, "failed", detail or "no case could be refreshed")
+    ctx.published_dirs.append(DECISIONS_DIR)
+    ctx.retired_files.append(RETIRED_SECONDARY_FILE)
 
 
-#: Open States jurisdictions queried when OPENSTATES_JURISDICTIONS is not set.
-DEFAULT_OPENSTATES_JURISDICTIONS = ("tx", "fl", "nc", "oh")
+#: The folder of the measures of the state legislatures read from Open States.
+STATE_LEGISLATION_DIR = "state-legislation"
+#: The file the stage wrote before it read Open States' bulk data: measures of four states the site never showed.
+RETIRED_OPENSTATES_FILE = "legislation_secondary.json"
+#: Largest share of a state's published measures that may leave the set in one run before its earlier set is kept.
+MAX_STATE_SHARE_LEAVING = 0.25
 
 
-def openstates_jurisdictions() -> List[str]:
-    """The comma-separated OPENSTATES_JURISDICTIONS, or the default list when it is unset or blank.
-
-    The scheduled workflow passes the repository variable of that name, which is an empty string when the variable
-    does not exist, so blank must mean "not set" and never "query an empty jurisdiction"."""
-    names = [name.strip() for name in os.environ.get("OPENSTATES_JURISDICTIONS", "").split(",")]
-    return [name for name in names if name] or list(DEFAULT_OPENSTATES_JURISDICTIONS)
+def openstates_selection_document(totals: Dict[str, int], by_test: Dict[str, int], skipped: Dict[str, int]) -> dict:
+    """Rules ``state-select-1``, ``state-status-1`` and ``secure-link-1`` as published with the data."""
+    return {
+        "ruleId": os_bulk.SELECTION_RULE_ID, "statusRuleId": os_bulk.STATUS_RULE_ID, "linkRuleId": os_bulk.LINK_RULE_ID,
+        "tests": dict(os_bulk.TEST_DESCRIPTIONS),
+        "subjectPattern": os_bulk.SUBJECT_PATTERN.pattern, "subjectExclusions": os_bulk.SUBJECT_EXCLUSIONS.pattern,
+        "maxSubjects": os_bulk.MAX_SUBJECTS, "namedPattern": os_bulk.NAMED_PATTERN.pattern,
+        "generalPattern": os_bulk.GENERAL_PATTERN.pattern, "exclusionPattern": os_bulk.EXCLUSION_PATTERN.pattern,
+        "notLegislation": sorted(os_bulk.NOT_LEGISLATION), "ceremonialPattern": os_bulk.CEREMONIAL_PATTERN.pattern,
+        "resolutionCeremonialPattern": os_bulk.RESOLUTION_CEREMONIAL_PATTERN.pattern,
+        "stages": list(os_bulk.STAGES),
+        "appliedTo": "the title of each measure and the subjects the legislature files it under, as Open States records them",
+        "since": os_bulk.SINCE, "totalMeasuresRead": totals.get("read", 0), "selected": totals.get("selected", 0),
+        "listed": totals.get("listed", 0), "withoutSecureLink": totals.get("unlinked", 0),
+        "selectedByTest": {test: by_test.get(test, 0) for test in os_bulk.TESTS},
+        "notLegislationLeftOut": skipped.get("notLegislation", 0),
+        "leftOut": [{"state": fips, "stateAbbr": STATES[fips][0], "reason": reason} for fips, reason in sorted(os_bulk.LEFT_OUT.items())],
+    }
 
 
 def stage_openstates(ctx: Context) -> None:
+    """The election measures of the state legislatures since 2025, from Open States' bulk data (``os_bulk``)."""
     try:
-        openstates.api_key()
+        key = os_bulk.api_key()
     except CredentialMissing as exc:
-        ctx.fail("openstates-api", "credential_missing", f"{exc}. Add the key as a repository secret to activate this source.")
+        ctx.fail(os_bulk.SOURCE_ID, "credential_missing", f"{exc}. Add the key as a repository secret to activate this source.")
         return
-    fetcher = ctx.fetcher_factory(timeout=60, min_interval=1.5)
-    bills = []
-    for jurisdiction in openstates_jurisdictions():
-        bills.extend(openstates.search_bills(fetcher, jurisdiction, "elections", checked_at=ctx.now))
-    write_json(ctx.staging / "legislation_secondary.json", {"bills": [b.model_dump(mode="json") for b in bills]})
-    ctx.ok("openstates-api", recordCount=len(bills))
-    ctx.published_files.append("legislation_secondary.json")
+    cache = ctx.cache / "openstates"
+    # The API allows the key ten requests a minute; the archives need no key.
+    api = ctx.fetcher_factory(timeout=60, min_interval=6.5)
+    files = ctx.fetcher_factory(timeout=120, min_interval=0.05)
+    sessions, passed_over = os_bulk.sessions_of(os_bulk.jurisdictions(api, key))
+    if not sessions:
+        raise RuntimeError("Open States lists no session of a state legislature since 2025; refusing to publish an empty set")
+    previous_index = read_json(ctx.public / STATE_LEGISLATION_DIR / "index.json") or {}
+    previous = {bill["id"]: bill for bill in previous_index.get("bills", [])}
+    read_docs: List[dict] = []
+    failed: List[str] = []
+    for session in sessions:
+        name = f"{session.abbr.lower()}-{os_bulk.slug(session.identifier) or 'session'}.json"
+        cached = read_json(cache / name)
+        if cached and cached.get("url") == session.url and cached.get("ruleVersion") == os_bulk.RULE_VERSION:
+            read_docs.append(cached)
+            continue
+        try:
+            doc = os_bulk.read_archive(session, files)
+        except Exception as exc:  # noqa: BLE001 - one unreadable archive must not take the other sessions down
+            log.error("openstates %s %s failed: %s: %s", session.abbr, session.identifier, type(exc).__name__, exc)
+            failed.append(f"{session.abbr} {session.identifier}")
+            if cached:
+                read_docs.append(cached)  # the last archive read for the session stands until a new one can be read
+            continue
+        doc["ruleVersion"] = os_bulk.RULE_VERSION
+        write_json(cache / name, doc, root=cache)
+        read_docs.append(doc)
+        log.info("openstates: %s %s read, %s of %s measures selected", session.abbr, session.identifier, len(doc["selected"]), doc["measuresRead"])
+    secure: Dict[str, set] = {}
+    for doc in read_docs:
+        secure.setdefault(doc["state"], set()).update(doc.get("httpsHosts") or [])
+    # A host that Open States gives over http only is asked once a week whether it serves the same page over https
+    # (rule secure-link-1). DHQ_LINK_CHECKS=0 leaves the hosts unasked and uses only what was learnt before.
+    checks_path = cache / "https-checks.json"
+    checks = read_json(checks_path) or {}
+    asking = os.environ.get("DHQ_LINK_CHECKS", "1").strip() != "0"
+    pages = ctx.fetcher_factory(timeout=30, min_interval=1.0, retries=0)
+    week_ago = (datetime.strptime(ctx.now, "%Y-%m-%dT%H:%M:%SZ") - timedelta(days=os_bulk.CONFIRM_DAYS)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    for host, sample in sorted(os_bulk.http_only_hosts(read_docs, secure).items()):
+        known = checks.get(host)
+        if asking and not (known and known.get("checkedAt", "") >= week_ago):
+            checks[host] = known = {"ok": os_bulk.confirm_https(pages, sample), "checkedAt": ctx.now}
+            log.info("openstates: %s %s pages over https", host, "serves" if known["ok"] else "does not serve")
+    write_json(checks_path, checks, root=cache)
+    confirmed = {host for host, known in checks.items() if known.get("ok")}
+    for hosts in secure.values():
+        hosts |= confirmed
+    by_state: Dict[str, List[dict]] = {}
+    totals: Counter = Counter()
+    by_test: Counter = Counter()
+    skipped: Counter = Counter()
+    sessions_doc = []
+    for doc in read_docs:
+        listed = unlinked = 0
+        for raw in doc["selected"]:
+            by_test[raw["match"]["test"]] += 1
+            earlier = previous.get(raw["id"])
+            record = os_bulk.build(raw, doc, secure.get(doc["state"], ()), checked_at=ctx.now,
+                                   first_observed=earlier.get("firstObservedAt") if earlier else None)
+            if record is None:
+                unlinked += 1
+                continue
+            listed += 1
+            by_state.setdefault(doc["abbr"], []).append(StateMeasure(**record).model_dump(mode="json", exclude_none=True))
+        for reason, count in (doc.get("skipped") or {}).items():
+            skipped[reason] += count
+        totals.update(read=doc["measuresRead"], selected=len(doc["selected"]), listed=listed, unlinked=unlinked)
+        sessions_doc.append({"state": doc["state"], "stateAbbr": doc["abbr"], "identifier": doc["identifier"], "name": doc["name"],
+                             "classification": doc["classification"], "start": doc["start"], "end": doc["end"],
+                             "measuresRead": doc["measuresRead"], "selected": len(doc["selected"]), "listed": listed,
+                             "withoutSecureLink": unlinked})
+    # A state whose list would shrink by more than a quarter at once keeps its published list for a maintainer to check.
+    out = ctx.staging / STATE_LEGISLATION_DIR
+    held = []
+    for abbr in sorted({bill["stateAbbr"] for bill in previous.values()} | set(by_state)):
+        earlier_ids = {bill_id for bill_id, bill in previous.items() if bill["stateAbbr"] == abbr}
+        now_ids = {record["id"] for record in by_state.get(abbr, [])}
+        leaving = earlier_ids - now_ids
+        if earlier_ids and len(leaving) > MAX_STATE_SHARE_LEAVING * len(earlier_ids):
+            kept = read_json(ctx.public / STATE_LEGISLATION_DIR / f"{abbr.lower()}.json")
+            if kept:
+                held.append(abbr)
+                ctx.flag("state_measures_left", abbr, f"{len(leaving)} of the {len(earlier_ids)} published measures of {abbr} would leave at once; "
+                                                       "the published list is kept until a maintainer has checked the archives")
+                by_state[abbr] = kept["bills"]
+    summaries: List[dict] = []
+    for abbr, records in sorted(by_state.items()):
+        records.sort(key=lambda r: (r.get("lastActionDate") or "", r["id"]), reverse=True)
+        write_json(out / f"{abbr.lower()}.json", {"bills": records}, root=out)
+        # The index leaves out what a list does not show (empty fields, the verification note) to stay small.
+        for record in records:
+            summary = StateMeasureSummary(**bill_summary(record)).model_dump(mode="json", exclude_none=True)
+            summary["verification"].pop("note", None)
+            summaries.append(summary)
+    if not summaries:
+        raise RuntimeError("no measure of a state legislature could be built; refusing to publish an empty set")
+    summaries.sort(key=lambda s: (s.get("lastActionDate") or "", s["id"]), reverse=True)
+    write_json(out / "index.json", {"bills": summaries, "scannedAt": ctx.now, "sessions": sessions_doc,
+                                    "selection": openstates_selection_document(totals, by_test, skipped)})
+    notes = []
+    if failed:
+        notes.append(f"{len(failed)} session archive(s) could not be read ({', '.join(failed[:8])}); the last read kept where there is one")
+    if held:
+        notes.append(f"the published lists of {', '.join(held)} are kept for review")
+    if totals["unlinked"]:
+        notes.append(f"{totals['unlinked']} selected measures are not listed: Open States gives no secure address of the legislature's page for them")
+    detail = "; ".join(notes) or None
+    ctx.ok(os_bulk.SOURCE_ID, recordCount=len(summaries), statusDetail=detail)
+    if failed and len(failed) == len(sessions):
+        ctx.fail(os_bulk.SOURCE_ID, "failed", detail or "no archive could be read")
+    ctx.published_dirs.append(STATE_LEGISLATION_DIR)
+    ctx.retired_files.append(RETIRED_OPENSTATES_FILE)
+
+
+# --- stage: who holds office ------------------------------------------------------
+
+GOVERNMENT_FILE = "government.json"
+FIFTY_STATES = tuple(fips for fips, (abbr, _) in STATES.items() if abbr not in ("DC", "PR", "AS", "GU", "MP", "VI"))
+
+
+def _previous_governments(ctx: Context) -> Dict[str, dict]:
+    return {record["id"]: record for record in (read_json(ctx.public / GOVERNMENT_FILE) or {}).get("governments", [])}
+
+
+def _kept_chambers(previous: Optional[dict], keys: tuple[str, ...]) -> List[dict]:
+    """The chambers published before, with the day they were read, for a source that could not be read in this run."""
+    return [chamber for chamber in (previous or {}).get("chambers", []) if chamber["chamber"] in keys]
+
+
+def stage_government(ctx: Context) -> None:
+    """``government.json``: the President (once a source is read for the office), the Senate and the House; for each of
+    the fifty states the governor and the chambers of the legislature (rules ``party-*``).
+
+    Each of the four sources stands on its own. One that cannot be read, or that no longer has the form its reader
+    knows, is reported as failed, and what was published from it before stays, with the day it was read.
+    """
+    previous = _previous_governments(ctx)
+    table = read_json(SEEDS_DIR / "chambers.json")["states"]
+    if sorted(entry["fips"] for entry in table.values()) != sorted(FIFTY_STATES):
+        raise SeedError("seeds/chambers.json does not list exactly the fifty states")
+    official = ctx.fetcher_factory(timeout=60, min_interval=1.0)
+    bulk = ctx.fetcher_factory(timeout=60, min_interval=0.3)
+
+    # The United States.
+    nation = previous.get(government.NATION_ID)
+    federal: List[dict] = []
+    try:
+        listed = officials.senate(official)
+        federal.append(government.senate_chamber(listed, officials.SENATE_SEATS, source_id=officials.SENATE_SOURCE_ID,
+                                                 source_url=officials.SENATE_URL, checked_at=ctx.now))
+        ctx.ok(officials.SENATE_SOURCE_ID, sourcePublishedAt=listed["asOf"], recordCount=len(listed["labels"]))
+    except (FetchError, officials.SourceFormatError) as exc:
+        log.error("senate: %s", exc)
+        federal.extend(_kept_chambers(nation, ("upper",)))
+        ctx.fail(officials.SENATE_SOURCE_ID, "failed", f"{exc}; the figures published before are kept")
+    try:
+        listed = officials.house(official)
+        made = government.house_chamber(listed, source_id=officials.HOUSE_SOURCE_ID, source_url=officials.HOUSE_URL, checked_at=ctx.now)
+        counted = government.majority(made["parties"], made["seats"])
+        if made["leadBasis"] == "stated" and counted and counted != made["lead"]:
+            ctx.flag("stated_majority_differs", government.NATION_ID,
+                     f"the Clerk states the majority {made['lead']}, the members listed give {counted} more than half of the seats")
+        federal.append(made)
+        ctx.ok(officials.HOUSE_SOURCE_ID, sourcePublishedAt=listed["asOf"], recordCount=len(listed["labels"]))
+    except (FetchError, officials.SourceFormatError) as exc:
+        log.error("house: %s", exc)
+        federal.extend(_kept_chambers(nation, ("lower",)))
+        ctx.fail(officials.HOUSE_SOURCE_ID, "failed", f"{exc}; the figures published before are kept")
+    federal.sort(key=lambda made: government.CHAMBER_ORDER.index(made["chamber"]))
+    records = [government.government(unit_id=government.NATION_ID, name="United States", holder=None, chambers=federal,
+                                     executive_note=government.NO_PRESIDENT_NOTE, expected_chambers=("upper", "lower"))]
+
+    # The governors.
+    governors: Dict[str, dict] = {}
+    try:
+        for entry in officials.governors(official):
+            fips = STATE_BY_NAME.get(entry["state"].lower())
+            if fips in FIFTY_STATES:
+                governors[fips] = government.executive(office="Governor", name=entry["name"], party=entry["party"],
+                                                       term_started=entry["termStarted"], source_id=officials.GOVERNORS_SOURCE_ID,
+                                                       source_url=entry["url"], checked_at=ctx.now)
+        if len(governors) != len(FIFTY_STATES):
+            raise officials.SourceFormatError(f"the governors' association lists a governor for {len(governors)} of the fifty states")
+        ctx.ok(officials.GOVERNORS_SOURCE_ID, recordCount=len(governors))
+    except (FetchError, officials.SourceFormatError) as exc:
+        log.error("governors: %s", exc)
+        governors = {fips: previous[f"state:{fips}"]["executive"] for fips in FIFTY_STATES
+                     if (previous.get(f"state:{fips}") or {}).get("executive")}
+        ctx.fail(officials.GOVERNORS_SOURCE_ID, "failed", f"{exc}; the governors published before are kept")
+
+    # The legislatures.
+    failed: List[str] = []
+    members = 0
+    newest: Optional[str] = None
+    for abbr, entry in sorted(table.items()):
+        fips, unit_id = entry["fips"], f"state:{entry['fips']}"
+        try:
+            listed = officials.legislators(bulk, abbr)
+            chambers, problems = government.state_chambers(listed["chambers"], entry["chambers"], source_id=officials.LEGISLATORS_SOURCE_ID,
+                                                           source_url=listed["url"], as_of=listed["asOf"], checked_at=ctx.now)
+            for problem in problems:
+                ctx.flag("chamber_size", unit_id, problem)
+            members += sum(chamber["members"] for chamber in chambers)
+            newest = max(filter(None, [newest, listed["asOf"]]), default=None)
+        except (FetchError, officials.SourceFormatError, ValueError) as exc:
+            log.error("legislators of %s: %s", abbr, exc)
+            failed.append(abbr)
+            chambers = _kept_chambers(previous.get(unit_id), government.CHAMBER_ORDER)
+        records.append(government.government(
+            unit_id=unit_id, name=STATES[fips][1], holder=governors.get(fips), chambers=chambers,
+            executive_note=None if fips in governors else "No governor was read for this state.",
+            expected_chambers=tuple(entry["chambers"])))
+    if failed:
+        ctx.fail(officials.LEGISLATORS_SOURCE_ID, "failed",
+                 f"the members of {len(failed)} of {len(table)} legislatures could not be read ({', '.join(failed)}); the figures published before are kept for them")
+    else:
+        ctx.ok(officials.LEGISLATORS_SOURCE_ID, sourcePublishedAt=newest, recordCount=members)
+
+    write_json(ctx.staging / GOVERNMENT_FILE, {
+        "generatedAt": ctx.now,
+        "governments": [Government(**record).model_dump(mode="json") for record in records],
+    })
+    ctx.published_files.append(GOVERNMENT_FILE)
 
 
 # --- stage: relationships and events --------------------------------------------
@@ -1479,13 +1845,15 @@ def _staged_or_public(ctx: Context, rel: str) -> Path:
 
 
 #: The published indexes of the cases and of the measures, each with the key its list has.
-CASE_INDEXES = ("litigation/index.json", "circuits/index.json")
+CASE_INDEXES = ("litigation/index.json", "circuits/index.json", "decisions/index.json")
 BILL_INDEXES = ("legislation/index.json", "congress/index.json")
 
 
 def case_path(case_id: str) -> str:
-    """Where a case's record is published: Supreme Court dockets and court of appeals cases have their own folders."""
-    return f"{'litigation' if case_id.startswith('scotus-') else 'circuits'}/cases/{case_id}.json"
+    """Where a case's record is published: Supreme Court dockets, court of appeals cases, and the cases of district and
+    state courts have their own folders."""
+    folder = "litigation" if case_id.startswith("scotus-") else "decisions" if case_id.startswith("cl-") else "circuits"
+    return f"{folder}/cases/{case_id}.json"
 
 
 def bill_path(bill_id: str) -> str:
@@ -1666,7 +2034,7 @@ def stage_relationships(ctx: Context) -> None:
     # Supreme Court dockets and the court of appeals cases they come from, as the two indexes are about to be published.
     composition = read_json(_staged_or_public(ctx, "geo/circuits.json")) or {}
     court_names = {court["name"].casefold(): court["id"] for court in composition.get("courts", [])}
-    case_links = cases_below(_listed(ctx, CASE_INDEXES[:1], "cases"), _listed(ctx, CASE_INDEXES[1:], "cases"), court_names)
+    case_links = cases_below(_listed(ctx, ("litigation/index.json",), "cases"), _listed(ctx, ("circuits/index.json",), "cases"), court_names)
     write_json(ctx.staging / "relationships.json", {"relationships": resolved, "caseLinks": case_links})
     ctx.published_files.append("relationships.json")
 
@@ -1925,6 +2293,40 @@ OTHER_RULES = [
                     f"reduced to its letters, is identical and at least {uscourts.SAME_OPINION_MIN_LETTERS:,} letters long. That is how "
                     "a court files one opinion that decides several appeals. The record does not state the relation; it is derived by "
                     "this rule. Such an opinion appears once in timelines, with the numbers of all its cases."},
+    {"ruleId": cl_opinions.SELECTION_RULE_ID, "appliesTo": "Which cases of federal district courts and of state courts are included",
+     "description": "CourtListener, the collection of court decisions of the Free Law Project, is asked for every decision filed since "
+                    f"{cl_opinions.SINCE} whose text holds one of the search terms published in decisions/index.json: words such as "
+                    "'ballot', 'voter' and 'redistricting', and phrases such as 'general election' and 'board of elections'. Of what "
+                    "it returns, the decisions of federal district courts and of the supreme, appellate and trial courts of the "
+                    "states are read, as CourtListener classes each court. A decision without a case name, a docket number or a "
+                    "file, and a decision of a court whose name names no state, is not read; how many there were of each is "
+                    "published. The decisions of one docket are one case. The text of CourtListener's copy of each decision is "
+                    "read, and the case is included when one decision meets one of the three text tests of the rule for the courts "
+                    f"of appeals ({uscourts.SELECTION_RULE_ID}): 'long', 'dense', or 'party' where the case title names an election "
+                    "authority. Each case's page shows the test it met, the decision it rests on and the phrases counted in it. "
+                    "CourtListener is not an official source and does not hold every decision of a court. A case with no decision "
+                    "there, or whose decision uses none of the search terms, is missed; a case that only discusses elections, or "
+                    "that concerns an election that is not a public one, can be included."},
+    {"ruleId": cl_opinions.COURT_STATE_RULE_ID, "appliesTo": "The state a federal district court or a state court is listed under",
+     "description": "The state is read from the court's name as CourtListener gives it: the longest name of a state, of the District "
+                    "of Columbia or of a territory that stands in the name as whole words, so that 'West Virginia' is found before "
+                    "'Virginia'; " + " and ".join(f"'{name}'" for name in cl_opinions.PLACE_SHORT_NAMES) + " are also read as those "
+                    "territories. A court whose name holds no such name, or the names of two places, is placed nowhere and its cases "
+                    "are not read. The state says where the court sits, not what a case concerns."},
+    {"ruleId": cl_opinions.DOCUMENT_RULE_ID, "appliesTo": "What a decision read from CourtListener is called",
+     "description": "CourtListener gives each document of a decision a kind, and the kind names the document: "
+                    + "; ".join(f"'{kind}' is shown as {label}" for kind, label in cl_opinions.OPINION_KINDS.items())
+                    + f". A document of any other kind is shown as {cl_opinions.OTHER_KIND}. CourtListener gives a decision no docket "
+                    "text, so nothing is quoted as the court's entry. The latest such document is shown as the latest opinion of the court."},
+    {"ruleId": cl_opinions.SAME_DOCKET_RULE_ID, "appliesTo": "Decisions of one case that CourtListener files under two dockets",
+     "description": "CourtListener sometimes files the decisions of one case under two of its dockets. Decisions of one court whose "
+                    "docket numbers are the same, compared without case, spaces and punctuation, are shown as one case, under the "
+                    "lowest of the dockets' ids; the case lists every docket id. A docket number that differs by a letter (an order "
+                    "modifying an opinion filed as 'H053842M') is another case to this rule, and both are listed."},
+    {"ruleId": cl_opinions.SEPARATE_RULE_ID, "appliesTo": "An opinion of a single judge beside a decision read from CourtListener",
+     "description": "A document CourtListener gives one of these kinds is the opinion of a judge beside the court's decision: "
+                    + "; ".join(f"'{kind}' is shown as {label}" for kind, label in cl_opinions.SEPARATE_KINDS.items())
+                    + ". It is listed with the case and is never shown as the latest opinion of the court."},
     {"ruleId": COMPOSITION_RULE_ID, "appliesTo": "Which states and territories each judicial circuit is drawn with",
      "description": "The pipeline keeps a table of the states and territories of each circuit. On every run of the boundary stage it "
                     "reads 28 U.S.C. § 41 and 48 U.S.C. § 1821(a) in the edition of the United States Code that GovInfo publishes, and "
@@ -1936,6 +2338,7 @@ OTHER_RULES = [
      "description": "A text version is listed as changed when the paragraph-level comparison with the previous official version adds or removes "
                     "at least one paragraph. The counts come from a standard longest-common-subsequence comparison of the extracted paragraphs."},
     *about.RULES,
+    *government.RULES,
 ]
 
 
@@ -1946,7 +2349,8 @@ def stage_validate(ctx: Context) -> None:
     errors: List[str] = []
     seen_cases: set[str] = set()
     # A case id names its file, like a bill id: one that does not have the expected shape could point outside the folder.
-    case_folders = (("litigation", r"scotus-[0-9a-z-]+", scotus.SOURCE_ID), ("circuits", CIRCUIT_CASE_ID_PATTERN, uscourts.SOURCE_ID))
+    case_folders = (("litigation", r"scotus-[0-9a-z-]+", scotus.SOURCE_ID), ("circuits", CIRCUIT_CASE_ID_PATTERN, uscourts.SOURCE_ID),
+                    (DECISIONS_DIR, DECISION_CASE_ID_PATTERN, cl_opinions.SOURCE_ID))
     for folder, id_pattern, source_id in case_folders:
         listed = [str(summary.get("id") or "") for summary in (read_json(ctx.staging / folder / "index.json") or {}).get("cases", [])]
         files = sorted((ctx.staging / folder / "cases").glob("*.json")) if (ctx.staging / folder).exists() else []
@@ -1993,6 +2397,25 @@ def stage_validate(ctx: Context) -> None:
         for path in sorted((ctx.staging / folder / "text").glob("*.json")) if (ctx.staging / folder).exists() else []:
             if f"{folder}/text/{path.name}" not in referenced:
                 errors.append(f"orphan text file {folder}/text/{path.name}: no bill version points at it")
+    state_dir = ctx.staging / STATE_LEGISLATION_DIR
+    if state_dir.exists():
+        index = read_json(state_dir / "index.json") or {}
+        listed = sorted(str(summary.get("id") or "") for summary in index.get("bills", []))
+        held: List[str] = []
+        for path in sorted(state_dir.glob("*.json")):
+            if path.name == "index.json":
+                continue
+            for obj in (read_json(path) or {}).get("bills", []):
+                try:
+                    measure = StateMeasure(**obj)
+                except Exception as exc:  # noqa: BLE001
+                    errors.append(f"{STATE_LEGISLATION_DIR}/{path.name}: {str(exc)[:200]}")
+                    continue
+                if measure.stateAbbr.lower() != path.stem or measure.sourceId != os_bulk.SOURCE_ID:
+                    errors.append(f"{STATE_LEGISLATION_DIR}/{path.name}: {measure.id} does not belong in this file")
+                held.append(measure.id)
+        if listed != sorted(held) or len(set(held)) != len(held):
+            errors.append(f"{STATE_LEGISLATION_DIR}/index.json does not list exactly the measures of the state files, once each")
     composition = read_json(ctx.staging / "geo" / "circuits.json")
     if composition is not None:
         try:
@@ -2032,8 +2455,13 @@ SOURCE_FILES: Dict[str, tuple[str, ...]] = {
     congress.TEXT_SOURCE_ID: ("congress/text/",),
     uscourts.SOURCE_ID: ("circuits/",),
     circuits.SOURCE_ID: ("geo/circuits.json",),
-    "courtlistener-api": ("litigation_secondary.json",),
-    "openstates-api": ("legislation_secondary.json",),
+    cl_opinions.SOURCE_ID: (DECISIONS_DIR + "/",),
+    os_bulk.SOURCE_ID: (STATE_LEGISLATION_DIR + "/",),
+    # One file holds what four sources say; each source's hash therefore changes with any of them.
+    officials.SENATE_SOURCE_ID: (GOVERNMENT_FILE,),
+    officials.HOUSE_SOURCE_ID: (GOVERNMENT_FILE,),
+    officials.GOVERNORS_SOURCE_ID: (GOVERNMENT_FILE,),
+    officials.LEGISLATORS_SOURCE_ID: (GOVERNMENT_FILE,),
 }
 
 
@@ -2121,6 +2549,9 @@ def _build_release(ctx: Context, incoming: Path) -> None:
         src = ctx.staging / name
         if src.exists():
             shutil.copy2(src, incoming / name)
+    for name in dict.fromkeys(ctx.retired_files):
+        if name not in ctx.published_files and (incoming / name).is_file():
+            (incoming / name).unlink()
     write_json(incoming / "classification.json", {
         **classify.rules_document(),
         "docketEntryRules": [{"ruleId": r, "eventType": e, "significance": s, "rulesOn": lvl, "pattern": p} for r, e, s, lvl, p in scotus.EVENT_RULES],
@@ -2170,8 +2601,12 @@ def _build_release(ctx: Context, incoming: Path) -> None:
         "bills": sum(listed(rel, "bills") for rel in BILL_INDEXES),
         "supremeCourtCases": listed("litigation/index.json", "cases"),
         "appealsCourtCases": listed("circuits/index.json", "cases"),
+        "districtAndStateCourtCases": listed("decisions/index.json", "cases"),
         "stateBills": listed("legislation/index.json", "bills"),
         "federalBills": listed("congress/index.json", "bills"),
+        # The measures of the other state legislatures, read from Open States. They are not among "bills", which counts
+        # the measures published in full with their texts.
+        "stateLegislationBills": listed(STATE_LEGISLATION_DIR + "/index.json", "bills"),
         "relationships": len((read_json(incoming / "relationships.json") or {}).get("relationships", [])),
         "events": len((read_json(incoming / "events.json") or {}).get("events", [])),
         "geographicUnits": len((read_json(incoming / "geo/index.json") or {}).get("rows", [])),
@@ -2194,14 +2629,17 @@ STAGES: Dict[str, tuple[Callable[[Context], None], List[str]]] = {
     "california": (stage_california, ["ca-leginfo-bulk"]),
     "congress": (stage_congress, [congress.SOURCE_ID, congress.TEXT_SOURCE_ID]),
     "circuits": (stage_circuits, [uscourts.SOURCE_ID]),
-    "courtlistener": (stage_courtlistener, ["courtlistener-api"]),
-    "openstates": (stage_openstates, ["openstates-api"]),
+    "courtlistener": (stage_courtlistener, [cl_opinions.SOURCE_ID]),
+    "openstates": (stage_openstates, [os_bulk.SOURCE_ID]),
+    "government": (stage_government, [officials.SENATE_SOURCE_ID, officials.HOUSE_SOURCE_ID, officials.GOVERNORS_SOURCE_ID,
+                                      officials.LEGISLATORS_SOURCE_ID]),
     "relationships": (stage_relationships, []),
     "events": (stage_events, []),
 }
-DEFAULT_ORDER = ["geo", "population", "scotus", "california", "congress", "circuits", "courtlistener", "openstates", "relationships", "events"]
+DEFAULT_ORDER = ["geo", "population", "scotus", "california", "congress", "circuits", "courtlistener", "openstates", "government",
+                 "relationships", "events"]
 #: Stages whose records the links and the timeline are built from: after any of them, those two are rebuilt.
-RECORD_STAGES = ("geo", "scotus", "california", "congress", "circuits")
+RECORD_STAGES = ("geo", "scotus", "california", "congress", "circuits", "courtlistener")
 
 
 def _staged_files(ctx: Context) -> Dict[Path, int]:

@@ -1,7 +1,7 @@
 /** Print-friendly summary of a Legal Source Pack. Uses the same builder as the JSON and CSV downloads. */
 import type { ReactNode } from 'react';
 import { useCore } from '../../lib/core';
-import { SCOTUS_ID } from '../../lib/courts';
+import { recordBasis } from '../../lib/courts';
 import { loadBill, loadCase } from '../../lib/data';
 import { entityNamer, packForBill, packForCase, UNAVAILABLE_NOTICES, type PackItem, type SourcePack } from '../../lib/export';
 import { formatDate, formatDateTime, plural } from '../../lib/format';
@@ -148,7 +148,7 @@ function CasePack({ id }: { id: string }) {
     <Async of={record} what="the source pack" heading="Source pack">
       {(data) => {
         const key = data.events.filter((e) => e.significance === 'major').length;
-        const appeal = data.courtId !== SCOTUS_ID;
+        const docket = recordBasis(data) === 'docket';
         return (
           <PackDocument
             backHash={buildHash(['litigation', id])}
@@ -157,7 +157,7 @@ function CasePack({ id }: { id: string }) {
               nameOf: entityNamer({ geo: dataOf(core.geo), bills: dataOf(core.bills)?.bills, cases: dataOf(core.cases) }),
             })}
             sectionNotes={key < data.events.length ? {
-              event: <>Key entries only: {key} of {appeal ? plural(data.events.length, 'document') : plural(data.events.length, 'docket entry', 'docket entries')}, selected by the published rules listed under <A to={buildHash(['sources'], { section: 'rules' })}>Data and methodology</A>. The JSON and CSV downloads on the case page contain all entries.</>,
+              event: <>Key entries only: {key} of {docket ? plural(data.events.length, 'docket entry', 'docket entries') : plural(data.events.length, 'document')}, selected by the published rules listed under <A to={buildHash(['sources'], { section: 'rules' })}>Data and methodology</A>. The JSON and CSV downloads on the case page contain all entries.</>,
             } : {}}
           />
         );

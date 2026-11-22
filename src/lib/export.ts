@@ -11,7 +11,7 @@ import type {
 import { differentSubject, earlierSubject, earlierSubjectNote } from './billHistory';
 import { FEDERAL_TEXT_SOURCE_ID, billLabel, billLabelFromId, isAdoptedMeasure, isFederalBill, statusNoun } from './bills';
 import { passageDeadlineNote, pendingAfterDeadline } from './caSession';
-import { SCOTUS_ID, courtCitation } from './courts';
+import { SCOTUS_ID, caseCourtCitation, recordBasis } from './courts';
 import type { GeoIndex, GeoUnit } from './geo';
 import { isCensusLayer, stateKind, unitNoun } from './geo';
 import { relationshipLabel, reverseRelationshipLabel } from './labels';
@@ -33,7 +33,7 @@ export const GAP_NOTICE = 'Coverage is incomplete. A data gap is not evidence of
 export const UNAVAILABLE_NOTICES = {
   links: 'The links between records (relationships.json) could not be loaded, so this pack lists no links to places, cases or other measures. That says nothing about whether such links exist.',
   cases: 'The court case indexes (litigation/index.json and circuits/index.json) could not be loaded, so this pack lists no court cases. That says nothing about whether any are linked.',
-  bills: 'The legislation indexes (legislation/index.json and congress/index.json) could not be loaded, so this pack lists no legislation. That says nothing about whether any exists.',
+  bills: 'The legislation indexes (legislation/index.json, congress/index.json and, for a place in a state, state-legislation/index.json) could not be loaded, so this pack lists no legislation. That says nothing about whether any exists.',
   events: 'The timeline (events.json) could not be loaded, so this pack lists no dated events. That says nothing about whether any exist.',
   caseRecords: 'The court case indexes (litigation/index.json and circuits/index.json) could not be loaded, so linked court cases appear only as links, without their case records.',
   /** For a place: a case is linked to a place only through a link. Appeals that began in the state come from the case index and are still listed. */
@@ -204,8 +204,8 @@ export function entityNamer(files: {
       return bill ? billLabel(bill) : null;
     }
     const found = files.cases?.find((c) => c.id === ref.id);
-    // A court of appeals docket number is only unique within its court, so the court is named with it.
-    return found ? `${found.caseName}, No. ${found.docketNumber}${found.courtId === SCOTUS_ID ? '' : ` (${courtCitation(found.courtId)})`}` : null;
+    // A docket number of any court but the Supreme Court is only unique within its court, so the court is named with it.
+    return found ? `${found.caseName}, No. ${found.docketNumber}${found.courtId === SCOTUS_ID ? '' : ` (${caseCourtCitation(found)})`}` : null;
   };
 }
 
@@ -230,13 +230,21 @@ function packSources(sources: readonly SourceRecord[] | null, ids: Iterable<stri
 
 /**
  * A case as a pack lists it. For a Supreme Court docket the record is the Court's docket. For a court of appeals case
- * it is the documents GovInfo holds for the case, which is not the court's full docket; the wording keeps the two apart.
+ * it is the documents GovInfo holds for the case, which is not the court's full docket. For a case of a district court
+ * or a state court it is the decisions CourtListener holds, which is not a court's record at all. The wording keeps
+ * the three apart.
  */
 function caseItem(c: LegalCaseSummary, base: BaseInput, detailPrefix = ''): PackItem {
-  const appeal = c.courtId !== SCOTUS_ID;
+  const basis = recordBasis(c);
+  const appeal = basis === 'govinfo';
   const entry = c.latestDispositiveEntry;
   let ruling: string;
-  if (appeal) {
+  if (basis === 'courtlistener') {
+    ruling = entry
+      ? `Latest opinion of the court among the decisions CourtListener holds for the case (${entry.date}): ${entry.text}.`
+      : 'No opinion of the court among the documents CourtListener holds for the case.';
+    ruling += ` Read from CourtListener’s copy, not from the court${c.court ? ` (${c.court.name})` : ''}. CourtListener does not hold every decision, and whether this one was later reheard, vacated, appealed or reviewed is not recorded.`;
+  } else if (appeal) {
     ruling = entry
       ? `Latest decision among the documents GovInfo holds for the case (${entry.date}): ${entry.text}`
       : 'No decision identified among the documents GovInfo holds for the case by DemocracyHQ’s rules.';
@@ -248,8 +256,9 @@ function caseItem(c: LegalCaseSummary, base: BaseInput, detailPrefix = ''): Pack
     ruling = entry ? `Latest ruling entry on the docket (${entry.date}): ${entry.text}` : 'No ruling entry identified on the docket by DemocracyHQ’s rules.';
   }
   return item({
-    section: 'court_case', id: c.id, title: `${c.caseName}, No. ${c.docketNumber} (${courtCitation(c.courtId)})`,
-    date: c.sourceLastActivity ?? null, dateMeaning: appeal ? 'Date of the latest document GovInfo holds for the case' : 'Latest docket activity reported by the court',
+    section: 'court_case', id: c.id, title: `${c.caseName}, No. ${c.docketNumber} (${caseCourtCitation(c)})`,
+    date: c.sourceLastActivity ?? null,
+    dateMeaning: basis === 'courtlistener' ? 'Date of the latest decision CourtListener holds for the case' : appeal ? 'Date of the latest document GovInfo holds for the case' : 'Latest docket activity reported by the court',
     detail: `${detailPrefix}${ruling}`, sourceName: sourceName(base.sources, c.sourceId), sourceUrl: c.sourceUrl,
     lastCheckedAt: c.lastCheckedAt, ...checked(c.verification), appUrl: base.link(`#/litigation/${c.id}`),
   });
@@ -427,8 +436,8 @@ function entryDocument(docs: readonly (CourtDocument | undefined)[]): Pick<PackI
 }
 
 /**
- * Why a court of appeals case is in the dataset, in one sentence: the tests of the selection rule it met and what the
- * rule counted in the document it rests on.
+ * Why a case that a selection rule picked is in the dataset, in one sentence: the tests of the rule it met and what
+ * the rule counted in the document it rests on.
  */
 export function selectionSentence(selection: NonNullable<LegalCase['selection']>): string {
   const parts: string[] = [];
@@ -447,7 +456,9 @@ export function selectionSentence(selection: NonNullable<LegalCase['selection']>
 
 export function packForCase(input: CasePackInput): SourcePack {
   const c = input.record;
-  const appeal = c.courtId !== SCOTUS_ID;
+  const basis = recordBasis(c);
+  const appeal = basis === 'govinfo';
+  const holder = basis === 'courtlistener' ? 'CourtListener' : 'GovInfo';
   const self: EntityRef = { type: 'case', id: c.id };
   const subject = caseItem(c, input);
   const items: PackItem[] = [{ ...subject, section: 'subject', detail: `${subject.detail ?? ''}${c.selection ? ` ${selectionSentence(c.selection)}` : ''}` }];
@@ -465,16 +476,17 @@ export function packForCase(input: CasePackInput): SourcePack {
     // For a court of appeals case an entry is one document GovInfo holds, with the court's own entry text for it.
     const cover = appeal ? e.documentIds.map((id) => documents.get(id)?.accessNote).find((note) => note && /letter/i.test(note)) : null;
     items.push(item({
-      section: 'event', id: e.id, title: `${appeal ? 'Document on GovInfo' : 'Docket entry'}, ${e.eventType.replace(/_/g, ' ')}`, date: e.date,
-      dateMeaning: appeal ? 'Date of the document as GovInfo gives it' : 'Date of the docket entry',
+      section: 'event', id: e.id, title: `${basis === 'docket' ? 'Docket entry' : `Document on ${holder}`}, ${e.eventType.replace(/_/g, ' ')}`, date: e.date,
+      dateMeaning: basis === 'docket' ? 'Date of the docket entry' : `Date of the document as ${holder} gives it`,
       detail: cover ? `${e.description} ${cover}` : e.description, sourceUrl: doc.url ?? e.evidence.url, lastCheckedAt: c.lastCheckedAt, ...checked(c.verification),
       documentAvailability: doc.documentAvailability, documentAvailabilityNote: doc.documentAvailabilityNote,
     }));
   }
   return finish(
-    { type: 'case', id: c.id, label: `${c.caseName}, No. ${c.docketNumber}${appeal ? ` (${courtCitation(c.courtId)})` : ''}`, url: input.link(`#/litigation/${c.id}`) }, items, input, [c.sourceId],
+    { type: 'case', id: c.id, label: `${c.caseName}, No. ${c.docketNumber}${basis === 'docket' ? '' : ` (${caseCourtCitation(c)})`}`, url: input.link(`#/litigation/${c.id}`) }, items, input, [c.sourceId],
     [
       ...(appeal ? ['The dated entries are the documents GovInfo holds for this case, not the court’s full docket. Filings, orders and later history that GovInfo does not hold are not listed.'] : []),
+      ...(basis === 'courtlistener' ? ['The dated entries are the decisions CourtListener holds for this case. CourtListener is a collection of the Free Law Project, not a court: the entries are not the court’s docket, and filings, orders and later history are not listed.'] : []),
       ...(input.relationships ? [] : [UNAVAILABLE_NOTICES.links]),
     ],
   );

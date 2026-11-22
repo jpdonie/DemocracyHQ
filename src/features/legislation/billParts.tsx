@@ -1,8 +1,8 @@
 /** The sections of a measure's page that a California bill and a measure of Congress share. */
-import type { EntityRelationship, LegalCaseSummary, LegislativeInstrument } from '../../types/schemas';
-import { billLabel, billLabelFromId, isFederalBill } from '../../lib/bills';
+import type { EntityRelationship, LegalCaseSummary, LegislativeInstrument, LegislativeInstrumentSummary } from '../../types/schemas';
+import { billLabel, billLabelFromId, isFederalBill, isStateMeasure } from '../../lib/bills';
 import { useCore } from '../../lib/core';
-import { SCOTUS_ID } from '../../lib/courts';
+import { recordBasis } from '../../lib/courts';
 import { formatDate, formatNumber } from '../../lib/format';
 import { eventLabel, relationshipLabel, reverseRelationshipLabel, useTagLabels } from '../../lib/labels';
 import { buildHash } from '../../lib/router';
@@ -46,17 +46,20 @@ export function CourtsCell({ bill, links }: { bill: LegislativeInstrument; links
             const c = courts.data[1].find((x) => x.id === (r.source.type === 'case' ? r.source.id : r.target.id));
             if (!c) return null;
             const ruling = c.latestDispositiveEntry;
-            const appeal = c.courtId !== SCOTUS_ID;
+            const basis = recordBasis(c);
             return (
               <li key={r.id}>
                 <a className="case-name" href={buildHash(['litigation', c.id])}>{c.caseName}</a>, No. {c.docketNumber}
                 {ruling ? (
                   <p className="row-line">
-                    {appeal ? 'Latest decision among the documents GovInfo holds' : 'Latest ruling entry on the docket'}: <span className="row-date">{formatDate(ruling.date)}</span> {eventLabel(ruling.eventType, ruling.ruleId)}: <q>{ruling.text}</q>
+                    {basis === 'docket' ? 'Latest ruling entry on the docket' : basis === 'govinfo' ? 'Latest decision among the documents GovInfo holds' : 'Latest opinion of the court among the decisions CourtListener holds'}: <span className="row-date">{formatDate(ruling.date)}</span>{' '}
+                    {basis === 'courtlistener' ? ruling.text : <>{eventLabel(ruling.eventType, ruling.ruleId)}: <q>{ruling.text}</q></>}
                   </p>
                 ) : (
                   <p className="row-line quiet">
-                    {appeal ? 'No decision identified among the documents GovInfo holds for the case.' : 'No ruling entry identified on the docket by DemocracyHQ’s rules; see the docket.'}
+                    {basis === 'docket' ? 'No ruling entry identified on the docket by DemocracyHQ’s rules; see the docket.'
+                      : basis === 'govinfo' ? 'No decision identified among the documents GovInfo holds for the case.'
+                      : 'No opinion of the court among the documents CourtListener holds for the case.'}
                   </p>
                 )}
                 {r.scope.note ? <p className="link-scope">{r.scope.note}</p> : null}
@@ -83,8 +86,8 @@ export function TextVersions({ bill }: { bill: LegislativeInstrument }) {
     <Section
       title="Text versions"
       note={federal
-        ? 'Each version is the text the Government Publishing Office publishes for the measure. Compare any two to see what was added and removed.'
-        : 'Each version is the legislature’s own published text, with the official subject line it carried. Compare any two to see what was added and removed.'}
+        ? 'As the Government Publishing Office publishes them. Compare any two to see what changed.'
+        : 'As the legislature publishes them, with the subject line each carried. Compare any two to see what changed.'}
     >
       <TableScroll label="Text versions">
         <table className="table">
@@ -176,13 +179,16 @@ export function LinkedMeasuresAndPlaces({ bill, links }: { bill: LegislativeInst
   );
 }
 
-/** Why the selection rule picked the measure, and the issue tags the keyword rules gave it. */
-export function ListedAndTags({ bill }: { bill: LegislativeInstrument }) {
+/**
+ * Why the selection rule picked the measure, and the issue tags the keyword rules gave it. `tests` says in words what
+ * each test of the rule asks for: those of Congress's rule unless another legislature's are given.
+ */
+export function ListedAndTags({ bill, tests }: { bill: LegislativeInstrumentSummary; tests?: Readonly<Record<string, string>> }) {
   const core = useCore();
   const labels = useTagLabels();
   const selection = bill.selection;
-  // For a measure of Congress the rule has three tests; the index says in words what each asks for.
-  const test = selection?.test && core.bills.status === 'ready' ? core.bills.data.federal.tests[selection.test] : undefined;
+  const allTests = tests ?? (core.bills.status === 'ready' ? core.bills.data.federal.tests : undefined);
+  const test = selection?.test ? allTests?.[selection.test] : undefined;
   const rule = selection ? <A to={buildHash(['sources'], { section: 'coverage' })}>{selection.ruleId}</A> : null;
   return (
     <Section title="Why this measure is listed, and its tags">
@@ -192,6 +198,14 @@ export function ListedAndTags({ bill }: { bill: LegislativeInstrument }) {
           {selection.matchedTitle ? <>: <q>{selection.matchedTitle}</q> ({selection.matchedField})</> : <> ({selection.matchedField})</>}.
           {' '}That meets {selection.test ? <>the test &ldquo;{selection.test}&rdquo; of </> : null}selection rule {rule}{test ? `: ${test}` : ''}.
           The rule reads titles and the policy area only, not the text of the measure.
+        </p>
+      ) : selection && isStateMeasure(bill) ? (
+        <p>
+          {selection.test === 'subject'
+            ? <>Included because the legislature files it under &ldquo;{selection.matchedText}&rdquo;, as Open States records it.</>
+            : <>Included because its title contains &ldquo;{selection.matchedText}&rdquo;.</>}
+          {' '}That meets {selection.test ? <>the test &ldquo;{selection.test}&rdquo; of </> : null}selection rule {rule}{test ? `: ${test}` : ''}.
+          {' '}The rule reads the title and the subjects only, not the text of the measure.
         </p>
       ) : selection ? (
         <p>Included because its {selection.matchedField} contains &ldquo;{selection.matchedText}&rdquo; (selection rule {rule}).</p>

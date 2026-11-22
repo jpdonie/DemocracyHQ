@@ -1,17 +1,19 @@
 import { Component, lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { Layer } from './types/schemas';
 import { APP_NAME, REPO_URL } from './config';
-import { billLabel, isFederalBill } from './lib/bills';
-import { CoreProvider, useCore } from './lib/core';
+import { billLabel, isStateMeasureId } from './lib/bills';
+import { CoreProvider, useCore, useGovernment, useStateLegislation } from './lib/core';
 import {
   SCOTUS_ID, casesByCourt, circuitCourtId, circuitViewBbox, courtFullName, courtGeoKey, courtHash, courtIdOfCase, isCourtId,
 } from './lib/courts';
-import { isAppealsCaseId, isFederalBillId, loadPopulation } from './lib/data';
-import { caseStateCounts } from './lib/filters';
-import { NATION_KEY, isCensusLayer, isDistrictLayer, isLayer, parseGeoKey, unionBbox, type Bbox } from './lib/geo';
-import { caseStatesTheme, circuitTheme, coverageTheme, linkedRecordsTheme, populationTheme, redrawnTheme, type MapTheme } from './lib/mapTheme';
+import { isAppealsCaseId, isDecisionCaseId, isFederalBillId, loadPopulation } from './lib/data';
+import { ALL_STATES, billStateCounts, caseStateCounts, filterBills, filterCases, knownBillFilters, knownCaseFilters, type BillFilters, type CaseFilters } from './lib/filters';
+import { NATION_KEY, STATE_ABBR, isCensusLayer, isDistrictLayer, isLayer, parseGeoKey, stateFipsOfAbbr, unionBbox, type Bbox } from './lib/geo';
+import { caseStatesTheme, circuitTheme, legislationTheme, linkedRecordsTheme, partyControlTheme, populationTheme, redrawnTheme, type MapTheme } from './lib/mapTheme';
 import { linkedStates, relationshipsForRecord } from './lib/relations';
-import { buildHash, moveStartedOn, navigate, patchQuery, useRoute, type Route } from './lib/router';
+import { unlistedNotes } from './lib/stateLegislation';
+import { fullSiteUrl, isEmbedded } from './lib/embed';
+import { buildHash, mapQuery, moveStartedOn, navigate, patchQuery, useRoute, type Route } from './lib/router';
 import { COMPACT_QUERY, SHORT_COMPACT_QUERY, TINY_COMPACT_QUERY, useMediaQuery } from './lib/media';
 import { isPlainClick, RaiseSheetContext } from './lib/sheet';
 import { dataOf, useLoad } from './lib/useLoad';
@@ -19,7 +21,7 @@ import { focusHeadingWhenShown, restorePlaceWhenShown } from './lib/focus';
 import { lastArrival } from './lib/scrollMemory';
 import { BrandMark } from './components/BrandMark';
 import { GlobalSearch } from './components/GlobalSearch';
-import { LayerControl, Legend, type DistrictPlan, type MapChoice } from './components/MapChrome';
+import { LayerControl, Legend, type DistrictPlan, type MapChoice, type StateShading } from './components/MapChrome';
 import { ReleaseNotice } from './components/ReleaseNotice';
 import type { MapPadding } from './components/MapView';
 import { ErrorNote, Icon, Loading } from './components/ui';
@@ -31,10 +33,10 @@ import { HomePanel } from './features/geography/HomePanel';
 import { PackView } from './features/geography/PackView';
 import { PlaceWorkspace } from './features/geography/PlaceWorkspace';
 import { BillDetail } from './features/legislation/BillDetail';
-import { BillDirectory } from './features/legislation/BillDirectory';
+import { BillDirectory, billFiltersFromQuery } from './features/legislation/BillDirectory';
 import { VersionCompare } from './features/legislation/VersionCompare';
 import { CaseDetail } from './features/litigation/CaseDetail';
-import { CaseDirectory } from './features/litigation/CaseDirectory';
+import { CaseDirectory, caseFiltersFromQuery } from './features/litigation/CaseDirectory';
 import { RedistrictingPanel } from './features/redistricting/RedistrictingPanel';
 import { SourcesPage } from './features/sources/SourcesPage';
 import { WatchlistPage } from './features/watchlist/WatchlistPage';
@@ -206,6 +208,8 @@ function Shell() {
   const module = moduleOf(view);
   const wide = WIDE.has(view.name);
   const compact = useMediaQuery(COMPACT_QUERY);
+  // Shown inside another page (`?embed=1` before the `#`): the address does not change while the page is open.
+  const embedded = useMemo(() => isEmbedded(), []);
   const short = useMediaQuery(SHORT_COMPACT_QUERY);
   // A very short screen (for example a laptop screen at 400% zoom): the page scrolls as one document (see app.css).
   const tiny = useMediaQuery(TINY_COMPACT_QUERY);
@@ -253,11 +257,18 @@ function Shell() {
     if (view.name === 'court') return known([view.id === SCOTUS_ID ? NATION_KEY : courtGeoKey(view.id)]);
     if (view.name === 'case') {
       if (isAppealsCaseId(view.id)) return known([courtGeoKey(courtIdOfCase(view.id) ?? '')]);
+      // A case of a district court or a state court is shown over the state its court sits in.
+      if (isDecisionCaseId(view.id)) {
+        const seat = cases?.find((record) => record.id === view.id)?.court?.stateFips;
+        return seat ? known([`state:${seat}`]) : [];
+      }
       if (!relationships) return [];
       return known(relationshipsForRecord('case', view.id, relationships).filter((r) => r.target.type === 'geography').map((r) => r.target.id));
     }
     if (view.name === 'bill' || view.name === 'compare') {
       if (isFederalBillId(view.id)) return known([NATION_KEY]);
+      // A measure read from Open States names its state in its id (os-<state>-...).
+      if (isStateMeasureId(view.id)) return known([`state:${stateFipsOfAbbr(view.id.slice(3, 5)) ?? ''}`]);
       const bill = bills?.bills.find((b) => b.id === view.id);
       return bill ? known([`state:${bill.state}`]) : [];
     }
@@ -266,8 +277,10 @@ function Shell() {
       return route.query.court ? known([courtGeoKey(route.query.court)]) : [];
     }
     if (view.name === 'laws' && route.query.jur === 'us') return known([NATION_KEY]);
+    // One state's legislature: its state.
+    if (view.name === 'laws' && route.query.jur && route.query.jur !== ALL_STATES) return known([`state:${stateFipsOfAbbr(route.query.jur) ?? ''}`]);
     return [];
-  }, [geo, view, relationships, bills, route.query.state, route.query.court, route.query.jur]);
+  }, [geo, view, relationships, bills, cases, route.query.state, route.query.court, route.query.jur]);
 
   // Outline the most specific linked unit (a district or county before its state).
   const selectedKey = useMemo(() => {
@@ -307,26 +320,56 @@ function Shell() {
   const populationDataset = shade === 'population' ? (activeLayer === 'state' ? 'state' : activeLayer === 'county' ? 'county' : 'cd119') : null;
   const populationFile = useLoad(populationDataset ? `population:${populationDataset}` : null, () => loadPopulation(populationDataset!));
 
+  // The states by the party that holds their government: a choice of the reader that stays from state to state.
+  const partyShading = activeLayer === 'state' && shade === 'party';
+  const government = useGovernment(partyShading);
+
+  // The filters of the litigation list other than the state, when any is set: the map's shading follows them.
+  const litigationQuery = view.name === 'litigation' ? route.query : null;
+  const litigationFilters = useMemo<CaseFilters | null>(() => {
+    if (!litigationQuery || !cases) return null;
+    const { state: _state, sort: _sort, ...others } = knownCaseFilters(caseFiltersFromQuery(litigationQuery), cases);
+    return Object.values(others).some(Boolean) ? others : null;
+  }, [litigationQuery, cases]);
+
+  // The measures of the state legislatures read from Open States, wanted while the map shows legislation.
+  const stateLegislation = dataOf(useStateLegislation(module === 'laws'));
+  const allLaws = useMemo(() => (bills && stateLegislation ? [...bills.bills, ...stateLegislation.bills] : null), [bills, stateLegislation]);
+  // The filters of the legislation list other than the legislature, when any is set: the map's shading follows them.
+  const lawsQuery = view.name === 'laws' ? route.query : null;
+  const lawFilters = useMemo<BillFilters | null>(() => {
+    if (!lawsQuery || !allLaws) return null;
+    const { jur: _jur, sort: _sort, ...others } = knownBillFilters(billFiltersFromQuery(lawsQuery), allLaws);
+    return Object.values(others).some(Boolean) ? others : null;
+  }, [lawsQuery, allLaws]);
+
   const theme = useMemo<MapTheme | null>(() => {
     if (!geo) return null;
     if (activeLayer === 'circuit') return cases ? circuitTheme(casesByCourt(cases)) : null;
     if (shade === 'population') {
       return populationFile.status === 'ready' ? populationTheme(activeLayer, geo, populationFile.data, redistricting) : null;
     }
+    if (partyShading) return government.status === 'ready' ? partyControlTheme(government.data.states) : null;
     if (isDistrictLayer(activeLayer)) return redistricting && shade !== 'none' ? redrawnTheme(activeLayer, geo, redistricting) : null;
     if (activeLayer !== 'state') return null;
     // A record of the whole country belongs to no single state, so no state is shaded for it.
     if (federalRecord) return null;
     if (module === 'laws') {
-      if (!bills) return null;
-      return coverageTheme(new Set(bills.bills.filter((b) => !isFederalBill(b)).map((b) => b.state)), bills.bills.some(isFederalBill));
+      if (!allLaws || !stateLegislation) return null;
+      // On the list the map follows the filters, the legislature apart: a state is shaded when one of its measures passes the others.
+      return legislationTheme(billStateCounts(lawFilters ? filterBills(allLaws, lawFilters) : allLaws), Boolean(lawFilters), unlistedNotes(stateLegislation));
     }
-    if (module === 'litigation') return cases ? caseStatesTheme(caseStateCounts(cases)) : null;
+    if (module === 'litigation') {
+      if (!cases) return null;
+      if (!litigationFilters) return caseStatesTheme(caseStateCounts(cases));
+      // On the list the map follows the filters, the state apart: a state is shaded when one of its cases passes the others.
+      return caseStatesTheme(caseStateCounts(filterCases(cases, litigationFilters)), true);
+    }
     if (module === 'redistricting') return null;
     // The Supreme Court's page: the states its dockets are linked to.
     if (view.name === 'court') return relationships ? linkedRecordsTheme(linkedStates(relationships, 'case'), 'cases') : null;
     return relationships ? linkedRecordsTheme(linkedStates(relationships, 'any'), 'records') : null;
-  }, [geo, shade, populationFile, activeLayer, redistricting, module, bills, relationships, cases, federalRecord, view.name]);
+  }, [geo, shade, populationFile, partyShading, government, activeLayer, redistricting, module, allLaws, stateLegislation, lawFilters, relationships, cases, federalRecord, view.name, litigationFilters]);
 
   const onSelect = useCallback((key: string) => {
     const current = routeRef.current;
@@ -342,7 +385,13 @@ function Shell() {
       patchQuery(current, { state: current.query.state === fips ? '' : fips }, { replace: false });
       return;
     }
-    navigate(buildHash(['place', key]));
+    // On the list of legislation a state selects its legislature, and selecting it again lists every state's.
+    const abbr = key.startsWith('state:') ? STATE_ABBR[key.slice(6)]?.toLowerCase() : undefined;
+    if (currentView.name === 'laws' && abbr) {
+      patchQuery(current, { jur: current.query.jur === abbr ? ALL_STATES : abbr, status: '', type: '', show: '' }, { replace: false });
+      return;
+    }
+    navigate(buildHash(['place', key], mapQuery(current.query)));
   }, []);
   const routeRef = useRef(route);
   routeRef.current = route;
@@ -351,18 +400,19 @@ function Shell() {
   const onChoice = useCallback((choice: MapChoice) => {
     const current = routeRef.current;
     const currentView = resolveView(current);
-    if (choice === 'federal') return navigate(buildHash(['place', NATION_KEY]));
+    if (choice === 'federal') return navigate(buildHash(['place', NATION_KEY], mapQuery(current.query)));
     if (choice === 'supreme') return navigate(courtHash(SCOTUS_ID));
     if (choice === 'circuit') return navigate(buildHash(['courts']));
     const layer: Layer = choice === 'district' ? 'cd120' : choice;
     // The pages of the country and of the courts have no boundaries of their own to change: from them the choice
     // leads to the overview with those boundaries. Every other view stays and only its map changes.
     const leaves = currentView.name === 'courts' || currentView.name === 'court' || (currentView.name === 'place' && currentView.key === NATION_KEY);
-    if (leaves) return navigate(buildHash([], layer === 'state' ? {} : { layer }));
+    if (leaves) return navigate(buildHash([], layer === 'state' ? mapQuery(current.query) : { layer }));
     return patchQuery(current, { layer, shade: '' }, { replace: false });
   }, []);
   const onPlan = useCallback((plan: DistrictPlan) => patchQuery(routeRef.current, { layer: plan, shade: '' }, { replace: false }), []);
   const onCircuit = useCallback((courtId: string) => navigate(courtId ? courtHash(courtId) : buildHash(['courts'])), []);
+  const onShading = useCallback((value: StateShading) => patchQuery(routeRef.current, { shade: value === 'party' ? 'party' : '' }, { replace: false }), []);
   const [controlBottom, setControlBottom] = useState(0);
 
   const onBoundaryError = useCallback((layer: Layer, message: string) => {
@@ -423,11 +473,11 @@ function Shell() {
       const record = cases?.find((c) => c.id === view.id);
       title = record ? `${record.caseName}, No. ${record.docketNumber}` : 'Court case';
     } else if (view.name === 'bill' || view.name === 'compare') {
-      const bill = bills?.bills.find((b) => b.id === view.id);
-      title = bill ? `${billLabel(bill)}: ${bill.subject ?? ''}` : 'Legislation';
+      const bill = (isStateMeasureId(view.id) ? stateLegislation?.bills : bills?.bills)?.find((b) => b.id === view.id);
+      title = bill ? `${billLabel(bill)}: ${bill.subject ?? bill.title ?? ''}` : 'Legislation';
       if (view.name === 'compare') title = `Text versions, ${title}`;
     } else if (view.name === 'place') title = geo?.get(view.key)?.name ?? 'Place';
-    else if (view.name === 'courts') title = 'Federal courts';
+    else if (view.name === 'courts') title = 'Courts';
     else if (view.name === 'court') title = courtFullName(courts?.get(view.id), view.id);
     else if (view.name === 'litigation') title = 'Election litigation';
     else if (view.name === 'laws') title = 'Election legislation';
@@ -438,7 +488,7 @@ function Shell() {
     else if (view.name === 'pack') title = packTitle(view, cases, bills?.bills, geo);
     else if (view.name === 'notfound') title = 'Page not found';
     document.title = title ? `${title} | ${APP_NAME}` : `${APP_NAME}: election law, litigation and district maps`;
-  }, [view, cases, bills, geo, courts]);
+  }, [view, cases, bills, stateLegislation, geo, courts]);
 
   /* ----- render ----- */
   let panel: React.ReactNode;
@@ -489,7 +539,7 @@ function Shell() {
   );
 
   return (
-    <div className={`app${wide ? ' is-wide' : ''}${compact ? ' is-compact' : ''}`} data-sheet={compact ? (wide ? 'full' : sheetSize) : undefined}>
+    <div className={`app${wide ? ' is-wide' : ''}${compact ? ' is-compact' : ''}${embedded ? ' is-embed' : ''}`} data-sheet={compact ? (wide ? 'full' : sheetSize) : undefined}>
       {/* The address is the current view, so the link still works when it is opened in a new tab or copied ("#panel" would
           be read as a route and lead to "Page not found"). Followed here, it moves focus into the panel. */}
       <a className="skip-link" href={buildHash(route.path, route.query)} onClick={(event) => { if (!isPlainClick(event)) return; event.preventDefault(); panelRef.current?.focus(); }}>Skip to content</a>
@@ -502,15 +552,23 @@ function Shell() {
           {navLinks.map((link) => <a key={link.id} href={link.hash} aria-current={module === link.id ? 'page' : undefined}>{link.label}</a>)}
         </nav>
         <GlobalSearch />
-        {compact ? <MoreMenu view={view} route={route} /> : null}
-        <nav className="topnav-meta" aria-label="About this site">
-          <a href={buildHash(['sources'])} aria-current={view.name === 'sources' ? 'page' : undefined}>Data and methodology</a>
-          <a href={buildHash(['watchlist'])} aria-current={view.name === 'watchlist' ? 'page' : undefined}>Watchlist</a>
-          <a href={buildHash(['about'])} aria-current={view.name === 'about' ? 'page' : undefined}>About</a>
-          {REPO_URL
-            ? <a href={REPO_URL} rel="noopener noreferrer external">GitHub</a>
-            : <a href={buildHash(['about'], { section: 'source' })}>GitHub</a>}
-        </nav>
+        {compact && !embedded ? <MoreMenu view={view} route={route} /> : null}
+        {embedded ? (
+          // Inside another page: the way out to the full site, at the view the reader is on.
+          <nav className="topnav-meta topnav-embed" aria-label="About this site">
+            <a href={buildHash(['sources'])} aria-current={view.name === 'sources' ? 'page' : undefined}>Data and methodology</a>
+            <a className="topnav-out" href={fullSiteUrl(buildHash(route.path, route.query))} target="_blank" rel="noopener" aria-label={`Open ${APP_NAME} in a new tab`}><span>Open<span className="topnav-out-name"> {APP_NAME}</span></span><Icon name="external" /></a>
+          </nav>
+        ) : (
+          <nav className="topnav-meta" aria-label="About this site">
+            <a href={buildHash(['sources'])} aria-current={view.name === 'sources' ? 'page' : undefined}>Data and methodology</a>
+            <a href={buildHash(['watchlist'])} aria-current={view.name === 'watchlist' ? 'page' : undefined}>Watchlist</a>
+            <a href={buildHash(['about'])} aria-current={view.name === 'about' ? 'page' : undefined}>About</a>
+            {REPO_URL
+              ? <a href={REPO_URL} rel="noopener noreferrer external">GitHub</a>
+              : <a href={buildHash(['about'], { section: 'source' })}>GitHub</a>}
+          </nav>
+        )}
       </header>
       {/* On a very short screen the page scrolls as one document: the section links follow the top bar, so they are
           reached first, and nothing stays fixed over the content. Elsewhere the tab bar is fixed at the bottom. */}
@@ -542,12 +600,16 @@ function Shell() {
                     onChoice={onChoice}
                     onPlan={onPlan}
                     onCircuit={onCircuit}
+                    shading={activeLayer === 'state' ? (partyShading ? 'party' : 'records') : null}
+                    onShading={onShading}
                     onExtent={setControlBottom}
                   />
                   {/* On a phone the legend starts closed to leave the map and its controls clear; its summary shows the colours in use. */}
                   <Legend
                     theme={theme} layer={activeLayer} geo={core.geo.data} sources={sources} now={core.now} boundaryError={boundaryErrors[activeLayer] ?? null} startOpen={!compact}
-                    emptyNote={federalRecord && activeLayer === 'state' ? 'No shading: the records of Congress belong to the whole country, which is outlined. Select a state to open its records.' : null}
+                    emptyNote={partyShading
+                      ? (government.status === 'error' ? 'The party figures could not be loaded, so the states are not coloured.' : 'Loading the party figures.')
+                      : federalRecord && activeLayer === 'state' ? 'No shading: the records of Congress belong to the whole country, which is outlined. Select a state to open its records.' : null}
                   />
                 </MapView>
               </Suspense>

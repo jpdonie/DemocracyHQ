@@ -333,7 +333,8 @@ existing files would no longer validate, and update the tests on both sides.
 
 Read [design/DESIGN_PLAN.md](design/DESIGN_PLAN.md) first. A few constraints are
 not negotiable: colour marks the type of record and nothing else, red and blue
-are not used for map fills, missing data is hatched and explained, every date
+are used only where the site shows which party holds an office (and there every
+part also names its party in words), missing data is hatched and explained, every date
 says what it is the date of, and the map is never the only way to reach a record.
 
 ## Style

@@ -25,7 +25,7 @@ test.describe('Static hosting under a sub-path', () => {
   });
 
   const deepLinks: Array<[string, string | RegExp]> = [
-    ['#/', /^Election litigation, voting laws/],
+    ['#/', /^Election law, state by state/],
     ['#/litigation', 'Election litigation'],
     [`#/litigation/${CASE.id}`, CASE.name],
     ['#/laws', 'Election legislation'],
@@ -52,11 +52,11 @@ test.describe('Static hosting under a sub-path', () => {
     await open(page, '#/nope/xyz');
     await expect(heading(page)).toHaveText('Page not found');
     await page.getByRole('link', { name: 'Go to the map' }).click();
-    await expect(heading(page)).toHaveText(/^Election litigation, voting laws/);
+    await expect(heading(page)).toHaveText(/^Election law, state by state/);
   });
 
   test('the browser back button returns to the earlier view', async ({ page }) => {
-    await open(page, '#/litigation');
+    await open(page, '#/litigation?court=scotus');
     await page.getByRole('link', { name: CASE.name }).click();
     await expect(heading(page)).toHaveText(CASE.name);
     await page.goBack();
@@ -78,9 +78,10 @@ test.describe('Data sources and methodology', () => {
       await expect(sources).toContainText(name);
     }
     await expect(sources.getByText('Last successful check').first()).toBeVisible();
-    // Optional sources that have no credential say so; they are not presented as working.
-    await expect(sources).toContainText('COURTLISTENER_API_TOKEN is not set');
-    await expect(sources).toContainText('It has never been run against the live API');
+    // The secondary sources say what they are, and what has not been checked.
+    await expect(sources).toContainText('CourtListener');
+    await expect(sources).toContainText('is a collection, not a court');
+    await expect(sources).toContainText('have not been checked against the official bill pages');
 
     for (const section of ['Coverage and selection', 'Verification states', 'Dates', 'Classification rules', 'Geography', 'Processing', 'Corrections']) {
       await expect(page.getByRole('navigation', { name: 'On this page' }).getByRole('link', { name: section })).toBeVisible();

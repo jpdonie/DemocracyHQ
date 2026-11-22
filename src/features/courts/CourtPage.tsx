@@ -250,7 +250,7 @@ export function CourtPage({ id }: { id: string }) {
   const short = courtShortName(court, id);
   return (
     <article className="view">
-      <BackLink to={buildHash(['courts'])}>Federal courts</BackLink>
+      <BackLink to={buildHash(['courts'])}>Courts</BackLink>
       <header className="view-head">
         <TypeMark type="court" />
         <h1 tabIndex={-1}>{courtFullName(court, id)}</h1>

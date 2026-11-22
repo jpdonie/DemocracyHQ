@@ -5,7 +5,7 @@ import { axeViolations, BILL, brokenWords, CASE, clickMap, expect, heading, mapR
 test.describe('Phone layout', () => {
   test('moves between the sections with the tab bar', async ({ page }) => {
     await open(page, '#/');
-    await expect(heading(page)).toHaveText(/^Election litigation, voting laws/);
+    await expect(heading(page)).toHaveText(/^Election law, state by state/);
     const tabbar = page.getByRole('navigation', { name: 'Sections' });
     await expect(tabbar).toBeVisible();
     // The desktop module links are replaced by the tab bar, not shown twice.
@@ -21,7 +21,7 @@ test.describe('Phone layout', () => {
     await tabbar.getByRole('link', { name: 'Sources', exact: true }).tap();
     await expect(heading(page)).toHaveText('Data sources and methodology');
     await tabbar.getByRole('link', { name: 'Map' }).tap();
-    await expect(heading(page)).toHaveText(/^Election litigation, voting laws/);
+    await expect(heading(page)).toHaveText(/^Election law, state by state/);
   });
 
   test('the bottom sheet grows and shrinks, and never traps the map behind it', async ({ page }) => {
@@ -81,7 +81,7 @@ test.describe('Phone layout', () => {
     await expect(page.getByRole('region', { name: 'Population, 2020 Census' })).toContainText('576,851');
   });
 
-  for (const [hash, title] of [['#/', /^Election litigation, voting laws/], ['#/place/state:06', 'California'], [`#/litigation/${CASE.id}`, CASE.name], [`#/laws/${BILL.id}`, BILL.heading], ['#/sources', 'Data sources and methodology'], ['#/place/county:06037', 'Los Angeles County, California']] as const) {
+  for (const [hash, title] of [['#/', /^Election law, state by state/], ['#/place/state:06', 'California'], [`#/litigation/${CASE.id}`, CASE.name], [`#/laws/${BILL.id}`, BILL.heading], ['#/sources', 'Data sources and methodology'], ['#/place/county:06037', 'Los Angeles County, California']] as const) {
     test(`no automated accessibility violations on ${hash}`, async ({ page }) => {
       await open(page, hash);
       await expect(heading(page)).toHaveText(title);
@@ -261,8 +261,9 @@ test.describe('Phone layout, details', () => {
   test('adding to the watchlist offers a way to the list, and the pressed button keeps its contrast', async ({ page }) => {
     await open(page, '#/place/county:06037');
     await page.getByRole('button', { name: 'Add to watchlist' }).tap();
-    // On a touch screen the hover state stays after a tap; the pressed button must still read white on dark.
-    await expect(page.getByRole('button', { name: 'Remove from watchlist' })).toHaveCSS('background-color', 'rgb(23, 35, 59)');
+    // On a touch screen the hover state stays after a tap; the pressed button must still read dark on light.
+    await expect(page.getByRole('button', { name: 'Remove from watchlist' })).toHaveCSS('background-color', 'rgb(244, 247, 252)');
+    await expect(page.getByRole('button', { name: 'Remove from watchlist' })).toHaveCSS('color', 'rgb(10, 18, 34)');
     await page.waitForLoadState('networkidle');
     expect(await axeViolations(page)).toEqual([]);
     await page.getByRole('link', { name: 'View watchlist' }).tap();
@@ -470,6 +471,27 @@ test.describe('Narrow phone, 320 x 568', () => {
 
   test('reading views fit the screen, tables included', async ({ page }) => {
     await expectNoSidewaysOverflow(page);
+  });
+
+  test('the party map is chosen from a menu, and the block of who governs fits the screen', async ({ page }) => {
+    await open(page, '#/', { withMap: true });
+    await mapReady(page, 'state');
+    await page.getByRole('combobox', { name: 'States coloured by' }).selectOption('party');
+    await expect(page).toHaveURL(/shade=party/);
+    await mapReady(page, 'state');
+    await expectMapControlsApart(page);
+    // The closed legend shows the three colours and the hatch of the party map.
+    await expect(page.locator('.legend summary .legend-key .swatch')).toHaveCount(4);
+
+    await open(page, '#/place/state:20?shade=party');
+    await expect(heading(page)).toHaveText('Kansas');
+    await page.getByRole('button', { name: 'Show more detail' }).tap();
+    const block = page.getByRole('region', { name: 'Who governs', exact: true });
+    await expect(block.getByRole('list', { name: 'The offices of Kansas by party' }).getByRole('listitem')).toHaveCount(3);
+    expect(await brokenWords(page, '.gov')).toEqual([]);
+    const overflow = await sidewaysOverflow(page);
+    expect(overflow.document).toBeLessThanOrEqual(0);
+    expect(overflow.panel).toBeLessThanOrEqual(0);
   });
 
   test('the closed legend keeps its key on one line between the zoom buttons and the edge', async ({ page }) => {

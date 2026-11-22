@@ -10,7 +10,7 @@ import { clearDataCache } from '../../src/lib/data';
 import { clearResolvedLoads } from '../../src/lib/useLoad';
 import { CaseDetail } from '../../src/features/litigation/CaseDetail';
 import { BillDetail } from '../../src/features/legislation/BillDetail';
-import { makeBill, makeCase, makeCircuitIndexFile, makeCircuitsFile, makeEvent, makeFederalBillIndexFile, makeFullBill, makeFullCase, makeGeoIndexFile, makeManifest, makeRedistricting, makeRelationship, makeSource } from './fixtures';
+import { makeBill, makeCase, makeCircuitIndexFile, makeCircuitsFile, makeDecisionIndexFile, makeEvent, makeFederalBillIndexFile, makeFullBill, makeFullCase, makeGeoIndexFile, makeManifest, makeRedistricting, makeRelationship, makeSource } from './fixtures';
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
 
@@ -26,6 +26,7 @@ function serve(relationships: () => Answer) {
     'legislation/index.json': () => json({ bills: [makeBill()], selection: { ruleId: 'sel', pattern: 'x', appliedTo: 'subject', totalBillsInSession: 10 } }),
     'events.json': () => json({ events: [makeEvent()] }),
     'circuits/index.json': () => json(makeCircuitIndexFile()),
+    'decisions/index.json': () => json(makeDecisionIndexFile()),
     'congress/index.json': () => json(makeFederalBillIndexFile()),
     'geo/circuits.json': () => json(makeCircuitsFile()),
     'redistricting.json': () => json(makeRedistricting()),

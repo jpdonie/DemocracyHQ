@@ -7,8 +7,8 @@
  * this file is imported by the application or copied into `public/data`.
  */
 import type {
-  CircuitIndex, CircuitsFile, Court, EntityRelationship, FederalBillIndex, GeoIndexFile, LegalCase, LegalCaseSummary, LegislativeInstrument,
-  LegislativeInstrumentSummary, Manifest, PopulationFile, RedistrictingFile, SourceRecord, TimelineEvent, VersionText,
+  CircuitIndex, CircuitsFile, Court, DecisionIndex, EntityRelationship, FederalBillIndex, GeoIndexFile, LegalCase, LegalCaseSummary, LegislativeInstrument,
+  LegislativeInstrumentSummary, Manifest, PopulationFile, RedistrictingFile, SourceRecord, StateLegislationIndex, StateMeasureSummary, TimelineEvent, VersionText,
 } from '../../src/types/schemas';
 
 export const NOW = '2026-06-15T12:00:00Z';
@@ -221,6 +221,112 @@ export function makeCircuitIndexFile(cases: LegalCaseSummary[] = [makeAppealsCas
   };
 }
 
+const DECISION_FILE = 'https://storage.courtlistener.com/pdf/2026/03/02/synthetic_voters_v._synthetic_parish.pdf';
+
+/**
+ * A case of a state court as decisions/index.json lists it: decided by the highest court of Louisiana and known from
+ * the one decision CourtListener holds for it. The record names its court itself, because the site keeps no list of
+ * the courts of the states.
+ */
+export function makeDecisionCase(overrides: Partial<LegalCaseSummary> = {}): LegalCaseSummary {
+  return makeCase({
+    id: 'cl-9000001',
+    externalIds: { courtlistenerDocketId: '9000001', courtlistenerClusterIds: '8000001' },
+    caseName: 'Synthetic Voters v. Synthetic Parish Board of Election Supervisors',
+    petitionerTitle: '',
+    respondentTitle: '',
+    docketNumber: '2026-C-00001',
+    courtId: 'la',
+    court: { name: 'Supreme Court of Louisiana', courtType: 'state_supreme', stateFips: '22', citation: 'La.', ruleId: 'court-state-synthetic' },
+    jurisdiction: 'State',
+    dateDocketed: null,
+    dateFirstEntry: '2026-03-02',
+    sourceLastActivity: '2026-03-02',
+    entryCount: 1,
+    documentCount: 1,
+    issueTags: [{ tag: 'mail-voting', ruleId: 'tag-synthetic-4', matchedField: 'full text of the opinion', matchedText: 'absentee ballots', matchCount: 9 }],
+    lowerCourt: { name: null, caseNumbers: [], decisionDate: null, rehearingDeniedDate: null },
+    latestDispositiveEntry: { date: '2026-03-02', text: 'Opinion, published', eventType: 'opinion', ruleId: 'cl-doc-opinion' },
+    stateFips: [],
+    publication: 'Published',
+    matchedTerms: [{ term: 'absentee ballots', count: 9 }],
+    sourceUrl: 'https://www.courtlistener.com/opinion/8000001/synthetic-voters-v-synthetic-parish/',
+    sourceId: 'synthetic-courtlistener',
+    verification: { status: 'imported_secondary', method: 'automated_secondary_import', checkedAt: '2026-06-14T10:00:00Z', note: 'Read from the copy CourtListener holds. Not reviewed by a lawyer.' },
+    ...overrides,
+  });
+}
+
+/** The same kind of record for a federal district court, which sits in Texas. */
+export function makeDistrictCase(overrides: Partial<LegalCaseSummary> = {}): LegalCaseSummary {
+  return makeDecisionCase({
+    id: 'cl-9000002',
+    externalIds: { courtlistenerDocketId: '9000002', courtlistenerClusterIds: '8000002' },
+    caseName: 'Synthetic League v. Synthetic Secretary of State',
+    docketNumber: '4:26-cv-00002',
+    courtId: 'txnd',
+    court: { name: 'United States District Court for the Northern District of Texas', courtType: 'federal_district', stateFips: '48', citation: 'N.D. Tex.', ruleId: 'court-state-synthetic' },
+    jurisdiction: 'Federal',
+    issueTags: [{ tag: 'voter-id', ruleId: 'tag-synthetic-3', matchedField: 'full text of the opinion', matchedText: 'voter identification', matchCount: 8 }],
+    publication: null,
+    latestDispositiveEntry: { date: '2026-03-02', text: 'Opinion', eventType: 'opinion', ruleId: 'cl-doc-opinion' },
+    sourceUrl: 'https://www.courtlistener.com/opinion/8000002/synthetic-league-v-synthetic-secretary/',
+    ...overrides,
+  });
+}
+
+/** The record of the state court case: the decision CourtListener holds and why the selection rule picked the case. */
+export function makeFullDecisionCase(overrides: Partial<LegalCase> = {}): LegalCase {
+  const summary = makeDecisionCase();
+  return {
+    ...makeFullCase(),
+    ...summary,
+    questionsPresented: null,
+    parties: [],
+    removedTags: [],
+    selection: {
+      ruleId: 'court-select-synthetic', tests: ['dense'], documentId: 'cl-9000001-d1', documentUrl: DECISION_FILE,
+      wordCount: 4200, wordMatches: 31, phraseMatches: 12, density: 7.4, phrases: [{ term: 'absentee ballots', count: 9 }], party: null,
+      natureOfSuit: null, natureOfSuitCode: null,
+    },
+    events: [{
+      id: 'cl-9000001-e1', eventType: 'opinion', date: '2026-03-02', entityType: 'case', entityId: 'cl-9000001', description: 'Opinion, published',
+      significance: 'major', classificationRule: 'cl-doc-opinion', documentIds: ['cl-9000001-d1'],
+      evidence: { url: DECISION_FILE, sourceId: 'synthetic-courtlistener', document: 'the copy of the court’s decision that CourtListener holds' },
+    }],
+    documents: [{
+      id: 'cl-9000001-d1', caseId: 'cl-9000001', entryIndex: 1, title: 'Opinion of 2026-03-02', filingDate: '2026-03-02', documentType: 'Opinion',
+      url: DECISION_FILE, availability: 'public_link', accessNote: 'The copy CourtListener holds, which is the file that was read. Linked, not mirrored.', sameTextAs: [],
+    }],
+    ...overrides,
+  } as LegalCase;
+}
+
+/** decisions/index.json with the cases given; what was read is invented. */
+export function makeDecisionIndexFile(cases: LegalCaseSummary[] = [makeDecisionCase(), makeDistrictCase()]): DecisionIndex {
+  const coverage: DecisionIndex['coverage'] = {};
+  for (const record of cases) {
+    if (!record.court) continue;
+    const row = coverage[record.courtId] ?? { name: record.court.name, courtType: record.court.courtType, stateFips: record.court.stateFips, cases: 30, documents: 33, unreadableDocuments: 1, selected: 0 };
+    coverage[record.courtId] = { ...row, selected: row.selected + 1 };
+  }
+  const courts = Object.keys(coverage).length;
+  return {
+    cases,
+    coverage,
+    scannedAt: '2026-06-14T10:00:00Z',
+    selection: {
+      ruleId: 'court-select-synthetic', courtStateRuleId: 'court-state-synthetic', textRuleId: 'circuit-select-synthetic',
+      appliedTo: 'every synthetic decision', since: '2025-01-01', searchTerms: ['ballot', '"general election"'],
+      courtTypes: { FD: 'federal_district', S: 'state_supreme', SA: 'state_appellate', ST: 'state_trial' },
+      candidates: 30 * courts + 7, skipped: { 'otherCourt:F': 5, noState: 2 }, totalCasesRead: 30 * courts, totalDocumentsRead: 33 * courts,
+      months: 18, monthsListed: 18, oldestListingAt: '2026-06-10T10:00:00Z',
+      wordPattern: 'x', phrasePattern: 'x', authorityPattern: 'x', laborPattern: 'x', laborMinMatches: 10, laborRatio: 4,
+      textTests: { party: { wordMatches: 3 } },
+    },
+  };
+}
+
 /** A measure of Congress as congress/index.json lists it. */
 export function makeFederalBill(overrides: Partial<LegislativeInstrumentSummary> = {}): LegislativeInstrumentSummary {
   return makeBill({
@@ -280,6 +386,50 @@ export function makeBill(overrides: Partial<LegislativeInstrumentSummary> = {}):
     lastCheckedAt: '2026-06-14T10:00:00Z',
     verification: { status: 'verified_primary', method: 'automated_primary_retrieval', checkedAt: '2026-06-14T10:00:00Z', note: null },
     ...overrides,
+  };
+}
+
+/** A measure of a state legislature as Open States records it (synthetic). */
+export function makeStateMeasure(overrides: Partial<StateMeasureSummary> = {}): StateMeasureSummary {
+  return {
+    ...makeBill(),
+    id: 'os-la-2026rs-hb12',
+    state: '22',
+    stateAbbr: 'LA',
+    session: '2026 Regular Session',
+    identifier: 'HB 12',
+    measureType: 'Bill',
+    title: 'Provides relative to absentee voting by mail (synthetic).',
+    subject: null,
+    chapter: null,
+    legislativeStatus: { currentStatus: 'Passed one chamber' },
+    selection: { ruleId: 'state-select-1', matchedText: 'absentee voting', matchedField: 'Title', test: 'named' },
+    sourceId: 'openstates-api',
+    verification: { status: 'imported_secondary', method: 'automated_secondary_import', checkedAt: '2026-06-14T10:00:00Z' },
+    ...overrides,
+  };
+}
+
+/** The index of the state legislatures' measures (synthetic): Louisiana listed, Maryland waiting for a secure link, Puerto Rico left out. */
+export function makeStateLegislationIndex(bills: StateMeasureSummary[] = [makeStateMeasure()]): StateLegislationIndex {
+  const session = (state: string, stateAbbr: string, listed: number, withoutSecureLink: number) => ({
+    state, stateAbbr, identifier: '2026rs', name: '2026 Regular Session', classification: 'primary', start: '2026-03-09', end: '2026-06-01',
+    measuresRead: 1000, selected: listed + withoutSecureLink, listed, withoutSecureLink,
+  });
+  return {
+    bills,
+    scannedAt: '2026-06-14T10:00:00Z',
+    sessions: [session('22', 'LA', bills.length, 0), session('24', 'MD', 0, 7)],
+    selection: {
+      ruleId: 'state-select-1', statusRuleId: 'state-status-1', linkRuleId: 'secure-link-1', appliedTo: 'the title and the subjects', since: '2025-01-01',
+      tests: { named: 'The title names an election matter.', general: 'The title holds an election word.', subject: 'A subject names elections.' },
+      subjectPattern: 'x', subjectExclusions: 'x', maxSubjects: 3, namedPattern: 'x', generalPattern: 'x', exclusionPattern: 'x', notLegislation: [],
+      ceremonialPattern: 'x', resolutionCeremonialPattern: 'x',
+      stages: ['Introduced', 'Passed one chamber', 'Passed the legislature', 'Sent to the governor', 'Vetoed', 'Signed by the governor', 'Became law'],
+      totalMeasuresRead: 2000, selected: bills.length + 7, listed: bills.length, withoutSecureLink: 7, selectedByTest: { named: bills.length },
+      notLegislationLeftOut: 0,
+      leftOut: [{ state: '06', stateAbbr: 'CA', reason: "California is read from the Legislature's own data" }, { state: '72', stateAbbr: 'PR', reason: 'Puerto Rico titles its measures in Spanish, which the rule does not read' }],
+    },
   };
 }
 

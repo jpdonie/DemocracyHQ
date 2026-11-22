@@ -2,7 +2,7 @@
 
 export const APP_NAME = 'DemocracyHQ';
 /** The site's one-line description. The home page headline says the same; index.html and package.json repeat it. */
-export const POSITIONING = 'Election litigation, voting laws and district boundaries, linked to their sources.';
+export const POSITIONING = 'Election law, state by state, from the record.';
 
 /**
  * Repository URL, set at build time (the Pages workflow passes the repository
