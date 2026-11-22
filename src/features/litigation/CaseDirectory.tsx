@@ -13,7 +13,7 @@ import { COMPACT_QUERY, useMediaQuery } from '../../lib/media';
 import { buildHash, patchQuery, type Route } from '../../lib/router';
 import { dataOf } from '../../lib/useLoad';
 import { AboutLine } from '../../components/About';
-import { A, Async, ClearFilters, Empty, GapNotice, MoreFilters, SelectField, TagList, TextField, TypeMark } from '../../components/ui';
+import { A, Async, ClearFilters, Counted, Empty, GapNotice, Method, MoreFilters, SelectField, TagList, TextField, TypeMark } from '../../components/ui';
 
 export function caseFiltersFromQuery(query: Route['query']): CaseFilters {
   const sort = query.sort === 'docketed' || query.sort === 'name' ? query.sort : 'activity';
@@ -144,7 +144,7 @@ export function CaseRow({ record, labels, note }: { record: LegalCaseSummary; la
       <p className="row-foot">
         {basis === 'docket' ? <>Docket activity through {formatDate(record.sourceLastActivity, 'an unreported date')}</>
           : basis === 'govinfo' ? <>Documents on GovInfo through {formatDate(record.sourceLastActivity, 'an unreported date')}{record.origin ? `. Court below: ${record.origin.court}` : ''}</>
-          : <>Decisions on CourtListener through {formatDate(record.sourceLastActivity, 'an unreported date')}. Read from CourtListener&rsquo;s copy, not from the court.</>}
+          : <>CourtListener&rsquo;s copy, not the court&rsquo;s, through {formatDate(record.sourceLastActivity, 'an unreported date')}</>}
       </p>
     </li>
   );
@@ -185,7 +185,7 @@ export function CaseDirectory({ route }: { route: Route }) {
       <header className="view-head">
         <TypeMark type="case" label="Litigation" />
         <h1 tabIndex={-1}>Election litigation</h1>
-        <p className="lede">Election cases in federal and state courts, from the Supreme Court to the trial courts, each linked to the record or the decision it was read from.</p>
+        <p className="lede">Election cases in federal and state courts, from the Supreme Court down to the trial courts.</p>
       </header>
       <Async of={core.cases} what="court cases">
         {(cases) => (
@@ -306,8 +306,7 @@ function Directory({ cases, filters: requested, set, labels, appeals, decisions,
   const rows = decisionRows(results);
   const emptyCourt = results.length === 0 && filters.court && isAppealsCourtId(filters.court) ? emptyCourtNote(filters.court, appeals) : null;
   const rule = (ruleId: string) => <A to={buildHash(['sources'], { section: 'coverage' })}>rule {ruleId}</A>;
-  return (
-    <>
+  const coverageNote = (
       <p className="coverage-note">
         Covers {plural(supreme, 'docket')} of the Supreme Court of the United States, chosen by maintainers; {plural(inAppeals, 'case')} of the federal courts of appeals
         {appeals ? <>, selected by a published rule from the {appeals.selection.totalCasesRead.toLocaleString('en-US')} cases with a document issued since {formatDate(appeals.selection.since)} that GovInfo lists ({rule(appeals.selection.ruleId)})</> : null}
@@ -315,6 +314,9 @@ function Directory({ cases, filters: requested, set, labels, appeals, decisions,
         {decisions ? <>, selected by a published rule from the {decisions.selection.totalCasesRead.toLocaleString('en-US')} cases with a decision since {formatDate(decisions.selection.since)} that CourtListener returns for a list of election terms ({rule(decisions.selection.ruleId)})</> : null}.
         {' '}CourtListener is a collection of the Free Law Project, not a court, and it does not hold every decision. It is not a complete list of election cases. <A to={buildHash(['courts'])}>The courts and what was read for each</A>
       </p>
+  );
+  return (
+    <>
       <form className="filters" role="search" aria-label="Filter court cases" onSubmit={(event) => event.preventDefault()}>
         <TextField label="Search case name, docket number or quoted passage" value={filters.q ?? ''} onChange={(q) => set({ q })} placeholder="e.g. Callais, 24-109 or mail-in ballots" />
         <MoreFilters
@@ -344,7 +346,7 @@ function Directory({ cases, filters: requested, set, labels, appeals, decisions,
           )}
           status={(
             <p className="filters-status" role="status" tabIndex={-1} ref={status}>
-              {plural(results.length, 'case')} {active ? `of ${cases.length.toLocaleString('en-US')} match these filters` : 'in this dataset'}
+              <Counted count={results.length} singular="case" /> {active ? `of ${cases.length.toLocaleString('en-US')} match these filters` : 'in this dataset'}
               {rows < results.length ? <span className="quiet">, in {plural(rows, 'row')}: appeals decided in one opinion share a row</span> : null}
               {active ? <> <ClearFilters to={buildHash(['litigation'])} focus={status} /></> : null}
             </p>
@@ -374,6 +376,7 @@ function Directory({ cases, filters: requested, set, labels, appeals, decisions,
           </div>
         </MoreFilters>
       </form>
+      <Method>{coverageNote}</Method>
       {results.length === 0 ? (
         <Empty title="No case in this dataset matches these filters.">
           {emptyCourt ? <p>{emptyCourt} <A to={courtHash(filters.court!)}>What was read for this court</A></p> : null}
@@ -395,10 +398,14 @@ function Directory({ cases, filters: requested, set, labels, appeals, decisions,
         {compact
           ? 'To list the cases of one state, choose it under “State” in More filters, or use “Show more map” and select it on the map.'
           : 'Select a state on the map to list the cases of that state. The other filters stay as they are, and the map shades the states that have a case matching them.'}
-        {' '}A state&rsquo;s list holds the Supreme Court dockets whose record supports a link to the state, the appeals that began in a federal district court there, and the cases of the federal district courts and the state courts that sit there. Where a case began or is heard does not say what it concerns.
+      </p>
+      <Method summary="What a state’s list holds">
+      <p>
+        A state&rsquo;s list holds the Supreme Court dockets whose record supports a link to the state, the appeals that began in a federal district court there, and the cases of the federal district courts and the state courts that sit there. Where a case began or is heard does not say what it concerns.
         {' '}A state&rsquo;s highest court is listed under “State supreme courts” whatever its name.
         {filters.court === FEDERAL_CIRCUIT_ID ? ' The Federal Circuit takes cases by subject from every district, so it has no area on the map.' : ''}
       </p>
+      </Method>
     </>
   );
 }

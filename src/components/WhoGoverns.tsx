@@ -146,7 +146,7 @@ function SourcesOf({ record, sources }: { record: Government; sources: readonly 
     else lines.set(chamber.sourceUrl, { parts: [chamber.name], url: chamber.sourceUrl, id: chamber.sourceId, asOf: chamber.asOf, checkedAt: chamber.checkedAt });
   }
   return (
-    <details className="gov-more">
+    <details className="method gov-more">
       <summary>Sources, dates and rules</summary>
       <ul className="gov-sources">
         {[...lines.values()].map((line) => (
@@ -242,11 +242,14 @@ export function ControlTally({ index, mapHash, shown, nationHash }: { index: Gov
           </li>
         ))}
       </ol>
-      <p className="gov-note">
-        A state government is counted for a party when the governor and every chamber of the legislature are that party&rsquo;s, and as divided otherwise.
-        {congress.length > 0 ? ' For Congress the bars show the seats held under each party’s label.' : ''}
-        {' '}Counted from the members each source lists today; not an election result.
-      </p>
+      <details className="method gov-note">
+        <summary>How it is counted</summary>
+        <p>
+          A state government is counted for a party when the governor and every chamber of the legislature are that party&rsquo;s, and as divided otherwise.
+          {congress.length > 0 ? ' For Congress the bars show the seats held under each party’s label.' : ''}
+          {' '}Counted from the members each source lists today; not an election result.
+        </p>
+      </details>
       <p className="gov-links">
         {shown ? <A to={mapHash}>Back to the map of records</A> : <A to={mapHash}>Colour the map by party control</A>}
         {nationHash && congress.length > 0 ? <A to={nationHash}>Congress in detail</A> : null}

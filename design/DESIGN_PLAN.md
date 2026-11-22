@@ -189,6 +189,29 @@ Screenshots were taken with Playwright from the production build at 1366 x 768,
 | The table of what was read for each court had eight columns and scrolled sideways on a phone. | Two tables of five and four columns, with smaller figures on a phone. |
 | With the federal level there were two kinds of thing to choose on the map. | Two labelled groups share one control: Level (Federal, States, Counties, Districts) and Courts (Supreme Court, Circuits, with a menu of the thirteen courts). |
 
+## Editorial pass
+
+A review on the live site found the text weak: many small grey lines that read like
+generated filler, and tinted boxes with a coloured bar at their side. The reference
+is an election-night map page, where a headline, a few large figures and the map
+carry the page.
+
+| Finding | Change |
+|---|---|
+| Body text at 14px and notes at 13px; headlines barely larger than the text. | A scale with fewer, wider steps: running text 16px, an entry's title 19px, a section head 24px, a page headline 32px, the overview's headline 42px. Headlines are Archivo at weight 760 and 86% width. |
+| Every list opened with a paragraph on how it was made. | The method sits behind one line, "How this list is made", under the count. A list with nothing in it still says why at once. |
+| The count of a list was a small grey sentence. | The figure is set as large as a headline, then its noun. |
+| Tinted boxes with a bar at the side: the verdict of who governs, the source line, notices, the quotation at the head of a record, modules, the timeline, cards. | No tinted ground and no side bar. A verdict is a headline in its party's colour beside its dot; a quotation hangs its opening mark in the margin; the source line is a colophon under a full rule; the timeline is a rail with a dot per entry; the figures stand under a short rule in their record's ink. |
+| The overview began with three paragraphs. | A headline, one standfirst and three figures that lead to the lists. What each figure holds is folded under them. |
+| Section notes ran to three sentences. | One short line under the head; the rest folds into "How this is read". |
+| Issue tags were small framed boxes. | Topic labels in small capitals, as a news page tags a story. |
+
+The night side (the map stage and each title block) carries a contour plate drawn by
+[`scripts/contours.mjs`](../scripts/contours.mjs): a seeded terrain of smooth noise
+bent by a second field, traced level by level, every fifth line an index contour.
+It is the last plate of the survey sheet, the same study as the identity below. It
+is not a map of any place and encodes nothing.
+
 ## Identity
 
 The mark, the social card and the decorative drawing on the About page are frames

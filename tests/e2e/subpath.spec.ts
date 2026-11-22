@@ -25,7 +25,7 @@ test.describe('Static hosting under a sub-path', () => {
   });
 
   const deepLinks: Array<[string, string | RegExp]> = [
-    ['#/', /^Election litigation, voting laws/],
+    ['#/', /^Election law, state by state/],
     ['#/litigation', 'Election litigation'],
     [`#/litigation/${CASE.id}`, CASE.name],
     ['#/laws', 'Election legislation'],
@@ -52,7 +52,7 @@ test.describe('Static hosting under a sub-path', () => {
     await open(page, '#/nope/xyz');
     await expect(heading(page)).toHaveText('Page not found');
     await page.getByRole('link', { name: 'Go to the map' }).click();
-    await expect(heading(page)).toHaveText(/^Election litigation, voting laws/);
+    await expect(heading(page)).toHaveText(/^Election law, state by state/);
   });
 
   test('the browser back button returns to the earlier view', async ({ page }) => {

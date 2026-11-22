@@ -6,7 +6,7 @@ import { axeViolations, BILL, CASE, expect, heading, open, test } from './fixtur
  */
 test.describe('Accessibility: automated WCAG 2.2 A and AA rules', () => {
   const views: Array<[string, string | RegExp]> = [
-    ['#/', /^Election litigation, voting laws/],
+    ['#/', /^Election law, state by state/],
     ['#/litigation', 'Election litigation'],
     [`#/litigation/${CASE.id}`, CASE.name],
     ['#/laws', 'Election legislation'],
@@ -16,7 +16,7 @@ test.describe('Accessibility: automated WCAG 2.2 A and AA rules', () => {
     ['#/redistricting?shade=population', 'Districts and boundaries'],
     ['#/place/state:06', 'California'],
     // The party map and the block of who governs: red and blue, each with its party in words.
-    ['#/?shade=party', /^Election litigation, voting laws/],
+    ['#/?shade=party', /^Election law, state by state/],
     ['#/place/state:20?shade=party', 'Kansas'],
     ['#/place/nation:US', 'United States'],
     ['#/place/state:06?tab=timeline', 'California'],

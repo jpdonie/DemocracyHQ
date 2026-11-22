@@ -2,7 +2,7 @@
   "name": "democracyhq",
   "version": "0.1.0",
   "private": true,
-  "description": "Election litigation, voting laws and district boundaries, linked to their sources. A free, open-source election-law research tool.",
+  "description": "Election law, state by state, from the record. A free, open-source election-law research tool.",
   "license": "Apache-2.0",
   "type": "module",
   "engines": {

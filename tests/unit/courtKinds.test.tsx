@@ -159,7 +159,7 @@ describe('a row of the list', () => {
     const line = item.querySelector('.row-line')!;
     expect(line.textContent).toBe('Mar 2, 2026 Opinion, published');
     expect(line.querySelector('q')).toBeNull();
-    expect(item.querySelector('.row-foot')?.textContent).toBe('Decisions on CourtListener through Mar 2, 2026. Read from CourtListener’s copy, not from the court.');
+    expect(item.querySelector('.row-foot')?.textContent).toBe('CourtListener’s copy, not the court’s, through Mar 2, 2026');
     expect(item.querySelector('.row-why')?.textContent).toContain('“absentee ballots” 9×');
   });
 
@@ -220,7 +220,7 @@ describe('the page of a case read from CourtListener', () => {
     expect(within(holds).getAllByRole('link', { name: /Opinion of Mar 2, 2026 \(CourtListener’s copy of the file\)/ })[0]!.getAttribute('href')).toContain('storage.courtlistener.com');
 
     const why = screen.getByRole('heading', { name: 'Why this case is listed' }).closest('section')!;
-    expect(why.textContent).toContain('Cases of federal district courts and of state courts are picked by a published rule (rule court-select-synthetic)');
+    expect(why.textContent).toContain('Picked by a published rule (rule court-select-synthetic), not by a maintainer');
     expect(why.textContent).toContain('has 31 election words in 4,200 words (7.4 per 1,000) and 12 election phrases');
 
     const list = screen.getByRole('heading', { name: 'Decisions on CourtListener (1)' }).closest('section')!;

@@ -3,7 +3,7 @@ import { brokenWords, CASE, expect, heading, open, test } from './fixtures';
 /** Desktop and tablet layout: the app frame, the reading panel and type. */
 test.describe('App frame', () => {
   const views: Array<[string, string | RegExp]> = [
-    ['#/', /^Election litigation, voting laws/],
+    ['#/', /^Election law, state by state/],
     [`#/litigation/${CASE.id}`, CASE.name],
     ['#/sources', 'Data sources and methodology'],
   ];
@@ -47,10 +47,10 @@ test.describe('Reading panel', () => {
   });
 
   test('headlines use sizes on the type scale, and the home headline is the sans', async ({ page }) => {
-    const scale = [12, 13, 14, 16, 18, 21, 26, 34];
+    const scale = [12, 14, 15, 16, 19, 24, 32, 42];
     const styleOf = () => heading(page).evaluate((el) => ({ family: getComputedStyle(el).fontFamily, size: parseFloat(getComputedStyle(el).fontSize) }));
     await open(page, '#/');
-    await expect(heading(page)).toHaveText('Election litigation, voting laws and district boundaries, linked to their sources');
+    await expect(heading(page)).toHaveText('Election law, state by state, from the record');
     const home = await styleOf();
     expect(home.family).toMatch(/^"?Archivo/);
     expect(scale).toContain(home.size);

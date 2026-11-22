@@ -12,7 +12,7 @@ import { useTagLabels } from '../../lib/labels';
 import { buildHash, patchQuery, type Route } from '../../lib/router';
 import { allOf, dataOf } from '../../lib/useLoad';
 import { AboutLine, Highlight, holdsTerm } from '../../components/About';
-import { A, Async, ClearFilters, Empty, GapNotice, MoreFilters, SelectField, TagList, TextField, TypeMark } from '../../components/ui';
+import { A, Async, ClearFilters, Counted, Empty, GapNotice, Method, MoreFilters, SelectField, TagList, TextField, TypeMark } from '../../components/ui';
 
 export function billFiltersFromQuery(query: Route['query']): BillFilters {
   const sort = query.sort === 'number' || query.sort === 'introduced' ? query.sort : 'action';
@@ -129,7 +129,7 @@ export function BillDirectory({ route }: { route: Route }) {
       <header className="view-head">
         <TypeMark type="bill" label="Legislation" />
         <h1 tabIndex={-1}>Election legislation</h1>
-        <p className="lede">Election measures of Congress and of the state legislatures, each with the words that put it on the list, how far it got and a link to the legislature&rsquo;s own record. The measures of Congress and of California carry every published text version, so you can see what changed.</p>
+        <p className="lede">Election measures of Congress and the state legislatures: how far each got, and the words that put it on this list.</p>
       </header>
       <Async of={allOf(core.bills, states)} what="legislation">
         {([catalog, index]) => <Directory catalog={catalog} index={index} route={route} />}
@@ -231,15 +231,20 @@ function Directory({ catalog, index, route }: { catalog: BillCatalog; index: Sta
   const stateName = legislature?.name ?? (single === 'ca' ? 'California' : null);
   const noun = jur === 'us' ? 'measure of Congress' : stateName ? `${stateName} measure` : jur === ALL_STATES ? 'state measure' : 'measure';
   const nounPlural = jur === 'us' ? 'measures of Congress' : `${noun}s`;
+  const coverageNote = (
+    <p className="coverage-note">
+      {jur === 'us' ? <>Covers {federalNote}. A measure whose titles do not say that it concerns elections is missed.</>
+        : jur === 'ca' ? <>Covers {californiaNote}.</>
+        : legislatureNote ? legislatureNote
+        : jur === ALL_STATES ? <>Covers {californiaNote}; and {statesNote}.{openStatesNote}{unlistedNote}</>
+        : <>Covers {federalNote}; {californiaNote}; and {statesNote}.{openStatesNote}{unlistedNote}</>}
+    </p>
+  );
+  // A legislature with nothing listed says why at once: the reason is the answer to the reader's question.
+  const noneListed = Boolean(legislature && legislature.listed === 0) || (isOpenStatesLegislature(single) && !legislature);
   return (
     <>
-      <p className="coverage-note">
-        {jur === 'us' ? <>Covers {federalNote}. A measure whose titles do not say that it concerns elections is missed.</>
-          : jur === 'ca' ? <>Covers {californiaNote}.</>
-          : legislatureNote ? legislatureNote
-          : jur === ALL_STATES ? <>Covers {californiaNote}; and {statesNote}.{openStatesNote}{unlistedNote}</>
-          : <>Covers {federalNote}; {californiaNote}; and {statesNote}.{openStatesNote}{unlistedNote}</>}
-      </p>
+      {noneListed ? coverageNote : null}
       <form className="filters" role="search" aria-label="Filter legislation" onSubmit={(event) => event.preventDefault()}>
         <TextField label="Search measure number, title or summary" value={filters.q ?? ''} onChange={(q) => set({ q })} placeholder="e.g. H.R. 22, AB 604 or proof of citizenship" />
         <MoreFilters
@@ -267,7 +272,7 @@ function Directory({ catalog, index, route }: { catalog: BillCatalog; index: Sta
           )}
           status={(
             <p className="filters-status" role="status" tabIndex={-1} ref={status}>
-              {plural(results.length, noun, nounPlural)} {active ? `of ${pool.length.toLocaleString('en-US')} match these filters` : 'in this dataset'}
+              <Counted count={results.length} singular={noun} pluralForm={nounPlural} /> {active ? `of ${pool.length.toLocaleString('en-US')} match these filters` : 'in this dataset'}
               {active ? <> <ClearFilters to={clearTo} focus={status} /></> : null}
             </p>
           )}
@@ -315,6 +320,7 @@ function Directory({ catalog, index, route }: { catalog: BillCatalog; index: Sta
           ) : null}
         </MoreFilters>
       </form>
+      {noneListed ? null : <Method>{coverageNote}</Method>}
       {results.length === 0 ? (
         <Empty title="No measure in this dataset matches these filters.">
           <GapNotice>Only the sessions read and only the measures the selection rules matched are covered. A measure that is missing here may well exist.</GapNotice>

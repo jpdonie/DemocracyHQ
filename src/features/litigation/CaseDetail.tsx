@@ -277,7 +277,7 @@ function SupremeBody({ record, route, links }: { record: LegalCase; route: Route
         </div>
       </header>
 
-      <Section title="What the docket shows" note="DemocracyHQ quotes the Court’s docket entries. It does not summarise a ruling or decide what a case’s overall status is.">
+      <Section title="What the docket shows" note="Quoted from the Court’s docket." method="DemocracyHQ quotes the Court’s docket entries. It does not summarise a ruling or decide what a case’s overall status is.">
         {ruling ? (
           <figure className="quote-block">
             <blockquote>{ruling.text}</blockquote>
@@ -326,7 +326,7 @@ function SupremeBody({ record, route, links }: { record: LegalCase; route: Route
       </Section>
 
       {record.questionsPresented ? (
-        <Section title="Questions presented" note="Text of the Court’s questions-presented document, extracted from the PDF. The document reproduces the questions as framed by the party that sought review; lines in capitals are the Court’s own additions. Line breaks may differ from the original.">
+        <Section title="Questions presented" note="As the party that sought review framed them; lines in capitals are the Court’s own." method="Text of the Court’s questions-presented document, extracted from the PDF. The document reproduces the questions as framed by the party that sought review; lines in capitals are the Court’s own additions. Line breaks may differ from the original.">
           {record.questionsPresented.text ? (
             <details className="reading-details">
               <summary>Read the questions presented</summary>
@@ -337,7 +337,7 @@ function SupremeBody({ record, route, links }: { record: LegalCase; route: Route
         </Section>
       ) : null}
 
-      <Section title="Places and legislation linked to this case" note="A link appears only where a court document supports it. The court’s location is never used to place a case.">
+      <Section title="Places and legislation linked to this case" note="Linked only where a court document supports it." method="A link appears only where a court document supports it. The court’s location is never used to place a case.">
         <ScopeList links={links} record={record} />
       </Section>
 
@@ -472,9 +472,10 @@ function WhyListed({ record, documents }: { record: LegalCase; documents: Readon
   return (
     <Section
       title="Why this case is listed"
-      note={fromCourtListener
-        ? <>Cases of federal district courts and of state courts are picked by a published rule ({rule}), not by a maintainer. The rule asks CourtListener for decisions with election terms and counts words in each. It does not say what the case decides.</>
-        : <>Cases of the courts of appeals are picked by a published rule ({rule}), not by a maintainer. The rule reads the court&rsquo;s record and counts words. It does not say what the case decides.</>}
+      note={<>Picked by a published rule ({rule}), not by a maintainer. It does not say what the case decides.</>}
+      method={fromCourtListener
+        ? <>The rule asks CourtListener for decisions of federal district courts and of state courts with election terms, and counts words in each.</>
+        : <>The rule reads the record of the court of appeals and counts words.</>}
     >
       <ul className="plain-list spaced">
         {selection.tests.includes('record') ? (
@@ -542,7 +543,8 @@ function AppealBody({ record, route, links }: { record: LegalCase; route: Route;
 
       <Section
         title="What the court’s record shows"
-        note="DemocracyHQ quotes the court’s own entry for each document that GovInfo holds for this case. It does not summarise a decision or say what became of it."
+        note="Quoted from the court’s own entry for each document."
+        method="DemocracyHQ quotes the court’s own entry for each document that GovInfo holds for this case. It does not summarise a decision or say what became of it."
       >
         {ruling ? (
           <figure className="quote-block">
@@ -596,7 +598,7 @@ function AppealBody({ record, route, links }: { record: LegalCase; route: Route;
 
       {record.parties.length > 0 ? <Parties parties={record.parties} /> : null}
 
-      <Section title="Places and legislation linked to this case" note="A link appears only where a court document supports it. The court’s location is never used to place a case.">
+      <Section title="Places and legislation linked to this case" note="Linked only where a court document supports it." method="A link appears only where a court document supports it. The court’s location is never used to place a case.">
         <ScopeList links={links} record={record} />
         {record.origin && originState ? (
           <p className="quiet">
@@ -728,7 +730,8 @@ function DecisionBody({ record, route, links }: { record: LegalCase; route: Rout
 
       <Section
         title="What CourtListener holds for this case"
-        note="DemocracyHQ lists the decisions CourtListener holds for this case and links each to CourtListener’s copy. It does not summarise a decision or say what became of it."
+        note="The decisions CourtListener holds for this case."
+        method="DemocracyHQ lists the decisions CourtListener holds for this case and links each to CourtListener’s copy. It does not summarise a decision or say what became of it."
       >
         {ruling ? (
           <p>
@@ -757,7 +760,7 @@ function DecisionBody({ record, route, links }: { record: LegalCase; route: Rout
 
       <WhyListed record={record} documents={documents} />
 
-      <Section title="Places and legislation linked to this case" note="A link appears only where a court document supports it. The court’s location is never used to say what a case concerns.">
+      <Section title="Places and legislation linked to this case" note="Linked only where a court document supports it." method="A link appears only where a court document supports it. The court’s location is never used to say what a case concerns.">
         <ScopeList links={links} record={record} />
         {courtState ? (
           <p className="quiet">
@@ -768,7 +771,7 @@ function DecisionBody({ record, route, links }: { record: LegalCase; route: Rout
 
       <IssueTags record={record} />
 
-      <Section title={`Decisions on CourtListener (${record.events.length})`} id="docket" note="CourtListener gives a decision no docket text. Each line names the kind of document CourtListener lists, in the order of the dates.">
+      <Section title={`Decisions on CourtListener (${record.events.length})`} id="docket" note="Each line names the kind of document, in the order of the dates." method="CourtListener gives a decision no docket text. Each line names the kind of document CourtListener lists, in the order of the dates.">
         {record.events.length > 1 ? (
           <div className="toolbar">
             <Segmented

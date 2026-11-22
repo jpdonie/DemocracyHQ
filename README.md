@@ -1,6 +1,6 @@
 # DemocracyHQ
 
-**Election litigation, voting laws and district boundaries, linked to their sources.**
+**Election law, state by state, from the record.**
 
 DemocracyHQ is a free, open-source research tool that puts three kinds of public
 record on one map: court dockets in election cases, election bills with their text

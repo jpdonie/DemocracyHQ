@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { POSITIONING } from '../../src/config';
 
 const read = (path: string) => readFileSync(new URL(`../../${path}`, import.meta.url), 'utf8');
-const HEADLINE = 'Election litigation, voting laws and district boundaries, linked to their sources';
+const HEADLINE = 'Election law, state by state, from the record';
 
 describe('the one-line description is the same everywhere', () => {
   it('matches the home page headline in the About page, index.html and package.json', () => {

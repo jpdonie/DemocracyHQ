@@ -3,7 +3,7 @@ import { clickMap, expect, heading, mapReady, open, test } from './fixtures';
 test.describe('Map', () => {
   test('draws real state boundaries and opens a state when it is clicked', async ({ page }) => {
     await open(page, '#/', { withMap: true });
-    await expect(heading(page)).toHaveText('Election litigation, voting laws and district boundaries, linked to their sources');
+    await expect(heading(page)).toHaveText('Election law, state by state, from the record');
     await mapReady(page, 'state');
 
     const drawn = await page.evaluate(() => {
@@ -86,7 +86,7 @@ test.describe('Map', () => {
     await mapReady(page, 'state');
     const zoomedIn = await page.evaluate(() => (window as unknown as { __dhqMap: { getZoom(): number } }).__dhqMap.getZoom());
     await page.getByRole('link', { name: 'DemocracyHQ, overview map' }).click();
-    await expect(heading(page)).toHaveText(/^Election litigation, voting laws/);
+    await expect(heading(page)).toHaveText(/^Election law, state by state/);
     await page.waitForFunction((before) => {
       const map = (window as unknown as { __dhqMap: { getZoom(): number; isMoving(): boolean } }).__dhqMap;
       return !map.isMoving() && map.getZoom() < before - 1;

@@ -208,7 +208,7 @@ function BillBody({ bill, route, links }: { bill: LegislativeInstrument; route: 
       <TextVersions bill={bill} />
 
       {bill.digest ? (
-        <Section title="Legislative Counsel’s digest" note={`Prepared by the Legislative Counsel${digestVersion ? ` for the “${digestVersion.label}” version of ${formatDate(digestVersion.versionDate)}` : ''}. It is not part of the law, it is not voted on, and it is not DemocracyHQ analysis. Its account of existing law is as of that version.`}>
+        <Section title="Legislative Counsel’s digest" note={`Of the${digestVersion ? ` “${digestVersion.label}” version of ${formatDate(digestVersion.versionDate)}` : ' latest version'} only. Not part of the law, and not DemocracyHQ analysis.`}>
           <details className="reading-details">
             <summary>Read the digest</summary>
             <div className="reading">{bill.digest.split(/\n\s*\n/).map((p, i) => <p key={i}>{p}</p>)}</div>

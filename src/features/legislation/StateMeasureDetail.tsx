@@ -111,7 +111,7 @@ function StateMeasureBody({ bill, route, index }: { bill: StateMeasure; route: R
         </div>
       </header>
 
-      <Section title="Where this measure stands" note="How far the measure got among its recorded actions, and the latest of them.">
+      <Section title="Where this measure stands">
         <div className="status-grid">
           <div className="status-cell status-cell--wide">
             <h3>Stage reached</h3>
@@ -126,7 +126,7 @@ function StateMeasureBody({ bill, route, index }: { bill: StateMeasure; route: R
               </ol>
             ) : null}
             <p className="quiet">
-              The furthest stage among the actions Open States records, worked out by {rule(statusRule)}. It is not an official status, and the stages before it are not checked one by one.
+              Worked out from the recorded actions by {rule(statusRule)}. Not an official status.
             </p>
           </div>
           <div className="status-cell">
@@ -139,14 +139,14 @@ function StateMeasureBody({ bill, route, index }: { bill: StateMeasure; route: R
             <ul className="plain-list">
               {bill.sources.map((url) => <li key={url}><Ext href={url}>{new URL(url).hostname}</Ext></li>)}
             </ul>
-            <p className="quiet">The legislature&rsquo;s own pages for the measure, as Open States names them. The record there is the one that counts.</p>
+            <p className="quiet">The legislature&rsquo;s own pages: the record that counts.</p>
           </div>
         </div>
       </Section>
 
       <Section
         title={`Text versions (${bill.versions.length})`}
-        note="Each version as the legislature publishes it. The texts are not mirrored on this site, so they cannot be compared here."
+        note="As the legislature publishes them. Not mirrored here, so not compared."
       >
         {bill.versions.length > 0 ? (
           <ul className="rows">
@@ -164,7 +164,7 @@ function StateMeasureBody({ bill, route, index }: { bill: StateMeasure; route: R
         ) : <p className="quiet">Open States names no published text of this measure.</p>}
       </Section>
 
-      <Section title="Legislative history" id="history" note="The actions as Open States records them from the legislature, with the kind Open States gives each.">
+      <Section title="Legislative history" id="history" note="The actions as Open States records them from the legislature.">
         <div className="toolbar">
           <Segmented
             label="Show"

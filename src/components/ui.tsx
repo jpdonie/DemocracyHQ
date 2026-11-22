@@ -117,6 +117,24 @@ export function GapNotice({ children }: { children?: ReactNode }) {
   );
 }
 
+/**
+ * How a list or a figure is made, folded behind one line, so a page leads with what it holds. The text is all there,
+ * one press away; a reader who wants the rule reads it whole.
+ */
+export function Method({ summary = 'How this list is made', open, children }: { summary?: string; open?: boolean; children: ReactNode }) {
+  return (
+    <details className="method" open={open}>
+      <summary>{summary}</summary>
+      {children}
+    </details>
+  );
+}
+
+/** A count as the head of a list: the figure set large, then its noun. Reads as plain text ("437 state measures"). */
+export function Counted({ count, singular, pluralForm = `${singular}s` }: { count: number; singular: string; pluralForm?: string }) {
+  return <><span className="count-figure">{count.toLocaleString('en-US')}</span> {count === 1 ? singular : pluralForm}</>;
+}
+
 /* ---------- provenance ---------- */
 
 export function VerificationBadge({ status }: { status: VerificationStatus }) {
@@ -197,13 +215,18 @@ export function TagList({ tags, labels, hrefFor }: { tags: readonly IssueTag[]; 
 
 /* ---------- layout ---------- */
 
-export function Section({ title, children, id, note }: { title: string; children: ReactNode; id?: string; note?: ReactNode }) {
+/**
+ * A part of a page under its head. `note` is a line under the head, kept short; `method` is how the part is made or
+ * read, folded under the note (see Method).
+ */
+export function Section({ title, children, id, note, method, methodLabel }: { title: string; children: ReactNode; id?: string; note?: ReactNode; method?: ReactNode; methodLabel?: string }) {
   const generated = useId();
   const headingId = id ? `${id}-h` : generated;
   return (
     <section className="section" id={id} aria-labelledby={headingId}>
       <h2 id={headingId}>{title}</h2>
       {note ? <p className="section-note">{note}</p> : null}
+      {method ? <Method summary={methodLabel ?? 'How this is read'}><p>{method}</p></Method> : null}
       {children}
     </section>
   );

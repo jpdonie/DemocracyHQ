@@ -10,7 +10,7 @@ import { formatDate, plural } from '../../lib/format';
 import type { GeoIndex } from '../../lib/geo';
 import { buildHash } from '../../lib/router';
 import { allOf, dataOf } from '../../lib/useLoad';
-import { A, Async, BackLink, Ext, GapNotice, Section, TypeMark } from '../../components/ui';
+import { A, Async, BackLink, Ext, GapNotice, Method, Section, TypeMark } from '../../components/ui';
 
 /** Sections of title 28 in the edition of the United States Code that GovInfo publishes, for the links in the last section. */
 const USC_28 = 'https://www.govinfo.gov/content/pkg/USCODE-2024-title28/html/USCODE-2024-title28';
@@ -105,8 +105,11 @@ export function CourtsOverview() {
         <TypeMark type="court" label="Courts" />
         <h1 tabIndex={-1}>Courts</h1>
         <p className="lede">
-          The Supreme Court and the thirteen federal courts of appeals, each with a page of its own, and the federal district courts and state courts whose decisions are read. Twelve courts of appeals sit over a circuit, a group of states and territories set by statute. The Federal Circuit takes cases by subject from the whole country.
+          The Supreme Court, the thirteen federal courts of appeals, and the district and state courts whose decisions are read.
         </p>
+        <Method summary="How the circuits are drawn">
+          <p>Each court has a page of its own. Twelve courts of appeals sit over a circuit, a group of states and territories set by statute. The Federal Circuit takes cases by subject from the whole country.</p>
+        </Method>
       </header>
       <Async of={allOf(core.courts, core.geo, core.cases)} what="the list of courts">
         {([courts, geo, cases]) => {

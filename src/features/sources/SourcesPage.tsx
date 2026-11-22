@@ -61,7 +61,7 @@ function FederalSelection({ catalog }: { catalog: BillCatalog }) {
         The rule is applied to {selection.appliedTo}. A measure is included when it meets one of three tests, tried in this order:
       </p>
       <TableScroll label="Tests of the selection rule for the measures of Congress">
-        <table className="table">
+        <table className="table table-dense">
           <thead><tr><th scope="col">Test</th><th scope="col">A measure meets it when</th><th scope="col" className="num">Measures</th><th scope="col">Pattern (case-insensitive regular expression)</th></tr></thead>
           <tbody>
             {Object.entries(selection.tests).map(([name, words]) => (
@@ -102,7 +102,7 @@ function StateSelection({ index }: { index: StateLegislationIndex }) {
         {' '}A measure is selected by rule {selection.ruleId}, applied to {selection.appliedTo}, when it meets one of three tests:
       </p>
       <TableScroll label="Tests of the selection rule for the measures of the other state legislatures">
-        <table className="table">
+        <table className="table table-dense">
           <thead><tr><th scope="col">Test</th><th scope="col">A measure meets it when</th><th scope="col" className="num">Measures</th><th scope="col">Pattern (case-insensitive regular expression)</th></tr></thead>
           <tbody>
             {Object.entries(selection.tests).map(([name, words]) => (

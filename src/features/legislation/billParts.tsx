@@ -86,8 +86,8 @@ export function TextVersions({ bill }: { bill: LegislativeInstrument }) {
     <Section
       title="Text versions"
       note={federal
-        ? 'Each version is the text the Government Publishing Office publishes for the measure. Compare any two to see what was added and removed.'
-        : 'Each version is the legislature’s own published text, with the official subject line it carried. Compare any two to see what was added and removed.'}
+        ? 'As the Government Publishing Office publishes them. Compare any two to see what changed.'
+        : 'As the legislature publishes them, with the subject line each carried. Compare any two to see what changed.'}
     >
       <TableScroll label="Text versions">
         <table className="table">

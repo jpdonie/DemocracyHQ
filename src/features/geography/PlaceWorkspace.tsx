@@ -336,7 +336,8 @@ function LitigationTab({ data, cases, appeals, heard }: { data: PlaceData; cases
       {appeals.length > 0 ? (
         <Section
           title={`Appeals that began in a federal district court in ${stateName}`}
-          note={`Listed by the court below that each opinion names. That says where a case began, not what it concerns: a case from ${stateName} can concern another state, or federal law alone. The published rule that reads the line misses opinions that name the court below in another form.`}
+          note="Where a case began, not what it concerns."
+          method={`Listed by the court below that each opinion names. A case from ${stateName} can concern another state, or federal law alone. The published rule that reads the line misses opinions that name the court below in another form.`}
         >
           <CaseRows cases={appeals} labels={labels} />
           {court ? <p><A to={courtHash(court.id)}>All cases of the {courtShortName(court, court.id)} in this dataset</A></p> : null}
@@ -345,7 +346,8 @@ function LitigationTab({ data, cases, appeals, heard }: { data: PlaceData; cases
       {heard.length > 0 ? (
         <Section
           title={`Cases in the courts that sit in ${stateName}`}
-          note={`The federal district courts and the state courts of ${stateName}, as far as CourtListener holds their decisions. CourtListener is a collection of the Free Law Project, not a court. A case is listed here by where its court sits, which does not say what the case concerns.`}
+          note={`The federal district courts and the state courts of ${stateName}, as far as CourtListener holds their decisions.`}
+          method="CourtListener is a collection of the Free Law Project, not a court. A case is listed here by where its court sits, which does not say what the case concerns."
         >
           <CaseRows cases={heard} labels={labels} limit={PLACE_COURT_CASES_SHOWN} />
           <p>
@@ -373,7 +375,7 @@ function LegislationTab({ data, legislation }: { data: PlaceData; legislation: P
   }
   const shown = legislation.bills.slice(0, 25);
   return (
-    <Section title={`Election measures in ${stateName}`} note={data.unit.layer === 'state' ? 'Bills are listed for the whole state. Some concern a single county or district but are not linked to it here.' : 'Bills are listed for the whole state this unit belongs to. Some concern a single county or district but are not linked to it here.'}>
+    <Section title={`Election measures in ${stateName}`} note={data.unit.layer === 'state' ? 'Listed for the whole state, newest action first.' : 'Listed for the whole state this unit belongs to.'} method="Some measures concern a single county or district but are not linked to it here.">
       <ul className="rows">{shown.map((bill) => <BillRow key={bill.id} bill={bill} labels={labels} />)}</ul>
       {legislation.bills.length > shown.length ? <p><A to={buildHash(['laws'], { jur: billJurisdiction(legislation.bills[0]!) })}>See all {legislation.bills.length} tracked measures</A></p> : null}
       <FederalPointer />

@@ -92,7 +92,7 @@ test.describe('Verification wording', () => {
 test.describe('Home, About and place pages', () => {
   test('the home page lists the states with curated links alphabetically and says what it lists', async ({ page }) => {
     await open(page, '#/');
-    const sentence = page.locator('.view-home p').filter({ hasText: 'States with at least one curated link to a court case or bill in this dataset, in alphabetical order:' });
+    const sentence = page.locator('.view-home p').filter({ hasText: 'Curated links to a case or bill' });
     await expect(sentence).toBeVisible();
     await expect(page.getByText('States with the most linked records')).toHaveCount(0);
     const names = await sentence.getByRole('link').allTextContents();
@@ -140,7 +140,7 @@ test.describe('Home, About and place pages', () => {
     await expect(page.locator('.legend-vintage')).not.toContainText('published');
     await open(page, '#/laws', { withMap: true });
     await mapReady(page, 'state');
-    await expect(page.locator('.legend .legend-hatch')).toHaveText('No measure of the state’s legislature in this dataset. Not evidence that none exists.');
+    await expect(page.locator('.legend .legend-hatch')).toHaveText('None in this dataset. Not evidence that none exists.');
   });
 });
 
