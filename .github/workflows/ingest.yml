@@ -99,7 +99,7 @@ jobs:
           cache-dependency-path: pipeline/requirements-lock.txt
       - run: |
           pip install --require-hashes --only-binary=:all: -r pipeline/requirements-lock.txt
-      - name: Install pdftotext (reads court filings for the evidence check)
+      - name: Install poppler (pdftotext reads court filings, pdftohtml the layout of an opinion's first pages)
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends poppler-utils
 
       # One cache entry per ISO week and version of the pipeline code, restored only within its own week. The first

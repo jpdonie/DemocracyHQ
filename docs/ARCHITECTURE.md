@@ -350,6 +350,68 @@ also name the place (the state's name, the county's name, or "District N" or
 not check the maintainer's note. [CONTRIBUTING.md](../CONTRIBUTING.md) gives the
 field names.
 
+### What a record is about
+
+A list is useful only if each row says at once what the record is about. No line
+is written for that. [`about.py`](../pipeline/dhq/about.py) quotes an official
+text instead, and each record carries the quotation as `about`, with the text it
+is from (`source`), where that text is published (`url`), the rule that took it
+(`ruleId`) and whether it stops inside a sentence (`cut`). A Question Presented
+can carry a further question that an order of the Court put to the parties
+(`later`, with the date of the order), and the opening of an opinion says which
+paragraph it is where the first could not be quoted (`paragraph`):
+
+| Record | Text quoted | Rule |
+| --- | --- | --- |
+| Measure of Congress | The summary of the Congressional Research Service; without one, the official title, if the list shows another title | `about-crs-1`, `about-title-1` |
+| California bill | The Legislative Counsel's Digest, from its first sentence that says what the bill would do | `about-digest-1` |
+| Supreme Court docket | The Question Presented, followed by the latest question an order of the Court added; without a Question Presented, the passage cited for the docket's first link to a place; failing that, the entry that opens the docket | `about-question-1`, `about-cited-1`, `about-docket-1` |
+| Court of appeals case | The first paragraph of the opinion the selection rests on | `about-opinion-1` |
+
+A quotation runs in whole sentences until it is 220 characters long and never
+beyond 560; a first sentence longer than that is cut at a word. A full stop after
+an abbreviation does not end a sentence. The list of abbreviations cannot be
+complete, so a short capitalised word before a full stop ("Tex.", "Cnty.") ends a
+sentence only when the next word is one a sentence commonly begins with. An
+ending missed that way makes a quotation one sentence longer; a wrong ending
+would cut it inside a sentence without an ellipsis.
+
+The opening of an opinion cannot be taken from the plain text of its PDF: at the
+foot of a page the footnotes run into the body, and a footnote number sits in
+the middle of a sentence. [`opening.py`](../pipeline/dhq/opening.py) reads the
+layout instead (poppler's `pdftohtml -xml`, which gives every piece of text its
+place and type size), drops page heads, footnotes and footnote marks, finds
+where the opinion begins (after the line that names its author or its panel),
+and takes its first paragraph. The words every order begins with are passed
+over. A passage the court sets in from the margin, such as a clause of the
+Constitution it quotes, ends the paragraph and is left out: it has no quotation
+marks and would read as the court's words. The left edge of the text is the
+leftmost edge several long lines begin at, so that a page filled by a set-in
+quotation is still measured from the margin.
+
+The passage is then checked against the plain text of the same file, which
+another program reads (`pdftotext`): its letters must stand there one after the
+other, with none left out. Other matter may stand between them only where the
+passage crosses a page, because the plain text runs the footnotes and the page
+head in there, and the layout says where those places are. A paragraph that
+fails a check is not quoted: one that is too short, does not end with a
+sentence, holds a remnant of a page head, holds a character of a wrongly mapped
+typeface (some files give other signs for the joined letters "ff" and "ffi"), or
+is not found in the plain text. The next paragraph is then tried, up to the
+first heading and the fourth paragraph, and the quotation carries its number so
+that the row can say "Paragraph 2 of the opinion". The layout of an opinion's
+first pages is cached beside its text, so the file is fetched once more only for
+the opinion of a selected case. When the layout cannot be read in a run, a
+passage published before is kept only if it still stands in the plain text of
+this run, whole or with the head of a page between its two parts.
+
+The index entries also carry what shows why a record is listed: for a measure,
+the words and the title the selection rule matched (`selection`), and for a court
+of appeals case the four election phrases the rule found most often in the
+opinion (`matchedTerms`). The site marks those words where they stand as whole
+words, and only in a text the rule read: in a title of a measure, never in its
+summary or digest, and in the opinion of an appeal.
+
 ### Classification
 
 Issue tags, docket-entry labels, legislative-action labels, the bill selection

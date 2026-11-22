@@ -85,15 +85,15 @@ npm run test:e2e       # builds the browser-test build in dist-e2e/, then runs t
                        # browser tests against it, served under a sub-path
 ```
 
-The suites hold 295 unit tests in 22 files, 217 browser tests in 15 files (a
-desktop project at 1366 x 768 and a phone project) and 457 pipeline tests.
+The suites hold 337 unit tests in 24 files, 247 browser tests in 17 files (a
+desktop project at 1366 x 768 and a phone project) and 708 pipeline tests.
 [CONTRIBUTING.md](CONTRIBUTING.md#tests) says what each covers.
 
 ### Data pipeline
 
 Requirements: Python 3.13 (the version it was developed and tested with; older
-versions have not been tried), `pdftotext` from poppler-utils on the `PATH`, and
-the Node dependencies above (the pipeline uses the `mapshaper` binary that `npm ci`
+versions have not been tried), `pdftotext` and `pdftohtml` from poppler-utils on
+the `PATH`, and the Node dependencies above (the pipeline uses the `mapshaper` binary that `npm ci`
 installs).
 
 ```sh
@@ -258,6 +258,25 @@ docs/                research, architecture, sources, validation, limits
   subject of a case, a maintainer may add a tag, which is shown with a quoted
   passage that the pipeline checks. There are no confidence scores and no
   machine-written summaries.
+- **What a record is about is quoted, not written.** Each row of a list says what
+  the measure or case is about in the words of an official text, under the name of
+  that text: the summary of the Congressional Research Service, a measure's
+  official title, the Legislative Counsel's Digest, the Court's Question
+  Presented, a passage cited from a document of the docket, or the opening of the
+  opinion. A published rule takes each quotation (rules `about-*` in
+  `classification.json`); it runs in whole sentences, and one that is cut says so
+  with an ellipsis. A Supreme Court docket also shows the latest question an order
+  of the Court put to the parties, under the question presented. The opening of
+  an opinion is its first paragraph, read from the layout of the PDF, so that
+  footnotes and page heads stay out of it. It is published only if every letter
+  of it is then found in the plain text of the same file, with other matter
+  between its letters only where it crosses a page. A record
+  for which no rule finds a passage has none: 12 of the 128 court of appeals cases
+  and 27 of the 273 measures of Congress, which are listed under their official
+  title already. The words a selection rule matched are marked where they stand
+  in a text the rule read (a title, the opinion; never a summary or a digest),
+  and a measure listed under a title that does not say why it is here also shows
+  the title the rule matched.
 - **Links carry their evidence.** Every curated link (case to place, case to bill,
   bill to bill, bill to place) quotes a passage of a named primary document. The
   pipeline checks that the passage is in that document, and that a passage behind

@@ -8,6 +8,7 @@ import { formatDate, plural } from '../../lib/format';
 import { useTagLabels } from '../../lib/labels';
 import { buildHash, patchQuery, type Route } from '../../lib/router';
 import { dataOf } from '../../lib/useLoad';
+import { AboutLine, Highlight, holdsTerm } from '../../components/About';
 import { A, Async, ClearFilters, Empty, GapNotice, MoreFilters, Segmented, SelectField, TagList, TextField, TypeMark } from '../../components/ui';
 
 export function billFiltersFromQuery(query: Route['query']): BillFilters {
@@ -34,13 +35,67 @@ export function latestTextLine(bill: LegislativeInstrumentSummary): string | nul
   return text && text !== bill.legislativeStatus.currentStatus ? text : null;
 }
 
+/** The title a list shows a measure under. */
+export function shownTitle(bill: LegislativeInstrumentSummary): string {
+  return bill.subject ?? bill.title ?? 'No subject recorded';
+}
+
+/**
+ * A long title shortened around the words that matter. It is cut at spaces, and an ellipsis stands wherever text is
+ * left out. Nothing is reworded.
+ */
+export function excerptAround(text: string, term: string, max = 170): string {
+  if (text.length <= max) return text;
+  const trim = (value: string) => value.replace(/[ ,;:]+$/, '');
+  const at = text.toLowerCase().indexOf(term.toLowerCase());
+  if (at < 0 || at + term.length <= max) return `${trim(text.slice(0, text.lastIndexOf(' ', max)))} …`;
+  const from = Math.max(0, at - Math.floor((max - term.length) / 2));
+  const start = from === 0 ? 0 : text.indexOf(' ', from) + 1;
+  const to = Math.min(text.length, start + max);
+  const end = to === text.length ? to : text.lastIndexOf(' ', to);
+  return `${start > 0 ? '… ' : ''}${trim(text.slice(start, end))}${end < text.length ? ' …' : ''}`;
+}
+
+/**
+ * The words the selection rule matched, to be marked in the quotation of a measure. The rule reads the titles of a
+ * measure and nothing else, so the words are marked only where the quotation is a title (the official title of a
+ * measure without a summary). A summary or a digest that happens to use the same words is a text the rule never read.
+ */
+export function termsInQuotation(bill: LegislativeInstrumentSummary): string[] {
+  return bill.about?.source === 'official-title' && bill.selection?.matchedText ? [bill.selection.matchedText] : [];
+}
+
+/**
+ * The title that put a measure in the dataset, when a row would not show it otherwise. A measure is listed under its
+ * display title, and the selection rule may have matched another one: a bill named for veterans that carries the
+ * "Safeguard American Voter Eligibility Act" as a short title of its amended text. Null when the row already shows the
+ * matched words in a title: the one it is listed under, or the official title quoted below it. A summary that uses
+ * the same words does not count, because the rule did not read the summary.
+ */
+export function matchedElsewhere(bill: LegislativeInstrumentSummary): { title: string; field: string; words: string } | null {
+  const selection = bill.selection;
+  if (!selection?.matchedTitle || !selection.matchedText) return null;
+  const words = [selection.matchedText];
+  if (holdsTerm(shownTitle(bill), words) || holdsTerm(bill.about?.text, termsInQuotation(bill))) return null;
+  return { title: selection.matchedTitle, field: selection.matchedField, words: selection.matchedText };
+}
+
 export function BillRow({ bill, labels }: { bill: LegislativeInstrumentSummary; labels: ReadonlyMap<string, string> }) {
+  const matched = bill.selection?.matchedText ? [bill.selection.matchedText] : [];
+  const elsewhere = matchedElsewhere(bill);
   return (
     <li className="row">
       <a className="row-title" href={buildHash(['laws', bill.id])}>
-        <span className="bill-id">{billLabel(bill)}</span> {bill.subject ?? bill.title ?? 'No subject recorded'}
+        <span className="bill-id">{billLabel(bill)}</span> <Highlight text={shownTitle(bill)} terms={matched} />
       </a>
       <p className="row-meta">{bill.measureType}, {isFederalBill(bill) ? shortSession(bill.session) : `${stateLabel(bill)}, ${bill.session}`}</p>
+      {elsewhere ? (
+        <p className="row-why">
+          Also titled <q><Highlight text={excerptAround(elsewhere.title, elsewhere.words)} terms={matched} /></q> <span className="quiet">({elsewhere.field})</span>
+        </p>
+      ) : null}
+      <AboutLine about={bill.about} terms={termsInQuotation(bill)} />
+      <TagList tags={bill.issueTags} labels={labels} hrefFor={(tag) => buildHash(['laws'], { tag })} />
       <p className="row-line">
         {statusNoun(bill)}: {statusLine(bill)}
         {isFederalBill(bill) && PASSED_IN_EACH_STAGES.has(currentStatus(bill)) ? <span className="quiet"> ({PASSED_IN_EACH_SHORT})</span> : null}
@@ -49,7 +104,6 @@ export function BillRow({ bill, labels }: { bill: LegislativeInstrumentSummary; 
       <p className="row-foot">
         Last action {formatDate(bill.lastActionDate)}: {bill.lastActionText ?? 'not recorded'}
       </p>
-      <TagList tags={bill.issueTags} labels={labels} hrefFor={(tag) => buildHash(['laws'], { tag })} />
     </li>
   );
 }
@@ -128,7 +182,7 @@ function Directory({ catalog, route }: { catalog: BillCatalog; route: Route }) {
           : <>Covers two legislatures: {federalNote}; and {californiaNote}. Other state legislatures are not covered yet.</>}
       </p>
       <form className="filters" role="search" aria-label="Filter legislation" onSubmit={(event) => event.preventDefault()}>
-        <TextField label="Search measure number or subject" value={filters.q ?? ''} onChange={(q) => set({ q })} placeholder="e.g. H.R. 22, AB 604 or vote by mail" />
+        <TextField label="Search measure number, title or summary" value={filters.q ?? ''} onChange={(q) => set({ q })} placeholder="e.g. H.R. 22, AB 604 or proof of citizenship" />
         <MoreFilters
           count={setInGrid}
           status={(

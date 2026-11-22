@@ -45,7 +45,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Callable, Dict, List, NoReturn, Optional
 
-from . import circuits, classify, evidence
+from . import about, circuits, classify, evidence
 from .adapters import ca_leginfo, census_geo, census_pop, congress, courtlistener, openstates, scotus, uscourts
 from .cli import EXIT_UNEXPECTED, LOG_FORMAT
 from .http import CredentialMissing, FetchError, Fetcher
@@ -887,7 +887,13 @@ def stage_scotus(ctx: Context) -> None:
     if not records:
         raise RuntimeError("no Supreme Court dockets could be retrieved")
     _same_lower_court(records)
+    links_of: Dict[str, List[dict]] = {}
+    for link in relationships:
+        links_of.setdefault(link["source"]["id"], []).append(link)
     for obj in records:
+        # What the case is about, in the words of the Question Presented, of a passage cited from the docket's documents
+        # or of the docket. It follows from the record and its published links, so a kept record gets it too.
+        obj["about"] = about.of_docket(obj, links_of.get(obj["id"], []))
         write_json(out / "cases" / f"{obj['id']}.json", obj)
         summaries.append({k: obj[k] for k in obj if k not in (
             "events", "documents", "questionsPresented", "relatedDockets", "linkedNote", "sameLowerCourt", "contentHash",
@@ -988,14 +994,14 @@ def stage_california(ctx: Context, year: int = 2025) -> None:
             if not previous:
                 continue  # never published before: left out rather than published half-built
             obj, texts = previous, {}  # keep the last verified record; its check time is not advanced
+        # What the bill would do, in the words of its digest. It follows from the record alone, so a record kept
+        # from an earlier run gets it too.
+        obj = {**obj, "about": about.of_bill(obj)}
         # The id and the version ids name files: each write must stay inside its folder (util.safe_path).
         write_json(out / "bills" / f"{instrument_id}.json", obj, root=out / "bills")
         for version_id, text in texts.items():
             write_json(out / "text" / f"{version_id}.json", text, root=out / "text")
-        summaries.append({k: obj[k] for k in (
-            "id", "state", "stateAbbr", "session", "identifier", "measureType", "title", "subject", "leadAuthors",
-            "legislativeStatus", "chapter", "introducedDate", "lastActionDate", "lastActionText", "versionCount",
-            "issueTags", "officialUrl", "sourceId", "firstObservedAt", "lastCheckedAt", "verification")})
+        summaries.append(bill_summary(obj))
     earlier_ids = {b["id"] for b in (read_json(ctx.public / "legislation/index.json") or {}).get("bills", [])}
     left = sorted(earlier_ids - {s["id"] for s in summaries})
     refused = len(left) > MAX_SHARE_LEAVING * len(earlier_ids)
@@ -1039,7 +1045,15 @@ def stage_california(ctx: Context, year: int = 2025) -> None:
 BILL_SUMMARY_FIELDS = (
     "id", "state", "stateAbbr", "session", "identifier", "measureType", "title", "subject", "leadAuthors",
     "legislativeStatus", "chapter", "introducedDate", "lastActionDate", "lastActionText", "versionCount",
-    "issueTags", "officialUrl", "sourceId", "firstObservedAt", "lastCheckedAt", "verification")
+    "issueTags", "about", "officialUrl", "sourceId", "firstObservedAt", "lastCheckedAt", "verification")
+
+
+def bill_summary(record: dict) -> dict:
+    """A measure's entry in an index: the fields a list shows, with the words the selection rule matched."""
+    summary = {field: record.get(field) for field in BILL_SUMMARY_FIELDS}
+    if record.get("selection"):
+        summary["selection"] = record["selection"]
+    return summary
 #: The fields the issue rules read for a measure of Congress.
 CRS_SUMMARY_FIELD = "Congressional Research Service summary"
 
@@ -1115,12 +1129,15 @@ def stage_congress(ctx: Context) -> None:
             matched = obj["selection"]
             ctx.flag("new_selection", bill_id, f"newly selected by rule {congress.SELECTION_RULE_ID} (test \"{matched['test']}\": "
                                                f"{matched['matchedText']!r} in the {matched['matchedField']}); a maintainer should look at it once")
+        # What the measure would do, in the words of its official summary or title. It follows from the record alone,
+        # so a record kept from an earlier run gets it too.
+        obj = {**obj, "about": about.of_bill(obj)}
         write_json(out / "bills" / f"{bill_id}.json", obj, root=out / "bills")
         for version_id, text in text_records.items():
             write_json(out / "text" / f"{version_id}.json", text, root=out / "text")
         mirrored += sum(v.get("textAvailability") == "mirrored" for v in obj.get("versions", []))
         link_only += sum(v.get("textAvailability") == "link_only" for v in obj.get("versions", []))
-        summaries.append({k: obj[k] for k in BILL_SUMMARY_FIELDS})
+        summaries.append(bill_summary(obj))
     left = sorted(earlier_ids - {summary["id"] for summary in summaries})
     refused = len(left) > MAX_SHARE_LEAVING * len(earlier_ids)
     for bill_id in left:
@@ -1258,6 +1275,7 @@ def stage_circuits(ctx: Context) -> None:
     result = uscourts.scan(fetcher, ctx.cache / "uscourts", previous_state, seeds, now=ctx.now,
                            progress=lambda done, of: log.info("courts of appeals: read %d of %d packages", done, of))
     out = ctx.staging / "circuits"
+    reader = uscourts.Reader(fetcher, ctx.cache / "uscourts")
 
     for package, error in sorted(result.failed.items()):
         ctx.flag("fetch_failed", uscourts.case_id(package), f"the case could not be read from GovInfo: {error}"[:300])
@@ -1276,8 +1294,11 @@ def stage_circuits(ctx: Context) -> None:
         if read.evaluation["exclusionProblem"]:
             ctx.flag("exclusion_check_failed", case_id, "the case stays in the dataset: the passage quoted for its exclusion was not found in "
                                                         f"its documents ({read.evaluation['exclusionProblem']})"[:300])
+        opening_passage, problem = uscourts.opinion_about(reader, read, (previous or {}).get("about"))
+        if problem:
+            ctx.flag("opening_unavailable", case_id, problem)
         case = uscourts.build_case(read.record, read.texts, read.evaluation, checked_at=ctx.now, changed_at=read.changed_at,
-                                   first_observed=(previous or {}).get("firstObservedAt"))
+                                   first_observed=(previous or {}).get("firstObservedAt"), about=opening_passage)
         built = case.model_dump(mode="json")
         for problem in remove_seeded_tags(built, tag_removals.pop(case_id, []), lambda quote, read=read: _quoted_in(read, quote)):
             ctx.flag("tag_removal_not_applied", case_id, problem[:300])
@@ -1914,6 +1935,7 @@ OTHER_RULES = [
     {"ruleId": "diff-meta-1", "appliesTo": "Timeline entries for a changed text version",
      "description": "A text version is listed as changed when the paragraph-level comparison with the previous official version adds or removes "
                     "at least one paragraph. The counts come from a standard longest-common-subsequence comparison of the extracted paragraphs."},
+    *about.RULES,
 ]
 
 
@@ -1954,7 +1976,6 @@ def stage_validate(ctx: Context) -> None:
                 errors.append(f"{folder}/index.json: bill id {summary.get('id')!r:.80} does not have the form {form}")
         for path in sorted((ctx.staging / folder / "bills").glob("*.json")) if (ctx.staging / folder).exists() else []:
             obj = dict(read_json(path))
-            obj.pop("selection", None)
             try:
                 bill = LegislativeInstrument(**obj)
             except Exception as exc:  # noqa: BLE001

@@ -710,6 +710,41 @@
    "appliesTo": "Timeline entries for a changed text version",
    "description": "A text version is listed as changed when the paragraph-level comparison with the previous official version adds or removes at least one paragraph. The counts come from a standard longest-common-subsequence comparison of the extracted paragraphs.",
    "ruleId": "diff-meta-1"
+  },
+  {
+   "appliesTo": "What a measure of Congress is about, in a list and at the head of its page",
+   "description": "Quoted from the summary the Congressional Research Service wrote for the measure: the beginning of the first paragraph that is a sentence (a summary opens with the short title on a line of its own, which is passed over). Nothing is reworded. The quotation runs in whole sentences until it is at least 220 characters long and never beyond 560; a first sentence longer than that is cut at a word and shown with an ellipsis. The same lengths hold for every rule below. The quotation runs whole sentences until it has 220 characters; a first sentence longer than 560 characters is cut at a word and marked as cut.",
+   "ruleId": "about-crs-1"
+  },
+  {
+   "appliesTo": "What a measure of Congress without a published summary is about",
+   "description": "Where the Congressional Research Service has not published a summary yet and the measure is listed under a short title, its official title is quoted. A measure that is listed under its official title has no further line. The quotation runs whole sentences until it has 220 characters; a first sentence longer than 560 characters is cut at a word and marked as cut.",
+   "ruleId": "about-title-1"
+  },
+  {
+   "appliesTo": "What a California bill is about",
+   "description": "Quoted from the Legislative Counsel's Digest, starting at its first sentence that says what the bill would do (the pattern ^(?:This|The) (?:bill|measure|resolution|constitutional amendment)\\b.*\\bwould\\b at the start of a sentence). A digest first describes existing law; that part is passed over. A digest without such a sentence is quoted from its beginning. The quotation runs whole sentences until it has 220 characters; a first sentence longer than 560 characters is cut at a word and marked as cut.",
+   "ruleId": "about-digest-1"
+  },
+  {
+   "appliesTo": "What a Supreme Court case is about",
+   "description": "Quoted from the Questions Presented document the Court publishes for the case. The question is looked for in this order: what follows the words 'the question presented is:' (the latest such passage, since an order of the Court can amend the question); the sentence 'the question presented is whether ...'; the first of several numbered questions, with their number; the first paragraph that begins with 'Whether' or ends with a question mark; otherwise the beginning of the text. Lines the Court adds below the question (the grant, the argument calendar) are left out. Where an order of the Court below the question puts a further question to the parties ('... are directed to file supplemental briefs addressing the following question: ...'), the latest such question is shown after the question presented, as the Court set it (in capitals), with the date of the order. The quotation runs whole sentences until it has 220 characters; a first sentence longer than 560 characters is cut at a word and marked as cut.",
+   "ruleId": "about-question-1"
+  },
+  {
+   "appliesTo": "What a Supreme Court docket without a Questions Presented document is about",
+   "description": "The passage cited for the first of the docket's links to a place is shown (rule cases-seed-2): a maintainer chose it from a document of the docket, and the pipeline finds it in that document on every run that refreshes the docket. The line names the document. A passage from the filing that opened the docket is the account of the party that filed it, not a finding of the Court. A passage that begins or stops inside a sentence is shown with an ellipsis. The quotation runs whole sentences until it has 220 characters; a first sentence longer than 560 characters is cut at a word and marked as cut.",
+   "ruleId": "about-cited-1"
+  },
+  {
+   "appliesTo": "What a Supreme Court docket with neither a Questions Presented document nor a cited passage is about",
+   "description": "The entry that opens the docket is quoted, for example an application for a stay. It names the kind of request, not its subject; the issue tags and the court below say more.",
+   "ruleId": "about-docket-1"
+  },
+  {
+   "appliesTo": "What a court of appeals case is about",
+   "description": "Quoted from the opening of the opinion the selection rule rests on. The layout of the opinion's first pages is read (poppler's pdftohtml), so that running heads, page numbers, footnotes and footnote marks can be told from the text by their place and type size and left out. The opinion begins after the line that names its author ('SMITH, Circuit Judge.', 'PER CURIAM:') or, where there is none, after the line that names the panel. Its first paragraph is quoted. The words every order begins with ('This appeal was considered on the record ...') are passed over, and so is a passage the court sets in from the margin, such as a statute it quotes: it carries no quotation marks and would read as the court's words. A word the page broke across two lines is joined again, with or without its hyphen as the rest of the opinion writes it. The passage is then checked against the plain text of the same file, read by another program (pdftotext): its letters must stand there one after the other, with none left out; other matter may stand between them only where the passage crosses a page, since the plain text runs the footnotes and the page head in there. A paragraph that fails a check (too short, not ending with a sentence, a remnant of a page head in it, a character of a wrongly mapped typeface, not found in the plain text) is not quoted. The next paragraph is then tried, up to the first heading and the fourth paragraph, and the line says which paragraph of the opinion it quotes. Where none passes, the case has no quotation. The quotation runs whole sentences until it has 220 characters; a first sentence longer than 560 characters is cut at a word and marked as cut.",
+   "ruleId": "about-opinion-1"
   }
  ]
 }

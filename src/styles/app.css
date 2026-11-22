@@ -278,6 +278,31 @@ a.row-title:hover { text-decoration-color: currentColor; }
 .row-line { font-size: var(--text-sm); color: var(--ink-2); }
 .row-line q { font-family: var(--font-text); font-size: 1.04em; color: var(--ink); }
 .row-date { font-variant-numeric: tabular-nums; font-weight: 550; color: var(--ink); }
+/* What the record is about, quoted from an official text: the line a reader looks for first, so it is set in the
+   reading face at full size, under a small label that says which text is quoted. */
+.row-about { display: grid; gap: 1px; margin: 2px 0; max-width: var(--measure); }
+.row-about-src { font-size: var(--text-xs); font-weight: 650; font-stretch: 92%; letter-spacing: 0.04em; text-transform: uppercase; color: var(--ink-3); }
+.row-about-src.is-long, .about-src.is-long { text-transform: none; letter-spacing: 0; font-weight: 600; font-size: var(--text-sm); font-stretch: normal; }
+.row-about q { font-family: var(--font-text); font-size: var(--text-base); line-height: 1.42; color: var(--ink); quotes: "“" "”" "‘" "’"; }
+/* A further question the Court put to the parties by an order. The Court sets it in capitals; it is quoted as set, a
+   little smaller so that a sentence of capitals does not outweigh the question above it. */
+.row-about-later { margin-top: var(--s-1); }
+.row-about q.as-set, .about-block blockquote.as-set { font-size: 0.84em; letter-spacing: 0.015em; line-height: 1.5; }
+.about-later-src { margin-top: var(--s-2); }
+/* Why the record is listed: the title or the phrases the selection rule matched. */
+.row-why { font-size: var(--text-sm); color: var(--ink-2); max-width: var(--measure); }
+.row-why q { color: var(--ink); }
+.row-why-value, .term { color: var(--ink); }
+.term-count { font-variant-numeric: tabular-nums; color: var(--ink-3); }
+/* The words a selection rule matched, marked where they stand. Not a highlighter: a rule under the words. */
+mark.hit { background: linear-gradient(transparent 68%, color-mix(in srgb, var(--geo) 30%, transparent) 68%); color: inherit; }
+/* The same quotation at the head of a record's page. */
+.about-block { display: grid; gap: var(--s-1); max-width: var(--measure); padding: var(--s-2) 0 var(--s-2) var(--s-4); border-left: 3px solid var(--data); }
+.about-block.about-case { border-left-color: var(--case); }
+.about-block.about-bill { border-left-color: var(--law); }
+.about-src { font-size: var(--text-xs); font-weight: 650; font-stretch: 92%; letter-spacing: 0.04em; text-transform: uppercase; color: var(--ink-2); }
+.about-block blockquote { font-family: var(--font-text); font-size: var(--text-xl); line-height: 1.36; color: var(--ink); text-wrap: pretty; }
+.about-foot { font-size: var(--text-sm); color: var(--ink-2); }
 .row-split { grid-template-columns: 1fr auto; align-items: start; gap: var(--s-3); }
 /* Tags a maintainer took off a case, under the table of the tags it has. */
 .removed-tags { display: grid; gap: var(--s-3); }
@@ -750,6 +775,8 @@ ul.pack-items { list-style: disc; }
 
 @media (forced-colors: active) {
   .type-mark::before, .swatch { forced-color-adjust: none; }
+  /* The rule under matched words is a background, which this mode removes: an underline takes its place. */
+  mark.hit { background: none; text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 3px; }
   .seg label.is-on span, .segmented-options label.is-on span { outline: 2px solid CanvasText; outline-offset: -2px; }
 }
 

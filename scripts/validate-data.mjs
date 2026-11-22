@@ -440,6 +440,77 @@ for (const record of bills.values()) {
   const historyIds = record.actions.map((a) => a.historyId).filter(Boolean);
   if (new Set(historyIds).size !== historyIds.length) fail(`bill ${record.id}: a legislative history id appears twice`);
 }
+// What a record is about is a quotation, never a text written for this site: each one names a published rule, the
+// index and the record's own file carry the same one, and the words are found in the text the record itself publishes
+// (the summary, the title, the digest, the question, the cited passage, the docket entry). The opening of an opinion is
+// the exception: the opinion's text is not mirrored here, so the pipeline checks it against the file (rule
+// about-opinion-1) and this script checks that it points at the opinion the selection rests on.
+{
+  const before = errors.length;
+  const flat = (text) => (text ?? '').replace(/\s+/g, ' ').trim();
+  // A quotation is in a text when its words stand there in the same order, as whole words, with every letter and
+  // digit. Punctuation and white space between the words may differ, because the pipeline sets a text that was broken
+  // into lines as running text. A word the text breaks with a hyphen at the end of a line counts as that word.
+  const escape = (character) => character.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const wordsOf = (text) => (text ?? '').normalize('NFKC').match(/[\p{L}\p{N}]+/gu) ?? [];
+  const lineBreak = '(?:-[^\\S\\n]*\\n\\s*)?';
+  const within = (about, text) => {
+    const words = wordsOf(about.text);
+    if (words.length === 0) return false;
+    const pattern = words.map((word) => [...word].map(escape).join(lineBreak)).join('[^\\p{L}\\p{N}]+');
+    return new RegExp(`(?<![\\p{L}\\p{N}])${pattern}(?![\\p{L}\\p{N}])`, 'iu').test((text ?? '').normalize('NFKC'));
+  };
+  let quoted = 0;
+  const checkAbout = (kind, id, record, summary, problemOf) => {
+    if (JSON.stringify(summary?.about ?? null) !== JSON.stringify(record.about ?? null)) fail(`${kind} ${id}: the index and the record's own file say different things about what it is about`);
+    const about = record.about;
+    if (!about) return;
+    quoted += 1;
+    if (!ruleIds.has(about.ruleId)) fail(`${kind} ${id}: the line on what it is about cites unknown rule ${about.ruleId}`);
+    if (!about.url) fail(`${kind} ${id}: the line on what it is about does not say where the quoted text is published`);
+    if (about.later && about.source !== 'question-presented') fail(`${kind} ${id}: a further question of the Court is attached to a quotation that is not a Question Presented`);
+    const problem = problemOf(about);
+    if (problem) fail(`${kind} ${id}: the line on what it is about (${about.source}) ${problem}`);
+  };
+  for (const record of cases.values()) {
+    const appeals = S.CIRCUIT_CASE_ID_PATTERN.test(record.id);
+    const summary = caseSummaries.get(record.id);
+    checkAbout('case', record.id, record, summary, (about) => {
+      if (about.source === 'opinion') {
+        if (!appeals) return 'is said to be from an opinion, which only a court of appeals case can have';
+        return about.url === record.selection?.documentUrl && record.documents.some((doc) => doc.url === about.url) ? null : 'does not point at the opinion the selection rests on';
+      }
+      if (appeals) return 'is not from the opinion of the case';
+      if (about.source === 'question-presented') {
+        if (about.url !== record.questionsPresented?.url) return "does not point at the Court's Questions Presented document";
+        if (!within(about, record.questionsPresented?.text)) return 'is not in the text of the Questions Presented document';
+        if (about.later && !within(about.later, record.questionsPresented?.text)) return 'carries a further question that is not in the text of the Questions Presented document';
+        return null;
+      }
+      if (about.source === 'cited-passage') {
+        const cited = (relationships?.relationships ?? []).some((rel) => rel.source.type === 'case' && rel.source.id === record.id
+          && rel.support.url === about.url && flat(rel.support.quote).startsWith(about.text) && (rel.support.document ?? null) === (about.document ?? null));
+        return cited ? null : 'is not the passage cited for one of the links of the case';
+      }
+      if (about.source === 'docket-entry') return record.events.some((event) => event.eventType === 'initiating_filing' && flat(event.description).startsWith(about.text)) ? null : 'is not the entry that opens the docket';
+      return 'is from a text that belongs to a measure, not to a case';
+    });
+    if (JSON.stringify(summary?.matchedTerms ?? []) !== JSON.stringify((record.selection?.phrases ?? []).slice(0, 4))) fail(`case ${record.id}: the index does not name the phrases the selection rule found most often`);
+  }
+  for (const record of bills.values()) {
+    const federal = S.US_BILL_ID_PATTERN.test(record.id);
+    const summary = billSummaries.get(record.id);
+    checkAbout('bill', record.id, record, summary, (about) => {
+      if (about.url !== record.officialUrl) return "does not point at the measure's official page";
+      if (about.source === 'crs-summary') return federal && within(about, record.digest) ? null : 'is not in the summary of the Congressional Research Service';
+      if (about.source === 'official-title') return federal && !record.digest && flat(record.title).startsWith(about.text.replace(/…$/, '')) && flat(record.title) !== flat(record.subject) ? null : 'is not the official title of a measure listed under another title';
+      if (about.source === 'digest') return !federal && within(about, record.digest) ? null : "is not in the Legislative Counsel's Digest";
+      return 'is from a text that belongs to a case, not to a measure';
+    });
+    if (JSON.stringify(summary?.selection ?? null) !== JSON.stringify(record.selection ?? null)) fail(`bill ${record.id}: the index and the record's own file give different words for why the selection rule picked it`);
+  }
+  if (errors.length === before) pass('What each record is about', `${quoted} quotations from official texts, each with its rule and its source; the words of ${quoted - [...cases.values()].filter((record) => record.about?.source === 'opinion').length} were found in the text published here`);
+}
 if (federalIndex) {
   const before = errors.length;
   const selection = federalIndex.selection;

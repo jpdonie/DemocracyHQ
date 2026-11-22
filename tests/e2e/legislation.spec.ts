@@ -20,7 +20,7 @@ test.describe('Voting law change monitor', () => {
     expect(chaptered).toBeLessThan(total);
     await expect(page.locator('main ul.rows > li')).toHaveCount(chaptered);
 
-    await page.getByRole('searchbox', { name: 'Search measure number or subject' }).fill('AB 604');
+    await page.getByRole('searchbox', { name: 'Search measure number, title or summary' }).fill('AB 604');
     await expect(status).toContainText(/^\d California measures? of/);
     await page.locator('main ul.rows > li a.row-title').filter({ has: page.locator('.bill-id', { hasText: /^CA AB 604$/ }) }).click();
     await expect(page).toHaveURL(new RegExp(`#/laws/${BILL.id}$`));

@@ -11,6 +11,7 @@ import { eventLabel } from '../../lib/labels';
 import { relationshipsForRecord, sameWords } from '../../lib/relations';
 import { buildHash, patchQuery, shareUrl, type Route } from '../../lib/router';
 import { dataOf, mapLoadable, useLoad, type Loadable } from '../../lib/useLoad';
+import { AboutBlock } from '../../components/About';
 import { A, Async, BackLink, CopyLinkButton, ExportMenu, Facts, Loading, Section, Segmented, SourceLine, TypeMark, WatchButton } from '../../components/ui';
 import { latestTextLine, statusLine } from './BillDirectory';
 import { CourtsCell, LinkedMeasuresAndPlaces, ListedAndTags, TextVersions, endsSentence, linkedCasesOf } from './billParts';
@@ -129,6 +130,7 @@ function BillBody({ bill, route, links }: { bill: LegislativeInstrument; route: 
         <h1 tabIndex={-1}><span className="bill-id">{billHeading(bill)}</span></h1>
         <p className="lede">{bill.subject ?? 'No subject recorded'}</p>
         <p className="quiet">{bill.measureType}, {bill.session}{bill.leadAuthors ? `. ${bill.leadAuthors}` : ''}</p>
+        <AboutBlock about={bill.about} type="bill" />
         <div className="btn-row">
           <WatchButton item={{ type: 'bill', id: bill.id, label: `${bill.stateAbbr} ${bill.identifier}: ${bill.subject ?? ''}` }} />
           <CopyLinkButton hash={buildHash(['laws', bill.id], route.query)} />

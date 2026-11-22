@@ -33,8 +33,10 @@ test.describe('Litigation tracker', () => {
 
   test('searches by docket number and opens the case', async ({ page }) => {
     await open(page, '#/litigation');
-    await page.getByRole('searchbox', { name: 'Search case name or docket number' }).fill(CASE.docket);
-    await expect(page.locator('.filters-status')).toContainText(/^1 case of \d+ match/);
+    await page.getByRole('searchbox', { name: 'Search case name, docket number or quoted passage' }).fill(CASE.docket);
+    // The number finds the docket itself, and any case whose quoted passage cites it (an appeal held for the Court's decision).
+    await expect(page.locator('.filters-status')).toContainText(/^[1-4] cases? of \d+ match/);
+    await expect(page.locator('main ul.rows > li').filter({ hasText: `No. ${CASE.docket}, Supreme Court` })).toHaveCount(1);
     await page.getByRole('link', { name: CASE.name }).click();
     await expect(page).toHaveURL(new RegExp(`#/litigation/${CASE.id}$`));
     await expect(heading(page)).toHaveText(CASE.name);

@@ -790,6 +790,6 @@ def build_instrument(entry: dict, texts: TextStore, *, checked_at: str, first_ob
         sourceRecordUrl=STATUS_URL.format(congress=congress, kind=kind, number=number),
     )
     basis = {k: v for k, v in LegislativeInstrument(**body, contentHash="").model_dump(mode="json").items()
-             if k not in {"firstObservedAt", "lastCheckedAt", "verification", "contentHash", "sourcePublishedAt"}}
+             if k not in {"firstObservedAt", "lastCheckedAt", "verification", "contentHash", "sourcePublishedAt", "selection"}}
     return LegislativeInstrument(**body, contentHash=content_hash(basis)), text_records, notes
 

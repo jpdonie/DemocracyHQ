@@ -8,6 +8,7 @@ import { eventLabel, useTagLabels } from '../../lib/labels';
 import { COMPACT_QUERY, useMediaQuery } from '../../lib/media';
 import { buildHash, patchQuery, type Route } from '../../lib/router';
 import { dataOf } from '../../lib/useLoad';
+import { AboutLine } from '../../components/About';
 import { A, Async, ClearFilters, Empty, GapNotice, MoreFilters, SelectField, TagList, TextField, TypeMark } from '../../components/ui';
 
 export function caseFiltersFromQuery(query: Route['query']): CaseFilters {
@@ -53,6 +54,32 @@ export function rowCourtName(courtId: string): string {
 }
 
 /**
+ * Why a court of appeals case is listed, as far as a row can say it: the nature of suit in the court's record and the
+ * election phrases the selection rule found most often in the opinion, each with its count.
+ */
+export function WhyListed({ record }: { record: LegalCaseSummary }) {
+  const terms = record.matchedTerms ?? [];
+  if (!record.natureOfSuit && terms.length === 0) return null;
+  return (
+    <p className="row-why">
+      {record.natureOfSuit ? <>Nature of suit in the court’s record: <span className="row-why-value">{record.natureOfSuit}</span></> : null}
+      {record.natureOfSuit && terms.length > 0 ? '. ' : null}
+      {terms.length > 0 ? (
+        <>
+          In the opinion:{' '}
+          {terms.map((item, i) => (
+            <Fragment key={item.term}>
+              {i > 0 ? ', ' : ''}
+              <span className="term">“{item.term}”</span> <span className="term-count">{item.count}×</span>
+            </Fragment>
+          ))}
+        </>
+      ) : null}
+    </p>
+  );
+}
+
+/**
  * One case in a list. A Supreme Court docket is the Court's own docket. A court of appeals case is known here from the
  * documents GovInfo holds for it, which is not the court's docket, so its row speaks of documents and not of docket
  * activity.
@@ -67,6 +94,7 @@ export function CaseRow({ record, labels, note }: { record: LegalCaseSummary; la
         No. {record.docketNumber}, {rowCourtName(record.courtId)}
         {record.publication ? <>, <span className="row-kind">{record.publication.toLowerCase()} decision</span></> : null}
       </p>
+      <AboutLine about={record.about} terms={(record.matchedTerms ?? []).map((item) => item.term)} />
       {note ? <p className="row-note">{note}</p> : null}
       {record.decidedWith.length > 0 ? (
         <p className="row-note">
@@ -80,6 +108,8 @@ export function CaseRow({ record, labels, note }: { record: LegalCaseSummary; la
           ))}.
         </p>
       ) : null}
+      <TagList tags={record.issueTags} labels={labels} hrefFor={(tag) => buildHash(['litigation'], { tag })} />
+      {appeal ? <WhyListed record={record} /> : null}
       {ruling ? (
         <p className="row-line">
           <span className="row-date">{formatDate(ruling.date)}</span> {eventLabel(ruling.eventType, ruling.ruleId)}: <q>{rulingExcerpt(ruling.text)}</q>
@@ -92,7 +122,6 @@ export function CaseRow({ record, labels, note }: { record: LegalCaseSummary; la
           ? <>Documents on GovInfo through {formatDate(record.sourceLastActivity, 'an unreported date')}{record.origin ? `. Court below: ${record.origin.court}` : ''}</>
           : <>Docket activity through {formatDate(record.sourceLastActivity, 'an unreported date')}</>}
       </p>
-      <TagList tags={record.issueTags} labels={labels} hrefFor={(tag) => buildHash(['litigation'], { tag })} />
     </li>
   );
 }
@@ -202,7 +231,7 @@ function Directory({ cases, filters: requested, set, labels, appeals, courts, ge
         It is not a complete list of election cases. Federal district courts and state courts are not covered. <A to={buildHash(['courts'])}>The courts and what was read for each</A>
       </p>
       <form className="filters" role="search" aria-label="Filter court cases" onSubmit={(event) => event.preventDefault()}>
-        <TextField label="Search case name or docket number" value={filters.q ?? ''} onChange={(q) => set({ q })} placeholder="e.g. Callais or 24-109" />
+        <TextField label="Search case name, docket number or quoted passage" value={filters.q ?? ''} onChange={(q) => set({ q })} placeholder="e.g. Callais, 24-109 or mail-in ballots" />
         <MoreFilters
           count={setInGrid}
           status={(

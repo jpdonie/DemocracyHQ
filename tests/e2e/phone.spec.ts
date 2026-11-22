@@ -289,7 +289,7 @@ test.describe('Phone layout, details', () => {
 
   test('the result count stays near the top while the folded filters are open', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
-    for (const [hash, searchName, query] of [['#/litigation', 'Search case name or docket number', 'louisiana'], ['#/laws', 'Search measure number or subject', 'district']] as const) {
+    for (const [hash, searchName, query] of [['#/litigation', 'Search case name, docket number or quoted passage', 'louisiana'], ['#/laws', 'Search measure number, title or summary', 'district']] as const) {
       await open(page, hash);
       await page.getByRole('searchbox', { name: searchName }).fill(query);
       await page.getByText('More filters', { exact: true }).tap();

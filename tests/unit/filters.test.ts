@@ -32,6 +32,21 @@ describe('filterCases', () => {
     expect(filterCases(cases, { q: 'alpha delta' })).toEqual([]);
   });
 
+  it('reads the passage quoted on what a case is about, as the row shows it', () => {
+    const quoted = [...cases, makeCase({ id: 'synthetic-case-4', caseName: 'Synthetic Zeta v. Synthetic Eta', docketNumber: '99-0004', about: {
+      text: 'Whether a county may reject a mail-in ballot that arrives in an undated envelope.', source: 'question-presented', cut: false, ruleId: 'about-question-1' } })];
+    expect(filterCases(quoted, { q: 'undated envelope' }).map((c) => c.id)).toEqual(['synthetic-case-4']);
+    expect(filterCases(quoted, { q: 'zeta mail-in' }).map((c) => c.id)).toEqual(['synthetic-case-4']);
+    expect(filterCases(quoted, { q: 'undated postcard' })).toEqual([]);
+  });
+
+  it('reads a further question the Court put to the parties, which the row shows too', () => {
+    const asked = [...cases, makeCase({ id: 'synthetic-case-5', caseName: 'Synthetic Theta v. Synthetic Iota', docketNumber: '99-0005', about: {
+      text: 'Did the majority err in finding that race predominated in the synthetic plan?', source: 'question-presented', cut: false, ruleId: 'about-question-1',
+      later: { text: 'WHETHER THE INTENTIONAL CREATION OF A SECOND SYNTHETIC DISTRICT VIOLATES THE FOURTEENTH AMENDMENT.', date: '2025-08-01', cut: false } } })];
+    expect(filterCases(asked, { q: 'intentional creation' }).map((c) => c.id)).toEqual(['synthetic-case-5']);
+  });
+
   it('filters by issue tag and by linked state', () => {
     expect(filterCases(cases, { tag: 'voter-id' }).map((c) => c.id)).toEqual(['synthetic-case-2']);
     expect(filterCases(cases, { state: '06' }).map((c) => c.id)).toEqual(['synthetic-case-1']);
@@ -89,6 +104,17 @@ describe('filterBills', () => {
   it('finds a bill by its number with or without the space', () => {
     expect(filterBills(bills, { q: 'ab10' }).map((b) => b.id)).toEqual(['zz-2026-ab10']);
     expect(filterBills(bills, { q: 'AB 10' }).map((b) => b.id)).toEqual(['zz-2026-ab10']);
+  });
+
+  it('reads the quoted summary and the title the selection rule matched, as the row shows them', () => {
+    const veterans = makeFederalBill({
+      id: 'us-119-s9002', identifier: 'S. 9002', subject: 'Synthetic Veterans Advisory Committee Act',
+      selection: { ruleId: 'us-select-1', matchedText: 'Voter Eligibility', matchedField: 'Short Title(s) as Passed House', matchedTitle: 'Synthetic Voter Eligibility Act' },
+      about: { text: 'This bill requires synthetic proof of citizenship when registering to vote.', source: 'crs-summary', cut: false, ruleId: 'about-crs-1' },
+    });
+    expect(filterBills([...bills, veterans], { q: 'proof of citizenship' }).map((b) => b.id)).toEqual(['us-119-s9002']);
+    expect(filterBills([...bills, veterans], { q: 'voter eligibility' }).map((b) => b.id)).toEqual(['us-119-s9002']);
+    expect(filterBills([...bills, veterans], { q: 'veterans citizenship' }).map((b) => b.id)).toEqual(['us-119-s9002']);
   });
 
   it('filters by the status exactly as the legislature reports it, including "Not recorded"', () => {

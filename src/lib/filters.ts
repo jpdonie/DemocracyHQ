@@ -54,7 +54,8 @@ export function caseStartDate(c: Pick<LegalCaseSummary, 'dateDocketed' | 'dateFi
 
 export function filterCases(cases: readonly LegalCaseSummary[], filters: CaseFilters): LegalCaseSummary[] {
   const result = cases.filter((c) => {
-    if (!matchesQuery([c.caseName, c.docketNumber, c.petitionerTitle, c.respondentTitle, c.lowerCourt.name, c.origin?.court, ...c.lowerCourt.caseNumbers], filters.q ?? '')) return false;
+    // The search reads what a row shows: the names and numbers, and the passage quoted on what the case is about.
+    if (!matchesQuery([c.caseName, c.docketNumber, c.petitionerTitle, c.respondentTitle, c.lowerCourt.name, c.origin?.court, ...c.lowerCourt.caseNumbers, c.about?.text, c.about?.later?.text], filters.q ?? '')) return false;
     if (filters.tag && !c.issueTags.some((t) => t.tag === filters.tag)) return false;
     if (filters.state && !caseStates(c).includes(filters.state)) return false;
     if (filters.court && !matchesCourt(c.courtId, filters.court)) return false;
@@ -100,7 +101,8 @@ const statusOf = (b: LegislativeInstrumentSummary) => b.legislativeStatus.curren
 
 export function filterBills(bills: readonly LegislativeInstrumentSummary[], filters: BillFilters): LegislativeInstrumentSummary[] {
   const result = bills.filter((b) => {
-    if (!matchesQuery([...identifierVariants(b.identifier), b.subject, b.title, b.leadAuthors, b.chapter?.citation], filters.q ?? '')) return false;
+    // The search reads what a row shows: number and titles (also the title the selection rule matched), and the passage quoted on what the measure would do.
+    if (!matchesQuery([...identifierVariants(b.identifier), b.subject, b.title, b.selection?.matchedTitle, b.leadAuthors, b.chapter?.citation, b.about?.text], filters.q ?? '')) return false;
     if (filters.tag && !b.issueTags.some((t) => t.tag === filters.tag)) return false;
     if (filters.jur && billJurisdiction(b) !== filters.jur) return false;
     if (filters.status && statusOf(b) !== filters.status) return false;
