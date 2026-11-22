@@ -1443,7 +1443,7 @@ RETIRED_SECONDARY_FILE = "litigation_secondary.json"
 
 def _courtlistener_requests() -> int:
     """``DHQ_CL_REQUESTS``: how many requests a run may send to CourtListener's search (the default when unset or
-    unreadable). A maintainer who reads the whole list for the first time raises it and waits out the hourly limit."""
+    unreadable). The default stays well under the token's hourly limit of a thousand requests."""
     try:
         return max(0, int(os.environ.get("DHQ_CL_REQUESTS", "") or cl_opinions.REQUESTS_PER_RUN))
     except ValueError:
@@ -1458,9 +1458,9 @@ def stage_courtlistener(ctx: Context) -> None:
         ctx.fail(cl_opinions.SOURCE_ID, "credential_missing", f"{exc}. Add the token as a repository secret to activate this source.")
         return
     cache = ctx.cache / "courtlistener"
-    # CourtListener allows this token five requests a minute, fifty an hour and 125 a day, so the search is asked
-    # slowly and a run reads only some months of the list of candidates. The files of the decisions are not counted.
-    search = ctx.fetcher_factory(timeout=90, min_interval=12.5)
+    # CourtListener allows this token twenty requests a minute and a thousand an hour, so the search is asked at
+    # fifteen a minute and at most REQUESTS_PER_RUN times a run. The files of the decisions are not counted.
+    search = ctx.fetcher_factory(timeout=90, min_interval=cl_opinions.SEARCH_INTERVAL)
     files = ctx.fetcher_factory(timeout=120, min_interval=0.05)
     previous_state = read_json(ctx.public / DECISIONS_DIR / "scan.json")
     previous_index = read_json(ctx.public / DECISIONS_DIR / "index.json") or {}

@@ -176,7 +176,7 @@ function DecisionsSelection({ decisions, published }: { decisions: DecisionsCove
         A court is listed under the state its name names (rule {selection.courtStateRuleId}), which says where the court sits and not what a case concerns.
       </p>
       <p>
-        CourtListener allows few requests an hour, so the list of candidates is kept month by month, by the day a decision was filed, and the months are read again in turn; the newest two are read on every run.
+        CourtListener limits how often its search may be asked, so the list of candidates is kept month by month, by the day a decision was filed. The newest two are read first on every run, then the others, and a month a run does not reach is read on the next.
         {' '}{selection.monthsListed < selection.months
           ? `So far ${selection.monthsListed} of the ${selection.months} months since ${formatDate(selection.since)} have been read; the cases of the other months are missing until their month is read.`
           : `All ${selection.months} months since ${formatDate(selection.since)} have been read`}

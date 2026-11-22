@@ -722,3 +722,12 @@ def test_a_newly_selected_case_is_flagged_once_for_a_maintainer_to_read(decision
     assert decisions.read("decisions/cases/cl-109.json")["selection"]["tests"] == ["party"]
     code, ctx = decisions.run(STAGES, now=T3)
     assert [flag for flag in ctx.review if flag["entity"].startswith("cl-")] == []
+
+
+def test_the_search_is_asked_within_the_tokens_limits():
+    # The token allows twenty requests a minute and a thousand an hour; a run keeps under both, with room for a
+    # second run in the same hour, and still has the requests to read every month of the list.
+    assert 60 / cl_opinions.SEARCH_INTERVAL <= 15
+    assert 2 * cl_opinions.REQUESTS_PER_RUN <= 1000
+    every = cl_opinions.months(cl_opinions.SINCE, "2026-12-31")
+    assert cl_opinions.REQUESTS_PER_RUN >= 10 * len(every)

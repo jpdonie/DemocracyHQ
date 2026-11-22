@@ -179,7 +179,7 @@ SOURCES: dict[str, dict] = {
         attribution="CourtListener, a project of Free Law Project",
         geographicCoverage="Federal district courts and the supreme, appellate and trial courts of the states, as far as CourtListener holds their decisions. Its holdings differ much from court to court.",
         temporalCoverage="Cases with a decision filed since January 1, 2025",
-        updateCadence="Read daily when a token is configured: the list of the two newest months and every selected case on each run, the list of the earlier months in turn", staleAfterDays=7,
+        updateCadence="Read daily when a token is configured: the list of every month and every selected case on each run, the two newest months first", staleAfterDays=7,
         credentialEnv="COURTLISTENER_API_TOKEN",
         knownLimitations=[
             "CourtListener is a collection, not a court. It gathers decisions from the courts' own sites and from other collections, and it does not hold every decision of a court. For many trial courts it holds few decisions or none. A missing case does not mean that nothing was decided.",
@@ -188,7 +188,7 @@ SOURCES: dict[str, dict] = {
             "A record is made from CourtListener's copy of a decision and from the case name, docket number, court and date that CourtListener gives. None of it is compared with the court's own record. Where CourtListener recorded the court's own address for a document, the record gives it, unchecked.",
             "A court is listed under a state by its name (rule court-state-1). That says where the court sits, not what a case concerns.",
             "Whether a decision was later reheard, vacated, appealed or reviewed is not recorded.",
-            "CourtListener limits how often its search may be asked, so the list of decisions is kept month by month. The two newest months are asked for on every run and the earlier months in turn, a few on each run. A decision CourtListener adds to, changes in or removes from an earlier month can take some days to show here. The data and methodology page says how many months have been read and when the one read longest ago was read.",
+            "CourtListener limits how often its search may be asked, so the list of decisions is kept month by month and each run may ask the search a limited number of times. The two newest months are asked for first, then the months not read yet, then the months read longest ago; a run normally reads every month. A month the run's requests do not reach is read on the next run. The data and methodology page says how many months have been read and when the one read longest ago was read.",
             "Requires an API token; anonymous requests are refused. Without one the stage does not run and the published cases stay as they are.",
         ],
     ),
