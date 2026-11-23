@@ -282,13 +282,14 @@ great deal of litigation.
   no docket entries, no filings and no timeline entries for these cases, and a
   case is shown with the latest decision CourtListener holds, not with what
   happened after it.
-- **The list of decisions fills in over several days.** CourtListener allows this
-  project's token five requests a minute, fifty an hour and 125 a day. The list is
-  kept month by month, and one run asks for at most 40 pages of twenty decisions.
-  At this release 4 of the 23 months since January 2025 are listed (August to
-  November 2026); the daily update lists the others in about four more days and
-  then reads every month again in turn. A month that returns far fewer decisions
-  than before keeps its earlier list and is flagged for review.
+- **The list of decisions is read within limits.** CourtListener allows this
+  project's token twenty requests a minute and a thousand an hour. The list is
+  kept month by month, and one run asks for at most 300 pages of twenty decisions,
+  fifteen a minute; reading every month takes about 140. At this release 4 of the
+  23 months since January 2025 are listed (August to November 2026); the next
+  daily update lists the others and every run then reads every month again. A
+  month that returns far fewer decisions than before keeps its earlier list and is
+  flagged for review.
 - **The opening paragraph is quoted only from a PDF.** A decision CourtListener
   holds as a web page (many New York, Maryland and Oklahoma decisions) is listed
   without one, and so is a PDF whose layout the rule cannot read with confidence.

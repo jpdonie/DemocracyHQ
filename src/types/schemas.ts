@@ -984,9 +984,8 @@ export const DecisionIndexSchema = z.object({
     totalCasesRead: z.number().int(),
     totalDocumentsRead: z.number().int(),
     /**
-     * CourtListener allows few requests an hour, so the list of candidates is kept month by month and the months are
-     * read again in turn: how many months there are, how many have been read at all, and when the list that was read
-     * longest ago was read.
+     * CourtListener limits how often its search may be asked, so the list of candidates is kept month by month: how
+     * many months there are, how many have been read at all, and when the list that was read longest ago was read.
      */
     months: z.number().int().positive(),
     monthsListed: z.number().int().nonnegative(),

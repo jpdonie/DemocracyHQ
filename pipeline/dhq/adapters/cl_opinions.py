@@ -200,12 +200,16 @@ def compact(item: dict) -> Optional[dict]:
     }
 
 
-#: CourtListener allows this project's token five requests a minute, fifty an hour and 125 a day, and its search
-#: returns twenty decisions for a request. The list of candidates is therefore kept month by month, by the day a decision was filed,
-#: and a run of the pipeline asks the search at most this many times ...
-REQUESTS_PER_RUN = 40
+#: CourtListener allows this project's token twenty requests a minute and a thousand an hour, and its search returns
+#: twenty decisions for a request. The list of candidates is kept month by month, by the day a decision was filed, and a
+#: run of the pipeline asks the search at most this many times: about twice what a reading of every month takes (some
+#: six pages a month), and under a third of the hourly limit, so a second run in the same hour stays within it ...
+REQUESTS_PER_RUN = 300
+#: ... one request every this many seconds: fifteen a minute, against the twenty allowed ...
+SEARCH_INTERVAL = 4.0
 #: ... first for the newest months, where new decisions appear, then for the months not read yet, then for the month
-#: whose list is the oldest. Every month is so read again in turn.
+#: whose list is the oldest. A run so normally reads every month again; when the requests run out first, the months
+#: left are read on the next run.
 NEWEST_MONTHS = 2
 #: A month read again that returns less than this share of what it held before is not believed: its list stays.
 MIN_MONTH_SHARE = 0.5
