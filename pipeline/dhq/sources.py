@@ -172,7 +172,7 @@ SOURCES: dict[str, dict] = {
         ],
     ),
     "courtlistener-api": dict(
-        name="CourtListener: decisions of federal district courts and of state courts (Free Law Project)",
+        name="CourtListener: decisions of federal district courts and of state courts, and dockets of the RECAP Archive (Free Law Project)",
         url="https://www.courtlistener.com/",
         sourceType="secondary_api", authority="Free Law Project, a non-profit organisation. It is not a court and not an official source.",
         license="The decisions of courts are not subject to copyright in the United States. CourtListener's collection and its records are provided by Free Law Project under its terms. The decisions are linked, not mirrored, and every record read from it is labelled 'Imported from secondary source'.",
@@ -184,8 +184,11 @@ SOURCES: dict[str, dict] = {
         knownLimitations=[
             "CourtListener is a collection, not a court. It gathers decisions from the courts' own sites and from other collections, and it does not hold every decision of a court. For many trial courts it holds few decisions or none. A missing case does not mean that nothing was decided.",
             "Which cases are included is decided by selection rule court-select-1: CourtListener's search is asked for decisions with election terms, and the text of each is then counted as for the courts of appeals. It can miss an election case and can pick a case that only mentions elections, or one about an election that is not a public one.",
-            "Only decisions are read. A docket, a complaint, a brief or an order that CourtListener does not hold as a decision is not covered, and a pending case without a decision does not appear.",
+            "For every other case only decisions are read. A docket, a complaint, a brief or an order that CourtListener does not hold as a decision is not covered, and a pending case without a decision does not appear.",
             "A record is made from CourtListener's copy of a decision and from the case name, docket number, court and date that CourtListener gives. None of it is compared with the court's own record. Where CourtListener recorded the court's own address for a document, the record gives it, unchecked.",
+            "Voting cases of the federal district courts are also read from their dockets in the RECAP Archive (rule docket-select-1): the dockets filed since January 1, 2025 to which the clerk gave the nature of suit 441, 'Civil Rights: Voting'. The archive holds what its users and programs have retrieved from PACER, the courts' paid system. A case nobody has retrieved is missing, a docket may lack its latest entries, and most filings have no copy there. A voting case the clerk filed under another nature of suit is not found.",
+            "The entries of such a docket are listed in the clerk's words (rule recap-entry-1). No rule reads them for rulings, so no ruling is named and none of them enters the timeline. The lists of parties and lawyers the archive holds are not read.",
+            "A run may send CourtListener a limited number of requests for dockets. A docket that CourtListener has not changed since it was read is not read again; a docket no run has reached yet is missing until a later run reads it.",
             "A court is listed under a state by its name (rule court-state-1). That says where the court sits, not what a case concerns.",
             "Whether a decision was later reheard, vacated, appealed or reviewed is not recorded.",
             "CourtListener limits how often its search may be asked, so the list of decisions is kept month by month and each run may ask the search a limited number of times. The two newest months are asked for first, then the months not read yet, then the months read longest ago; a run normally reads every month. A month the run's requests do not reach is read on the next run. The data and methodology page says how many months have been read and when the one read longest ago was read.",

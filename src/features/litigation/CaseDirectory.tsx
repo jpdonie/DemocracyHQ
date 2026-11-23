@@ -138,12 +138,14 @@ export function CaseRow({ record, labels, note }: { record: LegalCaseSummary; la
         <p className="row-line quiet">
           {basis === 'docket' ? 'No ruling entry identified on the docket.'
             : basis === 'govinfo' ? 'No decision identified among the documents GovInfo holds for this case.'
+            : basis === 'recap' ? `${plural(record.entryCount, 'docket entry', 'docket entries')} in the RECAP Archive. No rule reads them for rulings yet: see the docket.`
             : 'No opinion of the court among the documents CourtListener holds for this case.'}
         </p>
       )}
       <p className="row-foot">
         {basis === 'docket' ? <>Docket activity through {formatDate(record.sourceLastActivity, 'an unreported date')}</>
           : basis === 'govinfo' ? <>Documents on GovInfo through {formatDate(record.sourceLastActivity, 'an unreported date')}{record.origin ? `. Court below: ${record.origin.court}` : ''}</>
+          : basis === 'recap' ? <>The docket as the RECAP Archive holds it, not the court&rsquo;s own, through {formatDate(record.sourceLastActivity, 'an unreported date')}</>
           : <>CourtListener&rsquo;s copy, not the court&rsquo;s, through {formatDate(record.sourceLastActivity, 'an unreported date')}</>}
       </p>
     </li>

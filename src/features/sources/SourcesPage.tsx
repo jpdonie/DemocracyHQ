@@ -1,6 +1,6 @@
 /** Data sources and methodology: where every record comes from, how it is processed, and what it cannot tell you. */
 import { useEffect } from 'react';
-import { VERIFICATION_STATUSES, type StateLegislationIndex, type VerificationStatus } from '../../types/schemas';
+import { VERIFICATION_STATUSES, type DocketListing, type StateLegislationIndex, type VerificationStatus } from '../../types/schemas';
 import { isFederalBill, shortSession } from '../../lib/bills';
 import { useCore, useStateLegislation, type AppealsCoverage, type BillCatalog, type DecisionsCoverage } from '../../lib/core';
 import { SCOTUS_ID, courtHash, courtShortName, isAppealsCourtId, levelName, levelOfKind, systemOfKind, type CourtDirectory, type CourtKind } from '../../lib/courts';
@@ -146,6 +146,21 @@ const DECISION_KINDS: readonly CourtKind[] = ['federal_district', 'state_supreme
  * kind of court. The courts are several hundred, so the table counts them by kind; the list of court cases has a
  * filter for every single court.
  */
+/** The dockets of voting cases in the federal district courts, read from the RECAP Archive: the rule and how far the reading has come. */
+function DocketListingNote({ dockets }: { dockets: DocketListing }) {
+  return (
+    <p>
+      Voting cases of the federal district courts are also read from their dockets (rule {dockets.ruleId}). CourtListener&rsquo;s search is asked for the dockets of the RECAP Archive filed since {formatDate(dockets.since)} to which the clerk of the court gave the nature of suit {dockets.natureOfSuitCode}, &ldquo;Civil Rights: Voting&rdquo;: <Pattern>{dockets.query}</Pattern>
+      {dockets.listed != null && dockets.listedAt
+        ? <> When the list was last read, on {formatDateTime(dockets.listedAt)}, it held {formatNumber(dockets.listed)} such dockets of district courts; {formatNumber(dockets.published)} are published, each with every entry the archive holds.</>
+        : <> {formatNumber(dockets.published)} such dockets are published, each with every entry the archive holds.</>}
+      {dockets.waiting > 0 ? ` ${formatNumber(dockets.waiting)} have not been read yet, because CourtListener limits how many requests a run may send; they are read on later runs.` : ''}
+      {' '}The clerk&rsquo;s code selects the case and no words are counted. The archive holds what its users and programs have retrieved from PACER, so a voting case nobody has retrieved is missing, and so is one the clerk filed under another nature of suit.
+      A case whose docket the archive holds is shown from the docket and not from its decisions.
+    </p>
+  );
+}
+
 function DecisionsSelection({ decisions, published }: { decisions: DecisionsCoverage; published: number | null }) {
   const selection = decisions.selection;
   const rows = DECISION_KINDS.map((kind) => {
@@ -220,6 +235,7 @@ function DecisionsSelection({ decisions, published }: { decisions: DecisionsCove
           </tfoot>
         </table>
       </TableScroll>
+      {decisions.dockets ? <DocketListingNote dockets={decisions.dockets} /> : null}
       <GapNotice>
         CourtListener does not hold every decision of a court, and for many trial courts it holds few or none: a court with no case here may still have decided one. Only decisions are read, so a pending case without a written decision does not appear.
         The rule counts words: it can miss an election case, and it can include a case that only discusses elections or that concerns an election that is not a public one.
@@ -458,7 +474,9 @@ export function SourcesPage({ route }: { route: Route }) {
         </Async>
         <h3>What is not covered in the courts</h3>
         <p>
-          No court&rsquo;s docket is read but the Supreme Court&rsquo;s. For every other court the dataset holds decisions only, so filings, hearings and orders that are not published as a decision are missing, and so is every case that has no written decision yet.
+          {(dataOf(core.decisions)?.dockets?.published ?? 0) > 0
+            ? 'The Supreme Court’s dockets are read from the Court, and the dockets of voting cases in the federal district courts from the RECAP Archive, as far as it holds them. For every other case the dataset holds decisions only, so filings, hearings and orders that are not published as a decision are missing, and so is every case that has no written decision yet.'
+            : 'No court’s docket is read but the Supreme Court’s. For every other court the dataset holds decisions only, so filings, hearings and orders that are not published as a decision are missing, and so is every case that has no written decision yet.'}
         </p>
         <h3>Legislation</h3>
         <Async of={core.bills} what="the legislation indexes">

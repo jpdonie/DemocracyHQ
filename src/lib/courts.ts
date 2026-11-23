@@ -6,7 +6,7 @@
  * thirteenth, the Federal Circuit, takes cases by subject from every district, so it has no area of its own.
  */
 import type { CircuitsFile, Court, LegalCaseSummary } from '../types/schemas';
-import { CIRCUIT_CASE_ID_PATTERN, type OTHER_COURT_TYPES } from '../types/schemas';
+import { CIRCUIT_CASE_ID_PATTERN, RECAP_DOCKET_TYPE, type OTHER_COURT_TYPES } from '../types/schemas';
 import { CONTIGUOUS_BOUNDS, unionBbox, type Bbox, type GeoIndex } from './geo';
 import { buildHash } from './router';
 
@@ -103,14 +103,16 @@ export function levelName(level: CourtLevel, system?: CourtSystem | null): strin
 
 /**
  * How a case is known. The Supreme Court's dockets are the Court's own; a court of appeals case is known from the
- * documents GovInfo holds for it; a case of a district court or a state court from the decisions CourtListener holds.
- * The three are worded differently wherever a record is shown.
+ * documents GovInfo holds for it; a case of a district court or a state court from the decisions CourtListener holds,
+ * or, for a voting case of a federal district court, from its docket as the RECAP Archive on CourtListener holds it.
+ * The four are worded differently wherever a record is shown.
  */
-export type RecordBasis = 'docket' | 'govinfo' | 'courtlistener';
+export type RecordBasis = 'docket' | 'govinfo' | 'courtlistener' | 'recap';
 
-export function recordBasis(record: Pick<LegalCaseSummary, 'courtId'>): RecordBasis {
+export function recordBasis(record: Pick<LegalCaseSummary, 'courtId' | 'docketType'>): RecordBasis {
   if (record.courtId === SCOTUS_ID) return 'docket';
-  return isAppealsCourtId(record.courtId) ? 'govinfo' : 'courtlistener';
+  if (isAppealsCourtId(record.courtId)) return 'govinfo';
+  return record.docketType === RECAP_DOCKET_TYPE ? 'recap' : 'courtlistener';
 }
 
 /** Where the name of a case's court leads: the court's page for the fourteen federal courts, else the list of its cases. */

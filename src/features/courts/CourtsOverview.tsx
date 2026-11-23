@@ -10,7 +10,7 @@ import { formatDate, plural } from '../../lib/format';
 import type { GeoIndex } from '../../lib/geo';
 import { buildHash } from '../../lib/router';
 import { allOf, dataOf } from '../../lib/useLoad';
-import { A, Async, BackLink, Ext, GapNotice, Method, Section, TypeMark } from '../../components/ui';
+import { A, Async, BackLink, Ext, Method, Section, TypeMark, DocketGap } from '../../components/ui';
 
 /** Sections of title 28 in the edition of the United States Code that GovInfo publishes, for the links in the last section. */
 const USC_28 = 'https://www.govinfo.gov/content/pkg/USCODE-2024-title28/html/USCODE-2024-title28';
@@ -154,7 +154,7 @@ export function CourtsOverview() {
                   Some election cases never pass through a court of appeals: a constitutional challenge to the apportionment of congressional districts or of a statewide legislative body is heard by a district court of three judges
                   (<Ext href={USC_28_2284}>28 U.S.C. § 2284</Ext>), and an appeal from such a court goes directly to the Supreme Court (<Ext href={USC_28_1253}>28 U.S.C. § 1253</Ext>).
                 </p>
-                <GapNotice>Only the Supreme Court&rsquo;s dockets are read. For every other court the dataset holds decisions, not dockets, so a case without a written decision is not listed.</GapNotice>
+                <DocketGap dockets={dataOf(core.decisions)?.dockets} />
               </Section>
             </>
           );

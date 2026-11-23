@@ -290,6 +290,26 @@ great deal of litigation.
   daily update lists the others and every run then reads every month again. A
   month that returns far fewer decisions than before keeps its earlier list and is
   flagged for review.
+- **Dockets of the federal district courts come from the RECAP Archive, and only
+  for voting cases.** The archive (Free Law Project) holds the dockets and filings
+  that its users and programs have retrieved from PACER, the courts' paid system.
+  The pipeline lists the dockets filed since 2025 to which the clerk gave the
+  nature of suit 441, "Civil Rights: Voting" (rule `docket-select-1`), and
+  publishes each with every entry the archive holds. A case nobody has retrieved
+  is missing; a docket may lack its latest entries; most filings have no copy
+  there. A voting case the clerk filed under another nature of suit (an
+  Administrative Procedure Act challenge to an election rule, a campaign finance
+  case, many redistricting cases under "other civil rights") is not found by this
+  rule. The share of all voting cases filed that the archive holds has not been
+  measured against the Federal Judicial Center's count.
+- **No rule reads the entries of a district court's docket.** They are listed in
+  the clerk's words (rule `recap-entry-1`). No ruling is named, no entry enters
+  the timeline, the opening of no filing is quoted, and the issue tags of such a
+  case come from its title alone. The lists of parties and lawyers the archive
+  holds are not read.
+- **A run reads a limited number of dockets.** One run sends at most 300 requests
+  for dockets, twenty entries a request. A docket no run has reached yet is
+  missing, and the methodology page says how many wait.
 - **The opening paragraph is quoted only from a PDF.** A decision CourtListener
   holds as a web page (many New York, Maryland and Oklahoma decisions) is listed
   without one, and so is a PDF whose layout the rule cannot read with confidence.

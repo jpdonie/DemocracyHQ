@@ -279,6 +279,7 @@ export const LegalCaseSummarySchema = z.object({
   /** Cases of federal district courts and of state courts only: the court, which the site does not list itself. */
   court: CaseCourtSchema.nullable().optional(),
   jurisdiction: z.string(),
+  /** "recap" for a case made from its docket in the RECAP Archive (rule docket-select-1), not from decisions. */
   docketType: z.string().nullable().optional(),
   dateDocketed: isoDate.nullable().optional(),
   dateFirstEntry: isoDate.nullable().optional(),
@@ -298,7 +299,7 @@ export const LegalCaseSummarySchema = z.object({
   origin: CaseOriginSchema.nullable().optional(),
   /** Court of appeals decisions only: "Published" or "Unpublished", when the court's entry for the opinion says so. */
   publication: z.string().nullable().optional(),
-  /** Court of appeals decisions only: the nature of suit in the court's record, when it gives one. */
+  /** Court of appeals decisions and dockets of the RECAP Archive: the nature of suit in the court's record, when it gives one. */
   natureOfSuit: z.string().nullable().optional(),
   /** Court of appeals decisions only: other cases in the dataset decided in the same opinion. */
   decidedWith: z.array(DecidedWithSchema).default([]),
@@ -963,9 +964,35 @@ export type DecisionCoverage = z.infer<typeof DecisionCoverageSchema>;
  * The index of the cases of federal district courts and of state courts (decisions/index.json), with the selection
  * rule and what was read for each court. The records are made from the decisions CourtListener holds.
  */
+/** What `docketType` says of a case made from a docket of the RECAP Archive (rule docket-select-1), not from decisions. */
+export const RECAP_DOCKET_TYPE = 'recap';
+
+/**
+ * The dockets of voting cases in the federal district courts read from the RECAP Archive on CourtListener: the rule,
+ * how many dockets its search lists, how many are published and how many still wait to be read. Releases made before
+ * dockets were read do not carry it.
+ */
+export const DocketListingSchema = z.object({
+  ruleId: z.string(),
+  entryRuleId: z.string(),
+  courtStateRuleId: z.string(),
+  since: isoDate,
+  query: z.string(),
+  natureOfSuitCode: z.string(),
+  /** How many dockets the search listed when it was last read, and when that was. Null until it has been read once. */
+  listed: z.number().int().nonnegative().nullable(),
+  listedAt: isoDateTime.nullable(),
+  published: z.number().int().nonnegative(),
+  /** Listed dockets that no run has read yet: CourtListener limits how many requests a run may send. */
+  waiting: z.number().int().nonnegative(),
+  readInThisRun: z.number().int().nonnegative(),
+});
+export type DocketListing = z.infer<typeof DocketListingSchema>;
+
 export const DecisionIndexSchema = z.object({
   cases: z.array(LegalCaseSummarySchema),
   coverage: z.record(z.string(), DecisionCoverageSchema),
+  dockets: DocketListingSchema.optional(),
   scannedAt: isoDateTime,
   selection: z.object({
     ruleId: z.string(),
