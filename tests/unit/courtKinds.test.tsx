@@ -289,7 +289,7 @@ describe('a voting case of a federal district court read from its docket in the 
     expect(screen.queryByRole('heading', { name: 'What CourtListener holds for this case' })).toBeNull();
 
     const why = screen.getByRole('heading', { name: 'Why this case is listed' }).closest('section')!;
-    expect(why.textContent).toContain('Picked by a published rule (rule docket-select-1), not by a maintainer');
+    expect(why.textContent).toContain('Picked by a published rule (rule docket-select-2), not by a maintainer');
     expect(why.textContent).toContain('The court’s record gives the case the nature of suit 441 (Civil Rights: Voting).');
     expect(why.textContent).toContain('A voting case filed under another one is missed');
     expect(why.textContent).not.toContain('election words');

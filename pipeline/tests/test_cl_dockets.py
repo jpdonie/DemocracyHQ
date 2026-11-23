@@ -103,6 +103,17 @@ def test_a_docket_the_rule_does_not_take_is_left_out(change):
 
 def test_the_nature_of_suit_is_taken_when_the_clerk_gave_the_code_alone():
     assert cl_dockets.compact({**docket(7), "suitNature": "441"})["nature"] == ""
+
+
+@pytest.mark.parametrize("words", ["Civil Rights: Voting", "Civil Rights:  Voting", "Voting"])
+def test_the_nature_of_suit_is_taken_when_the_docket_sheet_gives_the_words_alone(words):
+    entry = cl_dockets.compact({**docket(7), "suitNature": words})
+    assert entry is not None and entry["nature"] == cl_dockets._text(words)
+
+
+@pytest.mark.parametrize("words", ["Civil Rights: Voting Machines", "Civil Rights: Other", "1441 Voting", "Voting (Civil Rights)"])
+def test_other_words_are_not_taken(words):
+    assert cl_dockets.compact({**docket(7), "suitNature": words}) is None
     assert cl_dockets.compact({**docket(7), "docket_absolute_url": "https://elsewhere.example/x"})["url"] == ""
 
 
@@ -113,7 +124,7 @@ def test_the_list_is_asked_for_by_the_clerks_code_and_followed_on_the_search_onl
     budget = Budget(5)
     assert [found["docket"] for found in cl_dockets.list_dockets(fetcher, budget)] == [2, 3] and budget.used == 2
     first = session.calls[0]
-    assert first["params"] == {"type": "d", "q": 'suitNature:"441"', "filed_after": cl_dockets.SINCE, "order_by": "dateFiled desc"}
+    assert first["params"] == {"type": "d", "q": 'suitNature:"441" OR suitNature:voting', "filed_after": cl_dockets.SINCE, "order_by": "dateFiled desc"}
     assert all(call["headers"]["Authorization"] == f"Token {TOKEN}" for call in session.calls)
 
     session.on(SEARCH, FakeResponse(200, {"count": 1, "results": [docket(2)], "next": "https://elsewhere.example/api/search/?cursor=2"}))
@@ -161,7 +172,7 @@ def test_a_docket_is_published_as_what_the_archive_holds_and_no_more():
     assert case.events[0].documentIds == ["cl-7-d1", "cl-7-d2"] and case.events[1].documentIds == []
     assert (case.entryCount, case.documentCount) == (3, 2)
     # The clerk's code selects the case; nothing is counted, no ruling is named and no state is said to be concerned.
-    assert case.selection.model_dump(exclude_none=True) == {"ruleId": "docket-select-1", "tests": ["record"], "natureOfSuitCode": "441",
+    assert case.selection.model_dump(exclude_none=True) == {"ruleId": "docket-select-2", "tests": ["record"], "natureOfSuitCode": "441",
                                                             "natureOfSuit": "Civil Rights: Voting", "phrases": []}
     assert case.latestDispositiveEntry is None and case.stateFips == [] and case.about is None and case.parties == []
     assert (case.verification.status.value, case.firstObservedAt, case.lastCheckedAt, case.sourcePublishedAt) == ("imported_secondary", T1, T2, "2026-03-05T10:00:00Z")
@@ -249,11 +260,11 @@ def test_the_stage_publishes_the_dockets_beside_the_cases_found_by_their_decisio
     assert code == 0
     index = dockets.read("decisions/index.json")
     assert sorted(case["id"] for case in index["cases"]) == ["cl-101", "cl-103", "cl-900"]
-    assert index["dockets"] == {"ruleId": "docket-select-1", "entryRuleId": "recap-entry-1", "courtStateRuleId": "court-state-1", "since": cl_dockets.SINCE,
-                                "query": 'suitNature:"441"', "natureOfSuitCode": "441", "listed": 2, "listedAt": T1, "published": 2, "waiting": 0, "readInThisRun": 2}
+    assert index["dockets"] == {"ruleId": "docket-select-2", "entryRuleId": "recap-entry-1", "courtStateRuleId": "court-state-1", "since": cl_dockets.SINCE,
+                                "query": 'suitNature:"441" OR suitNature:voting', "natureOfSuitCode": "441", "listed": 2, "listedAt": T1, "published": 2, "waiting": 0, "readInThisRun": 2}
     # A case whose docket the archive holds is published from the docket, not from its decisions.
     both = dockets.read("decisions/cases/cl-103.json")
-    assert both["docketType"] == "recap" and both["entryCount"] == 3 and both["selection"]["ruleId"] == "docket-select-1"
+    assert both["docketType"] == "recap" and both["entryCount"] == 3 and both["selection"]["ruleId"] == "docket-select-2"
     assert dockets.read("decisions/cases/cl-101.json")["docketType"] is None
     # The ledger of the scan of decisions still counts it as a case selected by its decisions.
     assert index["coverage"]["txnd"]["selected"] == 1 and "gand" not in index["coverage"]
@@ -262,7 +273,7 @@ def test_the_stage_publishes_the_dockets_beside_the_cases_found_by_their_decisio
     source = dockets.source("courtlistener-api")
     assert (source["processingStatus"], source["recordCount"], source["statusDetail"]) == ("ok", 3, None)
     rules = {rule["ruleId"] for rule in dockets.read("classification.json")["otherRules"]}
-    assert {"docket-select-1", "recap-entry-1"} <= rules
+    assert {"docket-select-2", "recap-entry-1"} <= rules
     # A docket is not flagged for a maintainer to read, and none of its entries enters the timeline.
     assert not any(item["kind"] == "new_selection" and item["entity"] in ("cl-103", "cl-900") for item in ctx.review)
     assert not any(event["entityId"].startswith("cl-") for event in dockets.read("events.json")["events"])
