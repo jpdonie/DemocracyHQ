@@ -22,7 +22,7 @@ SEARCH = cl_opinions.SEARCH_URL
 STORE = cl_opinions.STORAGE_ROOT
 TOKEN = "synthetic-secret-token-123"
 NOW = "2026-06-01T10:00:00Z"
-#: Every month the list has on the day of ``NOW``: January 2025 to June 2026.
+#: Every month the list has on the day of ``NOW``: January 2024 to June 2026.
 MONTHS = cl_opinions.months(cl_opinions.SINCE, NOW[:10])
 STAGES = ["courtlistener", "scotus", "relationships", "events"]
 
@@ -98,7 +98,7 @@ def signed(monkeypatch):
 def test_the_months_run_from_the_starting_day_to_today():
     assert cl_opinions.months("2025-11-15", "2026-02-03") == ["2025-11", "2025-12", "2026-01", "2026-02"]
     assert cl_opinions.months("2026-02-01", "2026-02-28") == ["2026-02"]
-    assert (MONTHS[0], MONTHS[-1], len(MONTHS)) == ("2025-01", "2026-06", 18)
+    assert (MONTHS[0], MONTHS[-1], len(MONTHS)) == ("2024-01", "2026-06", 30)
     assert cl_opinions.month_days("2028-02") == ("2028-02-01", "2028-02-29")
     # The first month is never asked for from before the starting day.
     assert cl_opinions.month_days("2025-01", since="2025-01-20") == ("2025-01-20", "2025-01-31")
@@ -246,8 +246,8 @@ def test_a_run_reads_the_newest_months_first_then_the_months_never_read_then_tho
     assert search.asked == ["2026-06", "2026-05", "2026-01", "2025-12"]
     assert second.months["2026-06"]["listedAt"] == T2 and second.months["2026-04"]["listedAt"] == T1
     # Once every month is held, the requests left go to the months read longest ago, the earlier month first.
-    whole = cl_opinions.refresh_listing(fetcher, state_of(second), now=T2, requests=13)
-    assert sorted(whole.months) == MONTHS and sorted(whole.entries) == [1, 2, 3] and whole.requests == 13
+    whole = cl_opinions.refresh_listing(fetcher, state_of(second), now=T2, requests=25)
+    assert sorted(whole.months) == MONTHS and sorted(whole.entries) == [1, 2, 3] and whole.requests == 25
     search.asked.clear()
     third = cl_opinions.refresh_listing(fetcher, state_of(whole), now=T3, requests=5)
     assert search.asked == ["2026-06", "2026-05", "2026-02", "2026-03", "2026-04"]
@@ -311,7 +311,7 @@ def test_a_list_made_by_another_rule_or_query_or_in_other_fields_is_not_used(fet
     Search(session, [item(1, 101, "2026-06-01")])
     state = state_of(cl_opinions.refresh_listing(fetcher, None, now=T1, requests=1))
     assert cl_opinions.listing_of(state)[0].keys() == {"2026-06"}
-    for change in ({"ruleId": "court-select-0"}, {"since": "2024-01-01"}, {"query": "ballot"},
+    for change in ({"ruleId": "court-select-0"}, {"since": "2023-01-01"}, {"query": "ballot"},
                    {"listing": {**state["listing"], "entryFields": ["cluster"]}}, {"listing": {**state["listing"], "documentFields": ["id"]}}):
         assert cl_opinions.listing_of({**state, **change}) == ({}, {})
     assert cl_opinions.listing_of(None) == ({}, {})
@@ -574,7 +574,7 @@ def test_the_stage_publishes_the_selected_cases_with_the_list_they_were_selected
     assert (selection["ruleId"], selection["since"], selection["textRuleId"]) == ("court-select-1", cl_opinions.SINCE, uscourts.SELECTION_RULE_ID)
     assert selection["searchTerms"] == list(cl_opinions.SEARCH_TERMS) and selection["courtTypes"] == cl_opinions.COURT_TYPES
     assert (selection["candidates"], selection["skipped"], selection["totalCasesRead"], selection["totalDocumentsRead"]) == (4, {}, 3, 4)
-    assert (selection["months"], selection["monthsListed"], selection["oldestListingAt"]) == (18, 18, T1)
+    assert (selection["months"], selection["monthsListed"], selection["oldestListingAt"]) == (30, 30, T1)
     assert index["coverage"]["txnd"] == {"name": "United States District Court for the Northern District of Texas", "courtType": "federal_district",
                                          "stateFips": "48", "cases": 1, "documents": 2, "unreadableDocuments": 0, "selected": 1}
     assert decisions.search.asked == MONTHS[::-1][:2] + MONTHS[::-1][2:]  # the newest first, each month asked for once
@@ -636,9 +636,9 @@ def test_a_run_asks_the_search_no_more_often_than_it_may_and_says_which_months_a
     code, ctx = decisions.run(STAGES, now=T1)
     assert code == 0 and decisions.search.asked == ["2026-06", "2026-05", "2026-04"]
     selection = decisions.read("decisions/index.json")["selection"]
-    assert (selection["months"], selection["monthsListed"]) == (18, 3)
+    assert (selection["months"], selection["monthsListed"]) == (30, 3)
     detail = decisions.source("courtlistener-api")["statusDetail"]
-    assert "15 of 18 months of CourtListener's list have not been read yet (2025-01 to 2026-03)" in detail
+    assert "27 of 30 months of CourtListener's list have not been read yet (2024-01 to 2026-03)" in detail
     # The next run goes on where this one stopped.
     decisions.search.asked.clear()
     decisions.run(STAGES, now=T2)

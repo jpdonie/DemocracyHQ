@@ -69,8 +69,10 @@ from .scotus import extract_pdf_text
 log = logging.getLogger("dhq.uscourts")
 
 SOURCE_ID = "govinfo-uscourts"
-#: Documents issued on or after this day are read. A case whose latest document is older is not listed.
-SINCE = "2025-01-01"
+#: Documents issued on or after this day are read. A case whose latest document is older is not listed. The day is the
+#: start of the election cycle of 2024, the latest one that published counts of election litigation cover, so that
+#: what is found here can be compared with them.
+SINCE = "2024-01-01"
 SITEMAP_URL = "https://www.govinfo.gov/sitemap/USCOURTS/USCOURTS_{court}_{year}_sitemap.xml"
 RECORD_URL = "https://www.govinfo.gov/metadata/pkg/{package}/mods.xml"
 DETAILS_URL = "https://www.govinfo.gov/app/details/{package}"

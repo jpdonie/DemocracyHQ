@@ -145,7 +145,7 @@ SOURCES: dict[str, dict] = {
         license="Opinions and orders of federal courts are U.S. Government works, not subject to copyright in the United States (17 U.S.C. § 105). They are linked, not mirrored.",
         attribution="U.S. Government Publishing Office, GovInfo: United States Courts Opinions",
         geographicCoverage="The thirteen federal courts of appeals. District courts and state courts are read from another source, CourtListener.",
-        temporalCoverage="Cases with an opinion or order issued since January 1, 2025",
+        temporalCoverage="Cases with an opinion or order issued since January 1, 2024",
         updateCadence="New and changed cases read daily; every case in the dataset re-read daily", staleAfterDays=7,
         knownLimitations=[
             "Which cases are included is decided by selection rule circuit-select-1, which counts election words and phrases in each opinion and reads the nature of suit in the court's record. It can miss an election case and can pick a case that only mentions elections. Every case a maintainer removed is published with a quoted passage that shows why.",
@@ -178,7 +178,7 @@ SOURCES: dict[str, dict] = {
         license="The decisions of courts are not subject to copyright in the United States. CourtListener's collection and its records are provided by Free Law Project under its terms. The decisions are linked, not mirrored, and every record read from it is labelled 'Imported from secondary source'.",
         attribution="CourtListener, a project of Free Law Project",
         geographicCoverage="Federal district courts and the supreme, appellate and trial courts of the states, as far as CourtListener holds their decisions. Its holdings differ much from court to court.",
-        temporalCoverage="Cases with a decision filed since January 1, 2025",
+        temporalCoverage="Cases with a decision filed, or a docket opened, since January 1, 2024",
         updateCadence="Read daily when a token is configured: the list of every month and every selected case on each run, the two newest months first", staleAfterDays=7,
         credentialEnv="COURTLISTENER_API_TOKEN",
         knownLimitations=[
@@ -186,7 +186,7 @@ SOURCES: dict[str, dict] = {
             "Which cases are included is decided by selection rule court-select-1: CourtListener's search is asked for decisions with election terms, and the text of each is then counted as for the courts of appeals. It can miss an election case and can pick a case that only mentions elections, or one about an election that is not a public one.",
             "For every other case only decisions are read. A docket, a complaint, a brief or an order that CourtListener does not hold as a decision is not covered, and a pending case without a decision does not appear.",
             "A record is made from CourtListener's copy of a decision and from the case name, docket number, court and date that CourtListener gives. None of it is compared with the court's own record. Where CourtListener recorded the court's own address for a document, the record gives it, unchecked.",
-            "Voting cases of the federal district courts are also read from their dockets in the RECAP Archive (rule docket-select-1): the dockets filed since January 1, 2025 to which the clerk gave the nature of suit 441, 'Civil Rights: Voting'. The archive holds what its users and programs have retrieved from PACER, the courts' paid system. A case nobody has retrieved is missing, a docket may lack its latest entries, and most filings have no copy there. A voting case the clerk filed under another nature of suit is not found.",
+            "Voting cases of the federal district courts are also read from their dockets in the RECAP Archive (rule docket-select-1): the dockets filed since January 1, 2024 to which the clerk gave the nature of suit 441, 'Civil Rights: Voting'. The archive holds what its users and programs have retrieved from PACER, the courts' paid system. A case nobody has retrieved is missing, a docket may lack its latest entries, and most filings have no copy there. A voting case the clerk filed under another nature of suit is not found.",
             "The entries of such a docket are listed in the clerk's words (rule recap-entry-1). No rule reads them for rulings, so no ruling is named and none of them enters the timeline. The lists of parties and lawyers the archive holds are not read.",
             "A run may send CourtListener a limited number of requests for dockets. A docket that CourtListener has not changed since it was read is not read again; a docket no run has reached yet is missing until a later run reads it.",
             "A court is listed under a state by its name (rule court-state-1). That says where the court sits, not what a case concerns.",

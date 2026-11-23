@@ -171,7 +171,7 @@ def test_a_clerks_cover_letter_is_not_counted_and_a_document_before_the_starting
     result = evaluate([letter])
     assert (result["outcome"], result["coverLetters"], result["documents"], result["unreadable"]) == ("", [f"{PKG}-0"], 1, 0)
     assert uscourts.is_cover_letter(letter) and not uscourts.is_cover_letter(fed.election_opinion())
-    old = record_of(documents=[fed.document(0, "2024-12-31", OPINION)])
+    old = record_of(documents=[fed.document(0, "2023-12-31", OPINION)])
     assert uscourts.evaluate(old, {})["documents"] == 0 and uscourts.evaluate(old, {})["outcome"] == ""
     unreadable = evaluate([None], nature=("441", "Civil Rights Voting"))
     assert (unreadable["outcome"], unreadable["unreadable"], unreadable["document"]) == ("selected", 1, None)
@@ -189,12 +189,16 @@ def test_an_exclusion_takes_effect_only_when_its_passage_is_found_in_the_opinion
 
 def test_changing_a_selection_pattern_requires_a_new_rule_id():
     """The published scan state is reused only for the rule id it was made with. A changed pattern under the same id
-    would leave every case that was read before unread, so the id must change with the patterns (and this hash with it)."""
+    would leave every case that was read before unread, so the id must change with the patterns (and this hash with it).
+
+    The starting day is part of the hash and is the one exception: a scan state is reused only for the starting day it
+    was made with, so moving the day reads every case again under the same rule id. The day moved from 2025-01-01 to
+    2024-01-01 in November 2026, and the hash with it."""
     parts = [uscourts.WORD_PATTERN.pattern, uscourts.PHRASE_PATTERN.pattern, uscourts.LABOR_PATTERN.pattern, uscourts.AUTHORITY_PATTERN.pattern,
              uscourts.COVER_LETTER_PATTERN.pattern, repr(sorted(uscourts.TEXT_TESTS.items())), repr(sorted(uscourts.OTHER_FIELD_CODES)),
              repr((uscourts.LABOR_MIN_MATCHES, uscourts.LABOR_RATIO, uscourts.VOTING_NATURE_OF_SUIT, uscourts.SINCE, uscourts.COVER_LETTER_WINDOW))]
     digest = hashlib.sha256("\n".join(parts).encode("utf-8")).hexdigest()
-    assert (uscourts.SELECTION_RULE_ID, digest) == ("circuit-select-1", "c44092987df9e8673abce13295f31167a9f6b4b584110954f1f892b9374f325d")
+    assert (uscourts.SELECTION_RULE_ID, digest) == ("circuit-select-1", "bde3ea68606a21fdbaca8ec37d0a64c91dac9123bfefe22707a974d15468dae7")
 
 
 # --- labels read from the record and the opinion -------------------------------------------------
@@ -335,7 +339,7 @@ def test_the_first_scan_reads_every_listed_case_and_records_what_the_rule_found(
     assert list(result.selected) == [PKG] and list(result.excluded) == [SCHOOL]
     assert result.state["packages"]["ca5"] == {"25-30725": ["2026-05-20T12:00:00.123Z", 1, 0, 0, 1], "25-00002": ["2026-05-20T12:00:00.123Z", 1, 0, 0, 0]}
     assert result.state["packages"]["ca11"] == {"25-00003": ["2026-05-20T12:00:00.123Z", 1, 0, 0, 2], "25-00006": ["2026-05-20T12:00:00.123Z", 1, 0, 0, 0]}
-    assert (result.state["ruleId"], result.state["since"], result.state["fields"]) == ("circuit-select-1", "2025-01-01", uscourts.STATE_FIELDS)
+    assert (result.state["ruleId"], result.state["since"], result.state["fields"]) == ("circuit-select-1", "2024-01-01", uscourts.STATE_FIELDS)
     coverage = uscourts.coverage(result.state)
     assert coverage["ca5"] == {"cases": 2, "documents": 2, "coverLetters": 0, "unreadableDocuments": 0, "selected": 1, "excluded": 0}
     assert coverage["cafc"]["cases"] == 0 and coverage["ca11"]["excluded"] == 1

@@ -202,9 +202,10 @@ def compact(item: dict) -> Optional[dict]:
 
 #: CourtListener allows this project's token twenty requests a minute and a thousand an hour, and its search returns
 #: twenty decisions for a request. The list of candidates is kept month by month, by the day a decision was filed, and a
-#: run of the pipeline asks the search at most this many times: about twice what a reading of every month takes (some
-#: six pages a month), and under a third of the hourly limit, so a second run in the same hour stays within it ...
-REQUESTS_PER_RUN = 300
+#: run of the pipeline asks the search at most this many times: more than a reading of every month since 2024 takes
+#: (some six pages a month), and little over a third of the hourly limit, so that the dockets of the same run
+#: (``cl_dockets.REQUESTS_PER_RUN``) fit under it as well ...
+REQUESTS_PER_RUN = 360
 #: ... one request every this many seconds: fifteen a minute, against the twenty allowed ...
 SEARCH_INTERVAL = 4.0
 #: ... first for the newest months, where new decisions appear, then for the months not read yet, then for the month
