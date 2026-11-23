@@ -53,7 +53,7 @@ appeals that began in a federal district court there.
   dockets. A case here is therefore one or more documents with the court's short
   record for it, not a docket with every entry.
 - **Selection (`circuit-select-1`).** Every case with a document issued since
-  2025-01-01 is read. A case is selected when the court's record gives it the nature
+  2024-01-01 is read. A case is selected when the court's record gives it the nature
   of suit 441 (Civil Rights: Voting), or when the text of one of its documents meets
   one of the published text tests. The thresholds are published in
   `public/data/circuits/index.json`, with what was read for each court.
@@ -114,7 +114,7 @@ short and complete in that state:
 
 - Federal district courts and state courts are not covered. Most election
   litigation starts there.
-- Only cases with a document issued since 2025-01-01 are read, and only what the
+- Only cases with a document issued since 2024-01-01 are read, and only what the
   courts send GovInfo.
 - Both selection rules count words. They can miss an election record and can
   include one that only mentions elections.

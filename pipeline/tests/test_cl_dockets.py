@@ -91,7 +91,7 @@ def test_a_docket_is_kept_with_the_fields_that_are_used_and_never_with_its_parti
     {"suitNature": ""},
     {"court": "Court of Appeals for the Eighth Circuit", "court_id": "ca8"},
     {"court": "District Court, Synthetic Territory"},  # a court that cannot be placed in a state
-    {"dateFiled": "2024-12-31"},
+    {"dateFiled": "2023-12-31"},
     {"dateFiled": None},
     {"docket_id": "7"},
     {"caseName": " "},
@@ -227,7 +227,7 @@ def test_a_refusal_for_the_limit_ends_the_reading_and_keeps_what_was_read(fetche
 
 def test_the_dockets_and_the_search_together_stay_within_the_tokens_limits():
     # CourtListener allows the token twenty requests a minute and a thousand an hour; both lists go out at one pace.
-    assert cl_opinions.REQUESTS_PER_RUN + cl_dockets.REQUESTS_PER_RUN <= 1000 * 0.6
+    assert cl_opinions.REQUESTS_PER_RUN + cl_dockets.REQUESTS_PER_RUN <= 1000 * 0.7
 
 
 # --- the stage -----------------------------------------------------------------------------------------

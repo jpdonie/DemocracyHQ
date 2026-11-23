@@ -11,12 +11,18 @@ Status as of the data release of 2026-11-21. The limits of the federal level
 
 - **Courts.** The U.S. Supreme Court (25 dockets chosen by hand) and the thirteen
   federal courts of appeals (128 cases selected by a word-counting rule from what
-  the courts send GovInfo, since 2025 only, as opinions without dockets), and the
+  the courts send GovInfo, since 2024 only, as opinions without dockets), and the
   federal district courts and the courts of the states as far as CourtListener
   holds their decisions (95 cases at this release; see below). Most election
   litigation starts in those courts, and most of it is still missing here. The Eighth Circuit's cases are more likely to be
   missing than those of other courts, because GovInfo holds its cover letters in
   place of its opinions.
+- **The courts are read from 2024, legislation from 2025.** Cases of the courts
+  of appeals, the district courts and the state courts are read from January 1,
+  2024, the start of the election cycle of 2024, so that what is found can be
+  compared with published counts of that cycle's litigation. Legislation starts
+  with the sessions of 2025. A case whose last decision or filing is older than
+  2024 is not listed.
 - **Two legislatures.** Congress (273 of the 20,191 measures of the 119th
   Congress, selected by their titles and policy area) and California's 2025-2026
   Regular Session (132 of its 5,041 measures). No other state, no extraordinary
@@ -277,23 +283,25 @@ great deal of litigation.
 - **District courts and state courts come from a secondary source.** CourtListener
   is run by the Free Law Project, not by any court, and does not hold every
   decision of every court. The cases are selected from the decisions its search
-  lists since 2025 that use one of the search terms; a case whose decision is not
+  lists since 2024 that use one of the search terms; a case whose decision is not
   there, or uses none of the terms, is missed. Only decisions are read: there are
   no docket entries, no filings and no timeline entries for these cases, and a
   case is shown with the latest decision CourtListener holds, not with what
   happened after it.
 - **The list of decisions is read within limits.** CourtListener allows this
   project's token twenty requests a minute and a thousand an hour. The list is
-  kept month by month, and one run asks for at most 300 pages of twenty decisions,
-  fifteen a minute; reading every month takes about 140. At this release 4 of the
-  23 months since January 2025 are listed (August to November 2026); the next
+  kept month by month, and one run asks for at most 360 pages of twenty decisions,
+  fifteen a minute; reading every month takes about 220. The list starts in
+  January 2024. After the starting day moved from 2025 to 2024 the months of 2024
+  are read over the first runs, and the methodology page says how many months are
+  listed; the next
   daily update lists the others and every run then reads every month again. A
   month that returns far fewer decisions than before keeps its earlier list and is
   flagged for review.
 - **Dockets of the federal district courts come from the RECAP Archive, and only
   for voting cases.** The archive (Free Law Project) holds the dockets and filings
   that its users and programs have retrieved from PACER, the courts' paid system.
-  The pipeline lists the dockets filed since 2025 to which the clerk gave the
+  The pipeline lists the dockets filed since 2024 to which the clerk gave the
   nature of suit 441, "Civil Rights: Voting" (rule `docket-select-1`), and
   publishes each with every entry the archive holds. A case nobody has retrieved
   is missing; a docket may lack its latest entries; most filings have no copy
