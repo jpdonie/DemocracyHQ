@@ -226,6 +226,7 @@ const PAIRING_NOT_LOADED = 'Could not be loaded: the file of links between recor
 
 function CaseBody(props: { record: LegalCase; route: Route; links: Loadable<EntityRelationship[]> }) {
   const basis = recordBasis(props.record);
+  // DecisionBody also shows a docket read from the RECAP Archive, in its own words.
   return basis === 'docket' ? <SupremeBody {...props} /> : basis === 'govinfo' ? <AppealBody {...props} /> : <DecisionBody {...props} />;
 }
 
@@ -461,7 +462,9 @@ function WhyListed({ record, documents }: { record: LegalCase; documents: Readon
   const core = useCore();
   const selection = record.selection;
   if (!selection) return null;
-  const fromCourtListener = recordBasis(record) === 'courtlistener';
+  const basis = recordBasis(record);
+  const fromDocket = basis === 'recap';
+  const fromCourtListener = basis === 'courtlistener';
   const partyMinimum = (fromCourtListener ? dataOf(core.decisions) : dataOf(core.appeals))?.selection.textTests.party?.wordMatches;
   const doc = selection.documentId ? documents.get(selection.documentId) : undefined;
   const link = (item: CourtDocument) => (fromCourtListener ? <DecisionDocumentLink doc={item} /> : <AppealDocumentLink doc={item} />);
@@ -473,7 +476,9 @@ function WhyListed({ record, documents }: { record: LegalCase; documents: Readon
     <Section
       title="Why this case is listed"
       note={<>Picked by a published rule ({rule}), not by a maintainer. It does not say what the case decides.</>}
-      method={fromCourtListener
+      method={fromDocket
+        ? <>The rule asks CourtListener for the dockets of the RECAP Archive to which the clerk of a federal district court gave the nature of suit for voting cases. It counts no words.</>
+        : fromCourtListener
         ? <>The rule asks CourtListener for decisions of federal district courts and of state courts with election terms, and counts words in each.</>
         : <>The rule reads the record of the court of appeals and counts words.</>}
     >
@@ -495,7 +500,9 @@ function WhyListed({ record, documents }: { record: LegalCase; documents: Readon
         ) : null}
       </ul>
       <GapNotice>
-        {fromCourtListener
+        {fromDocket
+          ? 'The clerk of the court chooses the nature of suit when the case is filed. A voting case filed under another one is missed, and so is a case whose docket nobody has retrieved from PACER into the archive.'
+          : fromCourtListener
           ? 'The rule can include a case that only discusses elections, or one about an election that is not a public one. It reads the decisions CourtListener holds, so a case with no decision there is missed.'
           : 'The rule can include a case that only discusses elections. A maintainer removes a case only where the opinion itself shows that no public election is at issue.'}
       </GapNotice>
@@ -661,6 +668,8 @@ const COURT_KIND_NAMES: Readonly<Record<CourtKind, string>> = {
 function DecisionDocumentLink({ doc }: { doc: CourtDocument }) {
   if (!doc.url) return <span>{appealDocumentLabel(doc)} (CourtListener gives no address for this document)</span>;
   const file = /^https:\/\/storage\.courtlistener\.com\//.test(doc.url);
+  // A filing of a docket in the RECAP Archive is named as the docket names it; a decision by its kind and date.
+  if (doc.documentType === 'Filing' || doc.documentType === 'Attachment') return <Ext href={doc.url}>{doc.title} (the RECAP Archive’s copy)</Ext>;
   return <Ext href={doc.url}>{appealDocumentLabel(doc)} ({file ? 'CourtListener’s copy of the file' : 'CourtListener’s page'})</Ext>;
 }
 
@@ -714,6 +723,8 @@ function DecisionBody({ record, route, links }: { record: LegalCase; route: Rout
     ? `, dated ${formatDate(record.dateFirstEntry)} to ${formatDate(record.sourceLastActivity)}`
     : record.sourceLastActivity ? `, dated ${formatDate(record.sourceLastActivity)}` : '';
   const rules = (ruleId: string) => <A to={buildHash(['sources'], { section: 'rules' })}>{ruleId}</A>;
+  // A voting case of a federal district court is read from its docket in the RECAP Archive, not from decisions.
+  const fromDocket = recordBasis(record) === 'recap';
 
   return (
     <>
@@ -728,6 +739,33 @@ function DecisionBody({ record, route, links }: { record: LegalCase; route: Rout
         </div>
       </header>
 
+      {fromDocket ? (
+        <Section
+          title="What the RECAP Archive holds for this case"
+          note="The docket as the RECAP Archive on CourtListener holds it."
+          method="DemocracyHQ lists the entries of the docket that the RECAP Archive holds and links each filing the archive has a copy of. It does not summarise an entry or say what the court decided."
+        >
+          <p>
+            The archive holds {plural(record.entryCount, 'entry', 'entries')} of this docket{span} and a copy of {plural(record.documentCount, 'filing')}.
+            No rule of DemocracyHQ reads the entries of a district court for rulings yet, so this page names no ruling: read the entries below.
+          </p>
+          <Facts
+            items={[
+              ['Court', <a key="court" href={caseCourtHash(record)}>{courtName}</a>],
+              ['Kind of court', kind ? COURT_KIND_NAMES[kind] : 'Not given'],
+              ['Where the court sits', courtState ? (
+                <span key="state"><a href={buildHash(['place', courtState.key])}>{courtState.name}</a>, read from the court&rsquo;s name (rule {rules(record.court?.ruleId ?? 'court-state-1')})</span>
+              ) : 'Not read from the court’s name'],
+              ['Filed', record.dateDocketed ? formatDate(record.dateDocketed) : 'Not given'],
+              ['Nature of suit', record.natureOfSuit ? `${record.natureOfSuit}, as the clerk of the court recorded it` : 'Not given'],
+            ]}
+          />
+          <GapNotice>
+            This is not the court&rsquo;s own docket. The RECAP Archive is a collection of the Free Law Project: it holds the dockets and filings that its users and programs have retrieved from PACER, the courts&rsquo; paid system.
+            The latest entries may be missing, and most filings have no copy in the archive. What the archive holds was last changed there on {record.sourcePublishedAt ? formatDate(record.sourcePublishedAt.slice(0, 10)) : 'a date it does not give'}.
+          </GapNotice>
+        </Section>
+      ) : (
       <Section
         title="What CourtListener holds for this case"
         note="The decisions CourtListener holds for this case."
@@ -757,6 +795,7 @@ function DecisionBody({ record, route, links }: { record: LegalCase; route: Rout
           Whether a decision was later reheard, vacated, appealed or reviewed is not recorded here.
         </GapNotice>
       </Section>
+      )}
 
       <WhyListed record={record} documents={documents} />
 
@@ -771,7 +810,14 @@ function DecisionBody({ record, route, links }: { record: LegalCase; route: Rout
 
       <IssueTags record={record} />
 
-      <Section title={`Decisions on CourtListener (${record.events.length})`} id="docket" note="Each line names the kind of document, in the order of the dates." method="CourtListener gives a decision no docket text. Each line names the kind of document CourtListener lists, in the order of the dates.">
+      <Section
+        title={fromDocket ? `Docket entries in the RECAP Archive (${record.events.length})` : `Decisions on CourtListener (${record.events.length})`}
+        id="docket"
+        note={fromDocket ? 'Each line is an entry of the docket, in the clerk’s words.' : 'Each line names the kind of document, in the order of the dates.'}
+        method={fromDocket
+          ? 'Each line gives the number and the text of a docket entry as the RECAP Archive holds it, in the order of the docket. A filing is linked where the archive holds a copy.'
+          : 'CourtListener gives a decision no docket text. Each line names the kind of document CourtListener lists, in the order of the dates.'}
+      >
         {record.events.length > 1 ? (
           <div className="toolbar">
             <Segmented
@@ -785,7 +831,9 @@ function DecisionBody({ record, route, links }: { record: LegalCase; route: Rout
         <ol className="entries">
           {entries.map((event) => <DecisionEntry key={event.id} event={event} documents={documents} />)}
         </ol>
-        <p className="quiet">What kind of document a line names is taken from CourtListener&rsquo;s record by published rules, listed under <A to={buildHash(['sources'], { section: 'rules' })}>Data and methodology</A>.</p>
+        {fromDocket
+          ? (record.events.length === 0 ? <p className="quiet">The archive holds the case and no entry of its docket yet.</p> : <p className="quiet">The entries are listed as the archive gives them (rule {rules('recap-entry-1')}). An entry without a link has no copy of its filing in the archive; the filing is on PACER.</p>)
+          : <p className="quiet">What kind of document a line names is taken from CourtListener&rsquo;s record by published rules, listed under <A to={buildHash(['sources'], { section: 'rules' })}>Data and methodology</A>.</p>}
       </Section>
 
       <SourceLine
@@ -793,7 +841,7 @@ function DecisionBody({ record, route, links }: { record: LegalCase; route: Rout
         sourceUrl={record.sourceUrl}
         verification={record.verification}
         lastCheckedAt={record.lastCheckedAt}
-        sourceActivity={{ label: 'Latest decision CourtListener holds for the case', date: record.sourceLastActivity }}
+        sourceActivity={{ label: fromDocket ? 'Latest docket entry the RECAP Archive holds' : 'Latest decision CourtListener holds for the case', date: record.sourceLastActivity }}
         stale={stale}
         correctionSubject={`${record.caseName}, No. ${record.docketNumber} (${caseCourtCitation(record)})`}
       />

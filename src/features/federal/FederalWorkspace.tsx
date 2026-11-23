@@ -15,7 +15,7 @@ import { useTagLabels } from '../../lib/labels';
 import { NO_COUNTS_FOR_UNIT } from '../../lib/population';
 import { buildHash, mapQuery, patchQuery, type Route } from '../../lib/router';
 import { allOf, dataOf } from '../../lib/useLoad';
-import { A, Async, BackLink, CopyLinkButton, Empty, ErrorHeading, ErrorNote, GapNotice, Loading, Section, TableScroll, TabPanel, Tabs, TypeMark, WatchButton } from '../../components/ui';
+import { A, Async, BackLink, CopyLinkButton, Empty, ErrorHeading, ErrorNote, GapNotice, Loading, Section, TableScroll, TabPanel, Tabs, TypeMark, WatchButton, DocketGap } from '../../components/ui';
 import { WhoGoverns } from '../../components/WhoGoverns';
 import { AppealsCourtRows, SupremeCourtRow } from '../courts/CourtsOverview';
 import { SourcesTab, TimelineTab, useWorkspaceTabs } from '../geography/PlaceWorkspace';
@@ -171,7 +171,7 @@ function CourtsTab() {
               <p><A to={buildHash(['courts'])}>The circuits on the map, and how they are drawn</A></p>
             </Section>
             <p><A to={buildHash(['litigation'], { system: 'federal', level: 'trial' })}>Cases of the federal district courts</A>, read from the decisions CourtListener holds</p>
-            <GapNotice>Only the Supreme Court&rsquo;s dockets are read. For every other court the dataset holds decisions, not dockets, so a case without a written decision is not listed.</GapNotice>
+            <DocketGap dockets={dataOf(core.decisions)?.dockets} />
           </>
         );
       }}

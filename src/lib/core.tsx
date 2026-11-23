@@ -29,7 +29,7 @@ export interface BillCatalog {
 export type AppealsCoverage = Pick<CircuitIndex, 'coverage' | 'exclusions' | 'scannedAt' | 'selection'>;
 
 /** What was read for the federal district courts and the state courts: everything in decisions/index.json but the cases. */
-export type DecisionsCoverage = Pick<DecisionIndex, 'coverage' | 'scannedAt' | 'selection'>;
+export type DecisionsCoverage = Pick<DecisionIndex, 'coverage' | 'scannedAt' | 'selection' | 'dockets'>;
 
 export interface Core {
   /** Time the page was opened, used for freshness. */
@@ -60,8 +60,8 @@ async function loadAllCases(): Promise<LegalCaseSummary[]> {
 }
 
 async function loadDecisionsCoverage(): Promise<DecisionsCoverage> {
-  const { coverage, scannedAt, selection } = await loadDecisionIndex();
-  return { coverage, scannedAt, selection };
+  const { coverage, scannedAt, selection, dockets } = await loadDecisionIndex();
+  return { coverage, scannedAt, selection, dockets };
 }
 
 async function loadAppealsCoverage(): Promise<AppealsCoverage> {

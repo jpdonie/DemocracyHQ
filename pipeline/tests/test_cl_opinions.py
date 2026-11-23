@@ -49,9 +49,15 @@ class Search:
         #: The months asked for, in order, and every request with what it sent.
         self.asked = []
         self.requests = []
+        #: What the search "returns" for dockets of the RECAP Archive (test_cl_dockets.py), and how often it was asked.
+        self.dockets = []
+        self.docket_requests = []
         session.on(SEARCH, self.first)
 
     def first(self, url, headers, params):
+        if params.get("type") == "d":
+            self.docket_requests.append({"headers": headers, "params": params})
+            return FakeResponse(200, {"count": len(self.dockets), "results": list(self.dockets), "next": None})
         self.requests.append({"headers": headers, "params": params})
         month = params["filed_after"][:7]
         self.asked.append(month)

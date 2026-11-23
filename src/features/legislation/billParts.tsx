@@ -59,6 +59,7 @@ export function CourtsCell({ bill, links }: { bill: LegislativeInstrument; links
                   <p className="row-line quiet">
                     {basis === 'docket' ? 'No ruling entry identified on the docket by DemocracyHQ’s rules; see the docket.'
                       : basis === 'govinfo' ? 'No decision identified among the documents GovInfo holds for the case.'
+                      : basis === 'recap' ? 'The docket is read from the RECAP Archive; no rule reads its entries for rulings yet. See the docket.'
                       : 'No opinion of the court among the documents CourtListener holds for the case.'}
                   </p>
                 )}

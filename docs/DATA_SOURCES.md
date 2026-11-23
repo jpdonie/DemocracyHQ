@@ -276,14 +276,15 @@ that turn these figures into a colour (`party-group-1`, `party-seats-1`,
 ## Sources that need a key
 
 Both are secondary sources, and both have run against the live services since
-November 2026. CourtListener's decisions are published in `public/data/decisions/`,
+November 2026. CourtListener's decisions, and the dockets of voting cases in the
+federal district courts that its RECAP Archive holds, are published in `public/data/decisions/`,
 and the measures of the state legislatures that Open States collects in
 `public/data/state-legislation/`. The site shows both, labelled as imported from a
 secondary source.
 
 | Source | Publisher | Key | Notes |
 | --- | --- | --- | --- |
-| CourtListener / RECAP Archive API v4 | Free Law Project | `COURTLISTENER_API_TOKEN` | Anonymous requests were refused (HTTP 401) on 2026-11-20. The RECAP Archive is not a complete mirror of PACER. Check Free Law Project's current terms before production use. Checked daily when a token is configured. |
+| CourtListener / RECAP Archive API v4 | Free Law Project | `COURTLISTENER_API_TOKEN` | Anonymous requests were refused (HTTP 401) on 2026-11-20. The RECAP Archive is not a complete mirror of PACER: it holds the dockets and filings its users and programs have retrieved. Dockets are found by the clerk's nature of suit 441 (rule `docket-select-1`), read with their entries and never bought from PACER. Check Free Law Project's current terms before production use. Checked daily when a token is configured. |
 | Open States bulk data (CSV archives of every session), with the API v3 for the list of sessions | Plural Policy | `OPENSTATES_API_KEY` | Data offered under a public-domain dedication unless noted; attribution appreciated. The key is sent only to the API, in a header; the archives need none. Checked daily; an archive is read again only when Open States publishes a new one. |
 
 ## Verification states

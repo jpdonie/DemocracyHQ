@@ -330,6 +330,8 @@ class LegalCaseSummary(Model):
     #: Cases of federal district courts and of state courts only: the court, which the site does not list itself.
     court: Optional[CaseCourt] = None
     jurisdiction: str
+    #: "recap" for a case of a federal district court made from its docket in the RECAP Archive (rule
+    #: ``docket-select-1``) and not from decisions. The site words such a record differently.
     docketType: Optional[str] = None
     dateDocketed: Optional[IsoDate] = None
     dateFirstEntry: Optional[IsoDate] = None
@@ -344,7 +346,8 @@ class LegalCaseSummary(Model):
     origin: Optional[CaseOrigin] = None
     #: Court of appeals decisions only: "Published" or "Unpublished", when the court's entry for the opinion says so.
     publication: Optional[str] = None
-    #: Court of appeals decisions only: the nature of suit in the court's record, when it gives one.
+    #: Court of appeals decisions and dockets of the RECAP Archive: the nature of suit in the court's record, when it
+    #: gives one.
     natureOfSuit: Optional[str] = None
     #: Court of appeals decisions only: other cases in the dataset that the court decided in the same opinion.
     #: Derived by rule ``same-opinion-1`` from the texts of the opinions; the record does not state it.

@@ -303,6 +303,71 @@ export function makeFullDecisionCase(overrides: Partial<LegalCase> = {}): LegalC
 }
 
 /** decisions/index.json with the cases given; what was read is invented. */
+const RECAP_FILE = 'https://storage.courtlistener.com/recap/gov.uscourts.gand.900/gov.uscourts.gand.900.1.0.pdf';
+
+/** A voting case of a federal district court as its list entry gives it when it is read from its docket in the RECAP Archive. */
+export function makeDocketCase(overrides: Partial<LegalCaseSummary> = {}): LegalCaseSummary {
+  return makeDistrictCase({
+    id: 'cl-9000900',
+    externalIds: { courtlistenerDocketId: '9000900' },
+    caseName: 'Synthetic Voters v. Synthetic Registrar',
+    docketNumber: '1:26-cv-00900',
+    courtId: 'gand',
+    court: { name: 'United States District Court for the Northern District of Georgia', courtType: 'federal_district', stateFips: '13', citation: 'N.D. Ga.', ruleId: 'court-state-synthetic' },
+    docketType: 'recap',
+    dateDocketed: '2026-03-02',
+    dateFirstEntry: '2026-03-02',
+    sourceLastActivity: '2026-03-09',
+    entryCount: 2,
+    documentCount: 1,
+    issueTags: [],
+    latestDispositiveEntry: null,
+    natureOfSuit: '441 Civil Rights: Voting',
+    matchedTerms: [],
+    sourceUrl: 'https://www.courtlistener.com/docket/9000900/synthetic-voters-v-synthetic-registrar/',
+    sourcePublishedAt: '2026-03-10T08:00:00.000000Z',
+    ...overrides,
+  });
+}
+
+/** The record of that case: the entries of the docket the archive holds, and the one filing it has a copy of. */
+export function makeFullDocketCase(overrides: Partial<LegalCase> = {}): LegalCase {
+  const summary = makeDocketCase();
+  const entry = (n: number, date: string, description: string, documentIds: string[]) => ({
+    id: `cl-9000900-e${n}`, eventType: 'docket_entry', date, entityType: 'case' as const, entityId: 'cl-9000900', description,
+    significance: 'routine' as const, classificationRule: 'recap-entry-1', documentIds,
+    evidence: { url: summary.sourceUrl, sourceId: 'synthetic-courtlistener', document: 'The docket as the RECAP Archive holds it' },
+  });
+  return {
+    ...makeFullCase(),
+    ...summary,
+    questionsPresented: null,
+    parties: [],
+    removedTags: [],
+    selection: {
+      ruleId: 'docket-select-1', tests: ['record'], natureOfSuitCode: '441', natureOfSuit: 'Civil Rights: Voting', documentId: null, documentUrl: null,
+      wordCount: null, wordMatches: null, phraseMatches: null, density: null, phrases: [], party: null,
+    },
+    events: [
+      entry(1, '2026-03-02', '1. COMPLAINT against Synthetic Registrar, filed by Synthetic Voters.', ['cl-9000900-d1']),
+      entry(2, '2026-03-09', '2. ORDER setting a hearing on the motion for a preliminary injunction.', []),
+    ],
+    documents: [{
+      id: 'cl-9000900-d1', caseId: 'cl-9000900', entryIndex: 0, title: 'Document 1: Complaint', filingDate: '2026-03-02', documentType: 'Filing',
+      url: RECAP_FILE, availability: 'public_link', accessNote: 'CourtListener’s copy of the filing, from the RECAP Archive. Not fetched from the court.', sameTextAs: [],
+    }],
+    ...overrides,
+  };
+}
+
+/** What decisions/index.json says about the dockets read from the RECAP Archive. */
+export function makeDocketListing(overrides: Partial<NonNullable<DecisionIndex['dockets']>> = {}): NonNullable<DecisionIndex['dockets']> {
+  return {
+    ruleId: 'docket-select-1', entryRuleId: 'recap-entry-1', courtStateRuleId: 'court-state-synthetic', since: '2025-01-01', query: 'suitNature:"441"',
+    natureOfSuitCode: '441', listed: 180, listedAt: '2026-06-14T10:00:00Z', published: 150, waiting: 30, readInThisRun: 12, ...overrides,
+  };
+}
+
 export function makeDecisionIndexFile(cases: LegalCaseSummary[] = [makeDecisionCase(), makeDistrictCase()]): DecisionIndex {
   const coverage: DecisionIndex['coverage'] = {};
   for (const record of cases) {

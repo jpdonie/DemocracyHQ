@@ -487,3 +487,18 @@ export function TabPanel({ idBase, id, children }: { idBase: string; id: string;
     </div>
   );
 }
+
+/**
+ * What the dataset does not hold of the courts' dockets. Until dockets of the RECAP Archive are published, only the
+ * Supreme Court's are read; after that the notice says how far the archive goes.
+ */
+export function DocketGap({ dockets }: { dockets?: { published: number } | null }) {
+  return (dockets?.published ?? 0) > 0 ? (
+    <GapNotice>
+      The Supreme Court&rsquo;s dockets are read from the Court, and the dockets of voting cases in the federal district courts from the RECAP Archive, as far as it holds them.
+      For every other case the dataset holds decisions, not dockets, so a case without a written decision is not listed.
+    </GapNotice>
+  ) : (
+    <GapNotice>Only the Supreme Court&rsquo;s dockets are read. For every other court the dataset holds decisions, not dockets, so a case without a written decision is not listed.</GapNotice>
+  );
+}

@@ -18,7 +18,7 @@ import { CaseDetail } from '../../src/features/litigation/CaseDetail';
 import { CaseRow, caseFiltersFromQuery } from '../../src/features/litigation/CaseDirectory';
 import {
   makeAppealsCase, makeCase, makeCircuitIndexFile, makeCircuitsFile, makeDecisionCase, makeDecisionIndexFile, makeDistrictCase, makeFederalBillIndexFile, makeFullDecisionCase,
-  makeGeoIndexFile, makeManifest, makeRedistricting, makeSource,
+  makeDocketCase, makeDocketListing, makeFullDocketCase, makeGeoIndexFile, makeManifest, makeRedistricting, makeSource,
 } from './fixtures';
 
 afterEach(() => {
@@ -232,5 +232,78 @@ describe('the page of a case read from CourtListener', () => {
     expect(source.textContent).toContain('Imported from secondary source');
     expect(source.textContent).toContain('Latest decision CourtListener holds for the case');
     expect(source.textContent).not.toContain('Checked against the official source');
+  });
+});
+
+describe('a voting case of a federal district court read from its docket in the RECAP Archive', () => {
+  const docket = makeDocketCase();
+  const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
+
+  it('is known from a docket of the archive, which is neither the court’s docket nor a decision', () => {
+    expect(recordBasis(docket)).toBe('recap');
+    expect(recordBasis(district)).toBe('courtlistener');
+    expect(LegalCaseSummarySchema.safeParse(docket).success).toBe(true);
+    expect(LegalCaseSchema.safeParse(makeFullDocketCase()).success).toBe(true);
+    expect(DecisionIndexSchema.safeParse({ ...makeDecisionIndexFile(), dockets: makeDocketListing() }).success).toBe(true);
+    // A release made before dockets were read carries no such block, and is still accepted.
+    expect(DecisionIndexSchema.safeParse(makeDecisionIndexFile()).success).toBe(true);
+  });
+
+  it('has a row that names the clerk’s nature of suit and no ruling', () => {
+    const { container } = render(<ul><CaseRow record={docket} labels={new Map()} /></ul>);
+    const item = container.querySelector<HTMLElement>('li.row')!;
+    expect(item.querySelector('.sysmark')?.textContent).toBe('Federal');
+    expect(item.querySelector('.row-why')?.textContent).toBe('Nature of suit in the court’s record: 441 Civil Rights: Voting');
+    expect(item.querySelector('.row-line')?.textContent).toBe('2 docket entries in the RECAP Archive. No rule reads them for rulings yet: see the docket.');
+    expect(item.querySelector('.row-foot')?.textContent).toBe('The docket as the RECAP Archive holds it, not the court’s own, through Mar 9, 2026');
+  });
+
+  it('has a page that lists the entries in the clerk’s words and says throughout that the archive is not the court', async () => {
+    const files: Record<string, unknown> = {
+      'manifest.json': makeManifest(),
+      'sources.json': { sources: [makeSource({ id: 'synthetic-courtlistener', name: 'Synthetic CourtListener' })] },
+      'geo/index.json': makeGeoIndexFile(),
+      'litigation/index.json': { cases: [makeCase()] },
+      'circuits/index.json': makeCircuitIndexFile(),
+      'decisions/index.json': { ...makeDecisionIndexFile([makeDecisionCase(), docket]), dockets: makeDocketListing() },
+      'legislation/index.json': { bills: [], selection: { ruleId: 'sel', pattern: 'x', appliedTo: 'subject', totalBillsInSession: 10 } },
+      'congress/index.json': makeFederalBillIndexFile(),
+      'geo/circuits.json': makeCircuitsFile(),
+      'redistricting.json': makeRedistricting(),
+      'relationships.json': { relationships: [] },
+      'decisions/cases/cl-9000900.json': makeFullDocketCase(),
+    };
+    vi.stubGlobal('fetch', async (url: string) => {
+      const path = new URL(url, 'http://localhost').pathname.replace(/^.*?\/data\//, '');
+      return path in files ? json(files[path]) : json({}, 404);
+    });
+    render(<CoreProvider><CaseDetail id="cl-9000900" route={{ path: ['litigation', 'cl-9000900'], query: {} }} /></CoreProvider>);
+    await screen.findByRole('heading', { level: 1, name: 'Synthetic Voters v. Synthetic Registrar' });
+
+    const holds = screen.getByRole('heading', { name: 'What the RECAP Archive holds for this case' }).closest('section')!;
+    expect(holds.textContent).toContain('The archive holds 2 entries of this docket, dated Mar 2, 2026 to Mar 9, 2026 and a copy of 1 filing.');
+    expect(holds.textContent).toContain('this page names no ruling');
+    expect(holds.textContent).toContain('441 Civil Rights: Voting, as the clerk of the court recorded it');
+    expect(holds.textContent).toContain('This is not the court’s own docket.');
+    expect(holds.textContent).toContain('last changed there on Mar 10, 2026');
+    expect(screen.queryByRole('heading', { name: 'What CourtListener holds for this case' })).toBeNull();
+
+    const why = screen.getByRole('heading', { name: 'Why this case is listed' }).closest('section')!;
+    expect(why.textContent).toContain('Picked by a published rule (rule docket-select-1), not by a maintainer');
+    expect(why.textContent).toContain('The court’s record gives the case the nature of suit 441 (Civil Rights: Voting).');
+    expect(why.textContent).toContain('A voting case filed under another one is missed');
+    expect(why.textContent).not.toContain('election words');
+
+    const list = screen.getByRole('heading', { name: 'Docket entries in the RECAP Archive (2)' }).closest('section')!;
+    const entries = list.querySelectorAll('li.entry');
+    expect(entries).toHaveLength(2);
+    expect(entries[0]!.textContent).toContain('1. COMPLAINT against Synthetic Registrar, filed by Synthetic Voters.');
+    expect(within(list).getByRole('link', { name: /Document 1: Complaint \(the RECAP Archive’s copy\)/ }).getAttribute('href')).toContain('storage.courtlistener.com/recap/');
+    expect(entries[1]!.querySelector('a')).toBeNull();
+    expect(list.textContent).toContain('An entry without a link has no copy of its filing in the archive');
+
+    const source = screen.getByRole('complementary', { name: 'Source and verification' });
+    expect(source.textContent).toContain('Imported from secondary source');
+    expect(source.textContent).toContain('Latest docket entry the RECAP Archive holds');
   });
 });

@@ -417,8 +417,17 @@ for (const record of cases.values()) {
     if (record.id !== `cl-${docketIds[0]}`) fail(`case ${record.id}: the id is not CourtListener's docket number (${record.externalIds.courtlistenerDocketId})`);
     if (!record.sourceUrl.startsWith(COURTLISTENER_SITE)) fail(`case ${record.id}: sourceUrl is not a page of CourtListener`);
     for (const doc of record.documents) if (doc.url != null && !doc.url.startsWith(COURTLISTENER_FILE) && !doc.url.startsWith(COURTLISTENER_SITE)) fail(`case ${record.id}: document ${doc.id} is not a file or a page of CourtListener`);
+    const fromDocket = record.docketType === S.RECAP_DOCKET_TYPE;
     if (!record.selection) fail(`case ${record.id}: published without the record of why the selection rule picked it`);
-    else {
+    else if (fromDocket) {
+      // A docket of the RECAP Archive is selected by the clerk's nature of suit, not by counts in a decision.
+      if (!ruleIds.has(record.selection.ruleId)) fail(`case ${record.id}: selection cites unknown rule ${record.selection.ruleId}`);
+      if (record.selection.tests.join() !== 'record' || !record.selection.natureOfSuitCode || !String(record.natureOfSuit ?? '').startsWith(record.selection.natureOfSuitCode)) fail(`case ${record.id}: a docket of the RECAP Archive must be selected by the nature of suit in the court's record, and state it`);
+      if (record.court?.courtType !== 'federal_district') fail(`case ${record.id}: a docket of the RECAP Archive, but its court is not a federal district court`);
+      if (record.latestDispositiveEntry) fail(`case ${record.id}: no rule reads the entries of a district court's docket, so it may not name a ruling`);
+      if (record.events.some((event) => event.significance !== 'routine' || !ruleIds.has(event.classificationRule))) fail(`case ${record.id}: an entry of its docket is marked as major or cites no known rule`);
+      if (record.entryCount !== record.events.length || record.documentCount !== record.documents.length) fail(`case ${record.id}: its counts of entries and documents differ from what it lists`);
+    } else {
       if (!ruleIds.has(record.selection.ruleId)) fail(`case ${record.id}: selection cites unknown rule ${record.selection.ruleId}`);
       if (!record.documents.some((doc) => doc.id === record.selection.documentId && doc.url === record.selection.documentUrl)) fail(`case ${record.id}: the decision the selection rests on is not one of its documents`);
     }
@@ -660,9 +669,19 @@ if (decisionIndex) {
   }
   for (const record of decisionCases) {
     const counts = decisionIndex.coverage[record.courtId];
+    // A case read from a docket of the RECAP Archive may be of a court none of whose decisions were read.
+    if (!counts && record.docketType === S.RECAP_DOCKET_TYPE) continue;
     if (!counts) fail(`case ${record.id}: published, but decisions/index.json has no count of what was read for its court ${record.courtId}`);
     else if (counts.name !== record.court?.name || counts.courtType !== record.court?.courtType || (counts.stateFips ?? null) !== (record.court?.stateFips ?? null)) fail(`case ${record.id}: names its court differently from decisions/index.json`);
   }
+  const docketCases = decisionCases.filter((record) => record.docketType === S.RECAP_DOCKET_TYPE);
+  if (decisionIndex.dockets) {
+    const dockets = decisionIndex.dockets;
+    for (const id of [dockets.ruleId, dockets.entryRuleId, dockets.courtStateRuleId]) if (!ruleIds.has(id)) fail(`decisions/index.json: the dockets cite unknown rule ${id}`);
+    if (dockets.published !== docketCases.length) fail(`decisions/index.json: says ${dockets.published} dockets are published, ${docketCases.length} cases are made from a docket`);
+    if (dockets.listed != null && dockets.published + dockets.waiting > dockets.listed) fail('decisions/index.json: more dockets are published and waiting than the search listed');
+    for (const record of docketCases) if (record.selection?.ruleId !== dockets.ruleId) fail(`case ${record.id}: made from a docket, but not selected by rule ${dockets.ruleId}`);
+  } else if (docketCases.length > 0) fail(`decisions/index.json: ${docketCases.length} cases are made from a docket, but the index does not say how the dockets were listed`);
   // The ledger of the scan names every case read. Its counts are the ones the index and the site state.
   if (decisionScan) {
     const at = Object.fromEntries(decisionScan.fields.map((name, i) => [name, i]));

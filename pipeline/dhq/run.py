@@ -46,7 +46,7 @@ from pathlib import Path
 from typing import Callable, Dict, List, NoReturn, Optional
 
 from . import about, circuits, classify, evidence, government
-from .adapters import ca_leginfo, census_geo, census_pop, cl_opinions, congress, officials, os_bulk, scotus, uscourts
+from .adapters import ca_leginfo, census_geo, census_pop, cl_dockets, cl_opinions, congress, officials, os_bulk, scotus, uscourts
 from .cli import EXIT_UNEXPECTED, LOG_FORMAT
 from .http import CredentialMissing, FetchError, Fetcher
 from .schemas import (
@@ -1450,6 +1450,65 @@ def _courtlistener_requests() -> int:
         return cl_opinions.REQUESTS_PER_RUN
 
 
+def _docket_requests() -> int:
+    """``DHQ_CL_DOCKET_REQUESTS``: how many requests a run may send to CourtListener for dockets and their entries."""
+    try:
+        return max(0, int(os.environ.get("DHQ_CL_DOCKET_REQUESTS", "") or cl_dockets.REQUESTS_PER_RUN))
+    except ValueError:
+        return cl_dockets.REQUESTS_PER_RUN
+
+
+def _recap_dockets(ctx: Context, fetcher: Fetcher, previous_index: dict) -> tuple[Dict[str, dict], set, dict, List[str]]:
+    """The dockets of voting cases in the federal district courts that the RECAP Archive holds (``cl_dockets``).
+
+    Returns the records to publish by case id, the ids among them that were built in this run, the block the index
+    states about them, and notes for the source's status. A failure here never stops the stage: the records published
+    before are kept, and the failure is flagged and noted.
+    """
+    published: Dict[str, dict] = {}
+    for summary in previous_index.get("cases", []):
+        if cl_dockets.is_docket_record(summary):
+            record = read_json(ctx.public / f"{DECISIONS_DIR}/cases/{summary['id']}.json")
+            if cl_dockets.is_docket_record(record):
+                published[record["id"]] = record
+    before = previous_index.get("dockets") or {}
+    notes: List[str] = []
+    try:
+        result = cl_dockets.refresh(fetcher, published, now=ctx.now, requests=_docket_requests(),
+                                    progress=lambda done, of: log.info("courtlistener: docket %s of %s read", done, of))
+    except (FetchError, cl_opinions.ListingError) as exc:
+        ctx.flag("fetch_failed", f"{cl_dockets.SOURCE_ID}:dockets", f"the list of dockets could not be read from CourtListener: {exc}"[:300])
+        notes.append("the list of dockets of the RECAP Archive could not be read; the dockets published before are kept")
+        result = cl_dockets.Refresh()
+    if result.listed is None:
+        if result.limited and not notes:
+            notes.append(f"the list of dockets of the RECAP Archive was not read ({result.limited}); the dockets published before are kept")
+        block = {**cl_dockets.selection_document(), "listed": before.get("listed"), "listedAt": before.get("listedAt"),
+                 "published": len(published), "waiting": before.get("waiting", 0), "readInThisRun": 0}
+        return published, set(), block, notes
+    records: Dict[str, dict] = {}
+    built: set = set()
+    for docket in sorted(result.listed):
+        case_id = cl_opinions.case_id(docket)
+        if case_id in result.built:
+            new = result.built[case_id].model_dump(mode="json")
+            kept = keep_previous_if_regressed(ctx, f"{DECISIONS_DIR}/cases/{case_id}.json", new, _docket_size, case_id) if case_id in published else new
+            records[case_id] = kept
+            if kept is new:
+                built.add(case_id)
+        elif case_id in published:
+            records[case_id] = published[case_id]
+    for docket, error in sorted(result.failed.items()):
+        ctx.flag("fetch_failed", cl_opinions.case_id(docket), f"the docket could not be read from CourtListener: {error}"[:300])
+    if result.failed:
+        notes.append(f"{len(result.failed)} docket(s) of the RECAP Archive could not be read in this run")
+    if result.waiting:
+        notes.append(f"{len(result.waiting)} of {len(result.listed)} dockets of the RECAP Archive have not been read yet; they are read on later runs")
+    block = {**cl_dockets.selection_document(), "listed": len(result.listed), "listedAt": ctx.now, "published": len(records),
+             "waiting": len(result.waiting), "readInThisRun": len(result.built)}
+    return records, built, block, notes
+
+
 def stage_courtlistener(ctx: Context) -> None:
     """Decisions of the federal district courts and of the state courts that CourtListener holds (``cl_opinions``)."""
     try:
@@ -1479,6 +1538,8 @@ def stage_courtlistener(ctx: Context) -> None:
                               progress=lambda what, done, of: log.info("courtlistener: %s %s of %s", what, done, of))
     out = ctx.staging / DECISIONS_DIR
     reader = cl_opinions.Reader(files, cache)
+    # A case whose docket the RECAP Archive holds is published from the docket, which says more than its decisions do.
+    docket_records, dockets_built, docket_block, docket_notes = _recap_dockets(ctx, search, previous_index)
 
     for docket, error in sorted(result.failed.items()):
         ctx.flag("fetch_failed", cl_opinions.case_id(docket), f"the case could not be read from CourtListener: {error}"[:300])
@@ -1489,15 +1550,19 @@ def stage_courtlistener(ctx: Context) -> None:
     for docket in sorted(result.selected):
         read = result.selected[docket]
         case_id = cl_opinions.case_id(docket)
+        if case_id in docket_records:
+            continue
         rel_path = f"{DECISIONS_DIR}/cases/{case_id}.json"
         previous = read_json(ctx.public / rel_path)
+        if cl_dockets.is_docket_record(previous):
+            previous = None  # the docket has left the list of dockets; the case is built from its decisions again
         opening_passage, problem = cl_opinions.opinion_about(reader, read, (previous or {}).get("about"))
         if problem:
             ctx.flag("opening_unavailable", case_id, problem)
         case = cl_opinions.build_case(read.entries, read.texts, read.evaluation, checked_at=ctx.now,
                                       first_observed=(previous or {}).get("firstObservedAt"), about=opening_passage)
         built = case.model_dump(mode="json")
-        obj = keep_previous_if_regressed(ctx, rel_path, built, _docket_size, case_id)
+        obj = keep_previous_if_regressed(ctx, rel_path, built, _docket_size, case_id) if previous else built
         if obj is not built:
             held += 1
             carried.append(obj)
@@ -1505,21 +1570,29 @@ def stage_courtlistener(ctx: Context) -> None:
         records.append(built)
     never_published = 0
     for docket in result.kept:
+        if cl_opinions.case_id(docket) in docket_records:
+            continue
         previous = read_json(ctx.public / f"{DECISIONS_DIR}/cases/{cl_opinions.case_id(docket)}.json")
+        if cl_dockets.is_docket_record(previous):
+            previous = None
         if previous:
             carried.append(previous)  # the last record read; its check time is not advanced
         else:
             never_published += 1
+    for case_id, record in docket_records.items():
+        (records if case_id in dockets_built else carried).append(record)
     by_id = {record["id"]: record for record in records + carried}
     records = sorted(by_id.values(), key=lambda record: record["id"])
-    if not records:
+    if len(records) == len(docket_records):
         raise RuntimeError("the selection rule selected no decision of a district court or a state court; refusing to publish an empty set")
 
     left = sorted(earlier_ids - set(by_id))
     refused = len(left) > MAX_SHARE_LEAVING * len(earlier_ids)
     unlisted = {cl_opinions.case_id(docket) for docket in result.unlisted}
     for case_id in left:
-        why = ("CourtListener's search no longer returns it" if case_id in unlisted
+        was_docket = cl_dockets.is_docket_record(next((case for case in previous_index.get("cases", []) if case["id"] == case_id), None))
+        why = (f"rule {cl_dockets.SELECTION_RULE_ID} no longer lists its docket" if was_docket
+               else "CourtListener's search no longer returns it" if case_id in unlisted
                else f"rule {cl_opinions.SELECTION_RULE_ID} no longer selects it")
         ctx.flag("case_left_selection", case_id, f"published before, but {why}; " + (
             "it stays published because too many cases would leave at once" if refused else "its record is no longer published"))
@@ -1528,7 +1601,7 @@ def stage_courtlistener(ctx: Context) -> None:
                            f"at once, more than {MAX_SHARE_LEAVING:.0%}; the previous set is kept until a maintainer has checked the scan")
     if earlier_ids:
         for record in records:
-            if record["id"] not in earlier_ids:
+            if record["id"] not in earlier_ids and not cl_dockets.is_docket_record(record):
                 ctx.flag("new_selection", record["id"], f"newly selected by rule {cl_opinions.SELECTION_RULE_ID} (test met: "
                                                         f"{', '.join(record['selection']['tests'])}); a maintainer should read the decision once")
 
@@ -1551,11 +1624,12 @@ def stage_courtlistener(ctx: Context) -> None:
                       "months": len(every_month), "monthsListed": len(every_month) - len(unread_months),
                       "oldestListingAt": min((month["listedAt"] for month in listing.months.values()), default=None)},
         "coverage": coverage,
+        "dockets": docket_block,
         "scannedAt": ctx.now,
     })
     write_json(out / "scan.json", result.state)
 
-    notes = []
+    notes = list(docket_notes)
     if unread_months:
         notes.append(f"{len(unread_months)} of {len(every_month)} months of CourtListener's list have not been read yet "
                      f"({unread_months[0]} to {unread_months[-1]}); they are read on later runs")
@@ -2323,6 +2397,20 @@ OTHER_RULES = [
                     "docket numbers are the same, compared without case, spaces and punctuation, are shown as one case, under the "
                     "lowest of the dockets' ids; the case lists every docket id. A docket number that differs by a letter (an order "
                     "modifying an opinion filed as 'H053842M') is another case to this rule, and both are listed."},
+    {"ruleId": cl_dockets.SELECTION_RULE_ID, "appliesTo": "Which dockets of federal district courts are included",
+     "description": "CourtListener's search is asked for every docket of the RECAP Archive filed since " + cl_dockets.SINCE
+                    + f" to which the clerk of the court gave the nature of suit {cl_dockets.NATURE_CODE}, 'Civil Rights: Voting'. "
+                    "The dockets of federal district courts that rule court-state-1 can place in a state are published, each with "
+                    "every entry the archive holds. The clerk's code selects the case: no words are counted. The archive holds the "
+                    "dockets its users and programs have retrieved from PACER, so a voting case nobody has retrieved, and a case "
+                    "the clerk filed under another nature of suit, are missed. Where the archive holds a case's docket, the case is "
+                    "published from the docket and not from its decisions."},
+    {"ruleId": cl_dockets.ENTRY_RULE_ID, "appliesTo": "An entry of a docket read from the RECAP Archive",
+     "description": "Each entry of the docket that carries a date is listed with its number and the clerk's text as the archive "
+                    f"holds it, up to {cl_dockets.MAX_ENTRY_TEXT:,} characters; an entry without text is listed with the short "
+                    "descriptions of its documents. No entry is labelled as a ruling and none enters the timeline, because no rule "
+                    "of this project reads the entries of district courts yet. A filing is linked only where the archive holds a "
+                    "copy of it."},
     {"ruleId": cl_opinions.SEPARATE_RULE_ID, "appliesTo": "An opinion of a single judge beside a decision read from CourtListener",
      "description": "A document CourtListener gives one of these kinds is the opinion of a judge beside the court's decision: "
                     + "; ".join(f"'{kind}' is shown as {label}" for kind, label in cl_opinions.SEPARATE_KINDS.items())

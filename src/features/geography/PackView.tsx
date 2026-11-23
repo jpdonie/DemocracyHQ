@@ -148,7 +148,8 @@ function CasePack({ id }: { id: string }) {
     <Async of={record} what="the source pack" heading="Source pack">
       {(data) => {
         const key = data.events.filter((e) => e.significance === 'major').length;
-        const docket = recordBasis(data) === 'docket';
+        const basis = recordBasis(data);
+        const docket = basis === 'docket' || basis === 'recap';
         return (
           <PackDocument
             backHash={buildHash(['litigation', id])}

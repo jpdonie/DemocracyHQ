@@ -239,7 +239,9 @@ function caseItem(c: LegalCaseSummary, base: BaseInput, detailPrefix = ''): Pack
   const appeal = basis === 'govinfo';
   const entry = c.latestDispositiveEntry;
   let ruling: string;
-  if (basis === 'courtlistener') {
+  if (basis === 'recap') {
+    ruling = `Docket of ${c.court?.name ?? 'a federal district court'} as the RECAP Archive on CourtListener holds it: ${c.entryCount} entries${c.sourceLastActivity ? ` through ${c.sourceLastActivity}` : ''}. Not read from the court’s own system (PACER); the archive may lack the latest entries. No rule of DemocracyHQ reads these entries for rulings, so no ruling is named.`;
+  } else if (basis === 'courtlistener') {
     ruling = entry
       ? `Latest opinion of the court among the decisions CourtListener holds for the case (${entry.date}): ${entry.text}.`
       : 'No opinion of the court among the documents CourtListener holds for the case.';
@@ -451,7 +453,9 @@ export function selectionSentence(selection: NonNullable<LegalCase['selection']>
       : 'election words and phrases';
     parts.push(`one of its documents meets the text ${text.length === 1 ? 'test' : 'tests'} ${text.map((test) => `“${test}”`).join(' and ')} (${counted}${selection.party ? `; election authority named: ${selection.party}` : ''})`);
   }
-  return `Listed by rule ${selection.ruleId}: ${parts.join(', and ')}. The rule counts words; it does not say what the case decides.`;
+  // The rule for the dockets of the RECAP Archive reads the clerk's code and counts nothing.
+  const how = selection.ruleId === 'docket-select-1' ? 'The rule reads the code the court’s clerk gave the case' : 'The rule counts words';
+  return `Listed by rule ${selection.ruleId}: ${parts.join(', and ')}. ${how}; it does not say what the case decides.`;
 }
 
 export function packForCase(input: CasePackInput): SourcePack {
@@ -476,8 +480,8 @@ export function packForCase(input: CasePackInput): SourcePack {
     // For a court of appeals case an entry is one document GovInfo holds, with the court's own entry text for it.
     const cover = appeal ? e.documentIds.map((id) => documents.get(id)?.accessNote).find((note) => note && /letter/i.test(note)) : null;
     items.push(item({
-      section: 'event', id: e.id, title: `${basis === 'docket' ? 'Docket entry' : `Document on ${holder}`}, ${e.eventType.replace(/_/g, ' ')}`, date: e.date,
-      dateMeaning: basis === 'docket' ? 'Date of the docket entry' : `Date of the document as ${holder} gives it`,
+      section: 'event', id: e.id, title: basis === 'recap' ? 'Docket entry, as the RECAP Archive holds it' : `${basis === 'docket' ? 'Docket entry' : `Document on ${holder}`}, ${e.eventType.replace(/_/g, ' ')}`, date: e.date,
+      dateMeaning: basis === 'docket' || basis === 'recap' ? 'Date of the docket entry' : `Date of the document as ${holder} gives it`,
       detail: cover ? `${e.description} ${cover}` : e.description, sourceUrl: doc.url ?? e.evidence.url, lastCheckedAt: c.lastCheckedAt, ...checked(c.verification),
       documentAvailability: doc.documentAvailability, documentAvailabilityNote: doc.documentAvailabilityNote,
     }));
@@ -487,6 +491,7 @@ export function packForCase(input: CasePackInput): SourcePack {
     [
       ...(appeal ? ['The dated entries are the documents GovInfo holds for this case, not the court’s full docket. Filings, orders and later history that GovInfo does not hold are not listed.'] : []),
       ...(basis === 'courtlistener' ? ['The dated entries are the decisions CourtListener holds for this case. CourtListener is a collection of the Free Law Project, not a court: the entries are not the court’s docket, and filings, orders and later history are not listed.'] : []),
+      ...(basis === 'recap' ? ['The dated entries are the docket as the RECAP Archive on CourtListener holds it. The archive is a collection of the Free Law Project, not the court: it holds what its users and programs have retrieved from PACER, so the latest entries and most filings may be missing.'] : []),
       ...(input.relationships ? [] : [UNAVAILABLE_NOTICES.links]),
     ],
   );
