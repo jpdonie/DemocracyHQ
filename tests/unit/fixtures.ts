@@ -345,7 +345,7 @@ export function makeFullDocketCase(overrides: Partial<LegalCase> = {}): LegalCas
     parties: [],
     removedTags: [],
     selection: {
-      ruleId: 'docket-select-1', tests: ['record'], natureOfSuitCode: '441', natureOfSuit: 'Civil Rights: Voting', documentId: null, documentUrl: null,
+      ruleId: 'docket-select-2', tests: ['record'], natureOfSuitCode: '441', natureOfSuit: 'Civil Rights: Voting', documentId: null, documentUrl: null,
       wordCount: null, wordMatches: null, phraseMatches: null, density: null, phrases: [], party: null,
     },
     events: [
@@ -363,7 +363,7 @@ export function makeFullDocketCase(overrides: Partial<LegalCase> = {}): LegalCas
 /** What decisions/index.json says about the dockets read from the RECAP Archive. */
 export function makeDocketListing(overrides: Partial<NonNullable<DecisionIndex['dockets']>> = {}): NonNullable<DecisionIndex['dockets']> {
   return {
-    ruleId: 'docket-select-1', entryRuleId: 'recap-entry-1', courtStateRuleId: 'court-state-synthetic', since: '2025-01-01', query: 'suitNature:"441"',
+    ruleId: 'docket-select-2', entryRuleId: 'recap-entry-1', courtStateRuleId: 'court-state-synthetic', since: '2025-01-01', query: 'suitNature:"441" OR suitNature:voting',
     natureOfSuitCode: '441', listed: 180, listedAt: '2026-06-14T10:00:00Z', published: 150, waiting: 30, readInThisRun: 12, ...overrides,
   };
 }

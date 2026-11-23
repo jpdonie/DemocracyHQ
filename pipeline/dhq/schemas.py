@@ -331,7 +331,7 @@ class LegalCaseSummary(Model):
     court: Optional[CaseCourt] = None
     jurisdiction: str
     #: "recap" for a case of a federal district court made from its docket in the RECAP Archive (rule
-    #: ``docket-select-1``) and not from decisions. The site words such a record differently.
+    #: ``docket-select-2``) and not from decisions. The site words such a record differently.
     docketType: Optional[str] = None
     dateDocketed: Optional[IsoDate] = None
     dateFirstEntry: Optional[IsoDate] = None

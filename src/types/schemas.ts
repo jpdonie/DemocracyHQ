@@ -279,7 +279,7 @@ export const LegalCaseSummarySchema = z.object({
   /** Cases of federal district courts and of state courts only: the court, which the site does not list itself. */
   court: CaseCourtSchema.nullable().optional(),
   jurisdiction: z.string(),
-  /** "recap" for a case made from its docket in the RECAP Archive (rule docket-select-1), not from decisions. */
+  /** "recap" for a case made from its docket in the RECAP Archive (rule docket-select-2), not from decisions. */
   docketType: z.string().nullable().optional(),
   dateDocketed: isoDate.nullable().optional(),
   dateFirstEntry: isoDate.nullable().optional(),
@@ -964,7 +964,7 @@ export type DecisionCoverage = z.infer<typeof DecisionCoverageSchema>;
  * The index of the cases of federal district courts and of state courts (decisions/index.json), with the selection
  * rule and what was read for each court. The records are made from the decisions CourtListener holds.
  */
-/** What `docketType` says of a case made from a docket of the RECAP Archive (rule docket-select-1), not from decisions. */
+/** What `docketType` says of a case made from a docket of the RECAP Archive (rule docket-select-2), not from decisions. */
 export const RECAP_DOCKET_TYPE = 'recap';
 
 /**

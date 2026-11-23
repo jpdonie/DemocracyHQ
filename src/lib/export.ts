@@ -454,7 +454,7 @@ export function selectionSentence(selection: NonNullable<LegalCase['selection']>
     parts.push(`one of its documents meets the text ${text.length === 1 ? 'test' : 'tests'} ${text.map((test) => `“${test}”`).join(' and ')} (${counted}${selection.party ? `; election authority named: ${selection.party}` : ''})`);
   }
   // The rule for the dockets of the RECAP Archive reads the clerk's code and counts nothing.
-  const how = selection.ruleId === 'docket-select-1' ? 'The rule reads the code the court’s clerk gave the case' : 'The rule counts words';
+  const how = selection.ruleId.startsWith('docket-select-') ? 'The rule reads the code the court’s clerk gave the case' : 'The rule counts words';
   return `Listed by rule ${selection.ruleId}: ${parts.join(', and ')}. ${how}; it does not say what the case decides.`;
 }
 

@@ -302,14 +302,18 @@ great deal of litigation.
   for voting cases.** The archive (Free Law Project) holds the dockets and filings
   that its users and programs have retrieved from PACER, the courts' paid system.
   The pipeline lists the dockets filed since 2024 to which the clerk gave the
-  nature of suit 441, "Civil Rights: Voting" (rule `docket-select-1`), and
-  publishes each with every entry the archive holds. A case nobody has retrieved
+  nature of suit 441, "Civil Rights: Voting" (rule `docket-select-2`), whether
+  the docket sheet gives the code or only the words, and publishes each with every entry the archive holds. A case nobody has retrieved
   is missing; a docket may lack its latest entries; most filings have no copy
   there. A voting case the clerk filed under another nature of suit (an
   Administrative Procedure Act challenge to an election rule, a campaign finance
   case, many redistricting cases under "other civil rights") is not found by this
-  rule. The share of all voting cases filed that the archive holds has not been
-  measured against the Federal Judicial Center's count.
+  rule. Measured on 2026-11-23 against the Federal Judicial Center's Integrated
+  Database (civil cases with nature of suit 441 filed from January 2024 to June
+  2026, 366 cases), the rule finds 302 of them (83%). Of the rest, about 40 are in
+  the archive with no nature of suit at all, about 10 were reopened or transferred
+  in that time but first filed earlier, and the others could not be matched by
+  court and number. With the code alone (rule `docket-select-1`) it found 244 (67%).
 - **No rule reads the entries of a district court's docket.** They are listed in
   the clerk's words (rule `recap-entry-1`). No ruling is named, no entry enters
   the timeline, the opening of no filing is quoted, and the issue tags of such a

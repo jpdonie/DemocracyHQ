@@ -8,8 +8,11 @@ district courts for recent years, so a case of a district court is found here by
 What this adapter does:
 
 * It asks CourtListener's search for the dockets filed since ``SINCE`` to which the court's clerk gave the nature of
-  suit 441, "Civil Rights: Voting" (``SELECTION_RULE_ID``). The clerk's code selects the case; nothing is counted and
-  nothing is judged by this project.
+  suit 441, "Civil Rights: Voting" (``SELECTION_RULE_ID``). The archive stores the nature of suit as the docket sheet
+  shows it, and some courts' sheets show the words without the code ("Civil Rights: Voting" or "Voting"); those are
+  taken too. Of the federal district cases with nature of suit 441 in the Federal Judicial Center's Integrated Database
+  for 2024 to June 2026, about a sixth reach the archive with the words alone. The clerk's nature of suit selects the
+  case; nothing is counted and nothing is judged by this project.
 * Of those it keeps the dockets of federal district courts whose court it can place in a state by the court's name.
 * For each it reads the docket entries the archive holds and builds one record: every entry with its date and the
   clerk's text, and a link to each filing of which the archive holds a copy.
@@ -53,10 +56,12 @@ SOURCE_ID = cl_opinions.SOURCE_ID
 SINCE = cl_opinions.SINCE
 ENTRIES_URL = API_ROOT + "docket-entries/"
 
-SELECTION_RULE_ID = "docket-select-1"
+SELECTION_RULE_ID = "docket-select-2"
 #: The nature of suit a clerk gives a voting case when it is filed in a federal district court.
 NATURE_CODE = "441"
-SEARCH_QUERY = f'suitNature:"{NATURE_CODE}"'
+#: The search is for the code and for the word, since some docket sheets give the nature of suit in words alone. It also
+#: returns the appellate codes (1441, 2441, 3441), which ``compact`` leaves out.
+SEARCH_QUERY = f'suitNature:"{NATURE_CODE}" OR suitNature:voting'
 #: What ``docketType`` says of a record made from a docket of the archive. The site words such a record differently
 #: from one made from decisions.
 DOCKET_TYPE = "recap"
@@ -74,7 +79,8 @@ MAX_ENTRY_TEXT = 4000
 OMIT = "recap_documents__plain_text,recap_documents__tags,tags"
 
 _DAY_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
-_NATURE_RE = re.compile(rf"^{NATURE_CODE}(?:\s+(.*))?$")
+#: The code with or without its words, or the words of nature of suit 441 without the code.
+_NATURE_RE = re.compile(rf"^(?:{NATURE_CODE}(?:\s+(.*))?|((?:Civil Rights:\s*)?Voting))$")
 _SPACE_RE = re.compile(r"\s+")
 
 
@@ -88,8 +94,8 @@ def _day(value: object) -> Optional[str]:
 
 def compact(item: dict) -> Optional[dict]:
     """One search result (a docket) with the fields that are used, or ``None`` when the rule does not take it: it is
-    not a docket of a federal district court that can be placed in a state, the clerk's nature of suit is not 441
-    (the search also returns the appellate codes 1441, 2441 and 3441), or it lacks an id, a title, a number or the
+    not a docket of a federal district court that can be placed in a state, the clerk's nature of suit is neither 441
+    nor its words without a code (the search also returns the appellate codes 1441, 2441 and 3441), or it lacks an id, a title, a number or the
     day it was filed."""
     docket, filed = item.get("docket_id"), _day(item.get("dateFiled"))
     court_name, name, number = _text(item.get("court")), _text(item.get("caseName")), _text(item.get("docketNumber"))
@@ -103,7 +109,7 @@ def compact(item: dict) -> Optional[dict]:
     return {
         "docket": docket, "court": str(item["court_id"]), "courtName": court_name, "citation": _text(item.get("court_citation_string")),
         "name": name, "docketNumber": number, "filed": filed, "terminated": _day(item.get("dateTerminated")),
-        "nature": _text(nature.group(1)), "cause": _text(item.get("cause")),
+        "nature": _text(nature.group(1) or nature.group(2)), "cause": _text(item.get("cause")),
         "url": url if isinstance(url, str) and url.startswith("/docket/") else "",
         # When CourtListener last changed its record of the docket: a docket whose stamp has not moved is not read again.
         "stamp": _text(meta.get("timestamp")),
