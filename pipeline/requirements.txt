@@ -3,4 +3,4 @@
 #   - mapshaper (installed by `npm ci`, used for the boundary files)
 #   - pdftotext from poppler-utils (used to read court filings for the evidence check)
 requests>=2.31,<3
-pydantic>=2.14.3,<3
+pydantic>=2.14.4,<3
